@@ -200,6 +200,7 @@
     UI_BurdJournals_TraitAlreadyKnownFeedback = "Ya tienes este rasgo",
     UI_BurdJournals_StatusAlreadyKnown = "Ya conocido",
     UI_BurdJournals_StatusAlreadyClaimed = "Ya reclamado",
+    UI_BurdJournals_StatusAlreadyAtLevel = "Ya en este nivel",
     UI_BurdJournals_StatusAlreadyRecorded = "Ya registrado",
     UI_BurdJournals_StatusClaimed = "Reclamado",
     UI_BurdJournals_RareTraitQueued = "Rasgo raro - En cola #%d",
@@ -356,5 +357,56 @@
 
     -- Batching
     UI_BurdJournals_BtnBatching = "LOTE",
+
+    -- Stat Claiming
+    UI_BurdJournals_ClaimingStatMP = "Reclamando %s...",
+    UI_BurdJournals_StatClaimed = "%s reclamado!",
+    UI_BurdJournals_StatClaimFailed = "No se pudo aplicar la estadistica",
+    UI_BurdJournals_StatAlreadyClaimed = "Ya reclamaste esta estadistica",
+    UI_BurdJournals_StatTooLow = "Tu valor actual es mayor",
+
+    -- New Keys
+    UI_BurdJournals_JournalDissolvedInvalid = "El diario se desmorona... su contenido ya no era valido.",
+    UI_BurdJournals_RecipeNotAvailable = "Receta no disponible: %s",
+
+    -- Flavor Text (WorldSpawn)
+    UI_BurdJournals_FlavorFireOfficer = "Notas de respuesta de emergencia de alguien que corria hacia el peligro.",
+    UI_BurdJournals_FlavorPoliceOfficer = "Notas de campo de un policia en patrulla.",
+    UI_BurdJournals_FlavorParkRanger = "Observaciones de alguien que conocia bien la naturaleza.",
+    UI_BurdJournals_FlavorConstructionWorker = "Notas toscas sobre construccion y reparacion.",
+    UI_BurdJournals_FlavorSecurityGuard = "Entradas del registro de largos turnos nocturnos.",
+    UI_BurdJournals_FlavorCarpenter = "Consejos de carpinteria de alguien que conocia su oficio.",
+    UI_BurdJournals_FlavorBurglar = "Notas cripticas sobre moverse sin ser visto...",
+    UI_BurdJournals_FlavorChef = "Recetas y consejos culinarios de una cocina profesional.",
+    UI_BurdJournals_FlavorMechanic = "Paginas manchadas de grasa de las notas de trabajo de un mecanico.",
+    UI_BurdJournals_FlavorFarmer = "Notas de un granjero antes del brote.",
+    UI_BurdJournals_FlavorFisherman = "Paginas danadas por el agua con secretos de pesca.",
+    UI_BurdJournals_FlavorDoctor = "Notas medicas escritas con letra precisa.",
+    UI_BurdJournals_FlavorNurse = "Notas de cuidado de pacientes y observaciones medicas.",
+    UI_BurdJournals_FlavorLumberjack = "Registros toscos de alguien acostumbrado al trabajo duro.",
+    UI_BurdJournals_FlavorFitnessInstructor = "Notas de entrenamiento de alguien que superaba limites.",
+    UI_BurdJournals_FlavorBurgerFlipper = "Notas grasientas de detras del mostrador.",
+    UI_BurdJournals_FlavorElectrician = "Diagramas de cableado y consejos de seguridad electrica.",
+    UI_BurdJournals_FlavorEngineer = "Notas tecnicas detalladas.",
+    UI_BurdJournals_FlavorMetalworker = "Notas sobre soldadura y metalurgia.",
+    UI_BurdJournals_FlavorVeteran = "Notas de campo militares, disciplina en cada linea.",
+    UI_BurdJournals_FlavorUnemployed = "Notas personales de alguien con tiempo libre.",
+    -- Flavor Text (ZombieLoot)
+    UI_BurdJournals_FlavorSurvivor = "Notas de supervivencia de un companero sobreviviente.",
+    UI_BurdJournals_FlavorHunter = "El diario de un cazador, desgastado por la naturaleza.",
+    UI_BurdJournals_FlavorSoldier = "Notas de campo militares, disciplina en cada linea.",
+    UI_BurdJournals_FlavorAthlete = "Notas de entrenamiento de alguien que superaba limites.",
+    UI_BurdJournals_FlavorTailor = "Patrones de costura ordenados y notas de telas.",
+    UI_BurdJournals_FlavorSurvivalist = "Estrategias de supervivencia detalladas de una mente preparada.",
+    UI_BurdJournals_FlavorFighter = "Tecnicas de combate en un cuaderno desgastado.",
+    UI_BurdJournals_BtnRefresh = "Refresh",
+    UI_BurdJournals_RefreshTooltip = "Refresh journal data",
+    UI_BurdJournals_JournalRefreshed = "Journal refreshed",
+    UI_BurdJournals_AdminOnly = "This command requires admin access.",
+    UI_BurdJournals_CantClaimSkill = "That skill cannot be claimed right now",
+    UI_BurdJournals_NeedEraser = "Need eraser",
+    UI_BurdJournals_OtherCategory = "Other",
+    UI_BurdJournals_QueuedPosition = "Queued #%d",
 }
+
 

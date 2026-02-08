@@ -85,7 +85,12 @@ function BurdJournals.UI.getSkillCategory(skillName)
             end
         end
     end
-    return "Other"
+    local fallback = "Other"
+    local localized = getText and getText("UI_BurdJournals_OtherCategory")
+    if localized and localized ~= "UI_BurdJournals_OtherCategory" then
+        return localized
+    end
+    return fallback
 end
 
 function BurdJournals.UI.showNotification(player, message, color)

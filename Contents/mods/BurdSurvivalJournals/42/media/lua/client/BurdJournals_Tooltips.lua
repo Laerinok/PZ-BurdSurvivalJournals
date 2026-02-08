@@ -109,8 +109,10 @@ function BurdJournals.Tooltips.getExtraInfo(item)
         end
     end
 
-    if journalData.professionName then
-        local profLine = string.format(getText("Tooltip_BurdJournals_Profession") or "Profession: %s", journalData.professionName)
+    -- Resolve profession name (handles translation keys stored by server)
+    local resolvedProfessionName = BurdJournals.resolveProfessionName(journalData)
+    if resolvedProfessionName then
+        local profLine = string.format(getText("Tooltip_BurdJournals_Profession") or "Profession: %s", resolvedProfessionName)
         table.insert(lines, {text = profLine, color = {r=0.7, g=0.7, b=0.7}})
     end
 

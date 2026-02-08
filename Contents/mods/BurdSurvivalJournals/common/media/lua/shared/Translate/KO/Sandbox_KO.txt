@@ -16,7 +16,11 @@
     Sandbox_BurdJournals_XPRecoveryMode_tooltip = "클린 일지(SET 모드)를 읽을 때 회수되는 XP의 양. 낡은 일지나 피투성이 일지에는 영향을 미치지 않습니다.",
     Sandbox_BurdJournals_XPRecoveryMode_option1 = "완전 복구 (100%)",
     Sandbox_BurdJournals_XPRecoveryMode_option2 = "수확 체감의 법칙",
-
+    Sandbox_BurdJournals_DiminishingTrackingMode = "Diminishing Tracking Mode",
+    Sandbox_BurdJournals_DiminishingTrackingMode_tooltip = "How diminishing returns are tracked for CLEAN journal skill claims when Diminishing Returns is enabled.",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option1 = "Per Claim (Global)",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option2 = "Per Reading Session",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option3 = "Per Skill (Persistent)",
     Sandbox_BurdJournals_DiminishingFirstRead = "첫 번째 읽기 XP %",
     Sandbox_BurdJournals_DiminishingFirstRead_tooltip = "첫 읽기 시 경험치 획득률 비율 (50-100%). 수확 체감의 법칙이 적용되는 경우에만 해당됩니다.",
 
@@ -72,8 +76,6 @@
     Sandbox_BurdJournals_EnableBaselineRestriction_tooltip = "활성화하면 게임 플레이를 통해 획득한 XP만 기록되고, 직업 시작 보너스나 특성으로 인한 기술 향상은 기록되지 않습니다. 여러 캐릭터를 생성하여 직업 기술을 파밍하는 악용을 방지합니다. 멀티플레이어 서버에서는 활성화를 권장합니다.",
 
     -- Recipe Recording
-    Sandbox_BurdJournals_EnableRecipeRecording = "레시피 기록 활성화",
-    Sandbox_BurdJournals_EnableRecipeRecording_tooltip = "플레이어가 잡지에서 배운 레시피를 일지에 기록할 수 있도록 합니다. 잡지에서 배운 레시피는 다른 사람과 공유할 수 있습니다.",
 
     Sandbox_BurdJournals_LearningTimePerRecipe = "레시피당 학습 시간 (초)",
     Sandbox_BurdJournals_LearningTimePerRecipe_tooltip = "일지에서 각 레시피를 익히는 데 걸리는 기본 시간 (초).",
@@ -198,4 +200,36 @@
 
     Sandbox_BurdJournals_BatchTimeMultiplier = "Batch Time Multiplier",
     Sandbox_BurdJournals_BatchTimeMultiplier_tooltip = "Multiplier for batch action duration. Default: 0.25 (4x faster)",
+    Sandbox_BurdJournals_AllowDebugCommands = "디버그 명령어 허용",
+    Sandbox_BurdJournals_AllowDebugCommands_tooltip = "-debug 실행 인자 없이 디버그 명령어 (/bsjgive, /bsjdump, /bsjdebug 등)를 활성화합니다. 싱글 플레이에서는 모든 플레이어가 사용 가능하고, 멀티플레이에서는 관리자만 사용할 수 있습니다. 서버 테스트 및 개발에 유용합니다.",
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes = "피투성이 일지 레시피 활성화",
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes_tooltip = "활성화하면 피투성이 일지에서 레시피를 획득할 수 있습니다. 비활성화하면 레시피 탭이 숨겨지지만 기존 데이터는 보존됩니다.",
+    Sandbox_BurdJournals_EnableBloodyJournalTraits = "피투성이 일지 특성 활성화",
+    Sandbox_BurdJournals_EnableBloodyJournalTraits_tooltip = "활성화하면 피투성이 일지에서 특성을 획득할 수 있습니다. 비활성화하면 특성 탭이 숨겨지지만 기존 데이터는 보존됩니다.",
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer = "레시피 기록 활성화 (플레이어)",
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer_tooltip = "플레이어가 개인 일지에 잡지 레시피를 기록할 수 있도록 합니다. 비활성화하면 레시피 탭이 숨겨지지만 기존 데이터는 보존됩니다.",
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer = "특성 기록 활성화 (플레이어)",
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer_tooltip = "플레이어가 개인 일지에 특성을 기록할 수 있도록 합니다. 비활성화하면 특성 탭이 숨겨지지만 기존 데이터는 보존됩니다.",
+    Sandbox_BurdJournals_EnableWornJournalRecipes = "낡은 일지 레시피 활성화",
+    Sandbox_BurdJournals_EnableWornJournalRecipes_tooltip = "활성화하면 낡은 일지에서 레시피를 획득할 수 있습니다. 비활성화하면 레시피 탭이 숨겨지지만 기존 데이터는 보존됩니다.",
+    Sandbox_BurdJournals_EnableWornJournalTraits = "낡은 일지 특성 활성화",
+    Sandbox_BurdJournals_EnableWornJournalTraits_tooltip = "활성화하면 낡은 일지에서 특성을 획득할 수 있습니다. 비활성화하면 특성 탭이 숨겨지지만 기존 데이터는 보존됩니다.",
+    Sandbox_BurdJournals_WornJournalMaxTraits = "낡은 일지 최대 특성",
+    Sandbox_BurdJournals_WornJournalMaxTraits_tooltip = "낡은 일지에 생성될 수 있는 최대 특성 수 (1-5).",
+    Sandbox_BurdJournals_WornJournalMinTraits = "낡은 일지 최소 특성",
+    Sandbox_BurdJournals_WornJournalMinTraits_tooltip = "낡은 일지에 특성이 생성될 때 최소 특성 수 (1-5).",
+    Sandbox_BurdJournals_WornJournalTraitChance = "낡은 일지 특성 확률 %",
+    Sandbox_BurdJournals_WornJournalTraitChance_tooltip = "낡은 일지에 특성이 포함될 확률 (0-100%). 0% (기본값)으로 설정하면 피투성이 일지에서만 특성이 나오는 기존 방식을 유지합니다.",
+    Sandbox_BurdJournals_EnablePassiveSkillsLoot = "Enable Passive Skills (Loot)",
+    Sandbox_BurdJournals_EnablePassiveSkillsLoot_tooltip = "When enabled, Fitness/Strength can appear and be claimed on worn/bloody journals. When disabled, passive skill entries are hidden but preserved.",
+    Sandbox_BurdJournals_EnablePassiveSkillsPlayer = "Enable Passive Skills (Player)",
+    Sandbox_BurdJournals_EnablePassiveSkillsPlayer_tooltip = "When enabled, Fitness/Strength can be recorded and claimed from player journals. When disabled, passive skill entries are hidden but preserved.",
+    Sandbox_BurdJournals_RequireLightForJournalUse = "Require Light for Journal Use",
+    Sandbox_BurdJournals_RequireLightForJournalUse_tooltip = "When enabled, opening journals and reading/writing journal actions require enough light, following vanilla reading darkness rules.",
 }
+
+
+
+
+
+

@@ -13,7 +13,11 @@
     Sandbox_BurdJournals_XPRecoveryMode_tooltip = "TEMİZ bir günlük okunduğunda ne kadar TP kurtarılacağını belirler. Eskimiş veya kanlı günlükleri etkilemez.",
     Sandbox_BurdJournals_XPRecoveryMode_option1 = "Tam Kurtarma (100%)",
     Sandbox_BurdJournals_XPRecoveryMode_option2 = "Azalan Getiriler",
-
+    Sandbox_BurdJournals_DiminishingTrackingMode = "Diminishing Tracking Mode",
+    Sandbox_BurdJournals_DiminishingTrackingMode_tooltip = "How diminishing returns are tracked for CLEAN journal skill claims when Diminishing Returns is enabled.",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option1 = "Per Claim (Global)",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option2 = "Per Reading Session",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option3 = "Per Skill (Persistent)",
     Sandbox_BurdJournals_DiminishingFirstRead = "İlk Okuma TP %",
     Sandbox_BurdJournals_DiminishingFirstRead_tooltip = "İlk okumadaki TP yüzdesi (50-100%). Sadece Azalan Getiriler modu aktifse geçerlidir.",
 
@@ -69,8 +73,6 @@
     Sandbox_BurdJournals_EnableBaselineRestriction_tooltip = "Aktif edildiğinde günlükler sadece oynanışla kazanılan TP'yi kaydeder; meslek başlangıç bonuslarını veya özelliklerden gelen beceri artışlarını kaydetmez. Bu, yeni karakterler açarak meslek becerisi kasmayı (exploits) engeller. Çok oyunculu sunucular için AÇIK olması önerilir.",
 
     -- Recipe Recording
-    Sandbox_BurdJournals_EnableRecipeRecording = "Tarif Kaydını Aktif Et",
-    Sandbox_BurdJournals_EnableRecipeRecording_tooltip = "Oyuncuların dergilerden öğrendikleri tarifleri günlüğe kaydetmesine izin verir. Kaydedilen tarifler başkalarıyla paylaşılabilir.",
 
     Sandbox_BurdJournals_LearningTimePerRecipe = "Tarif Başına Öğrenme Süresi (sn)",
     Sandbox_BurdJournals_LearningTimePerRecipe_tooltip = "Günlükten her bir tarifi öğrenmek için gereken temel süre.",
@@ -186,5 +188,37 @@
 
     Sandbox_BurdJournals_BatchTimeMultiplier = "Batch Time Multiplier",
     Sandbox_BurdJournals_BatchTimeMultiplier_tooltip = "Multiplier for batch action duration. Lower = faster batches. Example: 15 recipes at 0.8s each = 12s normally. With 0.25 multiplier = 3s. Only affects 'Record All' and 'Absorb All', not individual clicks. Default: 0.25 (4x faster)",
+    Sandbox_BurdJournals_AllowDebugCommands = "Hata Ayıklama Komutlarına İzin Ver",
+    Sandbox_BurdJournals_AllowDebugCommands_tooltip = "-debug başlatma parametresi gerektirmeden hata ayıklama komutlarını (/bsjgive, /bsjdump, /bsjdebug vb.) etkinleştirir. Tek oyuncuda tüm oyuncular kullanabilir. Çok oyunculuda sadece yöneticiler kullanabilir. Sunucu testleri ve geliştirme için kullanışlıdır.",
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes = "Kanlı Günlük Tariflerini Aktif Et",
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes_tooltip = "Aktif edildiğinde kanlı günlüklerden tarifler alınabilir. Devre dışı bırakıldığında tarif sekmesi gizlenir ama mevcut veriler korunur.",
+    Sandbox_BurdJournals_EnableBloodyJournalTraits = "Kanlı Günlük Özelliklerini Aktif Et",
+    Sandbox_BurdJournals_EnableBloodyJournalTraits_tooltip = "Aktif edildiğinde kanlı günlüklerden özellikler alınabilir. Devre dışı bırakıldığında özellik sekmesi gizlenir ama mevcut veriler korunur.",
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer = "Tarif Kaydını Aktif Et (Oyuncu)",
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer_tooltip = "Oyuncuların kişisel günlüklerinde dergi tariflerini kaydetmesine izin verir. Devre dışı bırakıldığında tarif sekmesi gizlenir ama mevcut veriler korunur.",
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer = "Özellik Kaydını Aktif Et (Oyuncu)",
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer_tooltip = "Oyuncuların kişisel günlüklerinde özellik kaydetmesine izin verir. Devre dışı bırakıldığında özellik sekmesi gizlenir ama mevcut veriler korunur.",
+    Sandbox_BurdJournals_EnableWornJournalRecipes = "Yıpranmış Günlük Tariflerini Aktif Et",
+    Sandbox_BurdJournals_EnableWornJournalRecipes_tooltip = "Aktif edildiğinde yıpranmış günlüklerden tarifler alınabilir. Devre dışı bırakıldığında tarif sekmesi gizlenir ama mevcut veriler korunur.",
+    Sandbox_BurdJournals_EnableWornJournalTraits = "Yıpranmış Günlük Özelliklerini Aktif Et",
+    Sandbox_BurdJournals_EnableWornJournalTraits_tooltip = "Aktif edildiğinde yıpranmış günlüklerden özellikler alınabilir. Devre dışı bırakıldığında özellik sekmesi gizlenir ama mevcut veriler korunur.",
+    Sandbox_BurdJournals_WornJournalMaxTraits = "Yıpranmış Maks. Özellik",
+    Sandbox_BurdJournals_WornJournalMaxTraits_tooltip = "Yıpranmış günlükte bulunabilecek maksimum özellik sayısı (1-5).",
+    Sandbox_BurdJournals_WornJournalMinTraits = "Yıpranmış Min. Özellik",
+    Sandbox_BurdJournals_WornJournalMinTraits_tooltip = "Yıpranmış günlükte bulunabilecek minimum özellik sayısı (1-5).",
+    Sandbox_BurdJournals_WornJournalTraitChance = "Yıpranmış Özellik Şansı %",
+    Sandbox_BurdJournals_WornJournalTraitChance_tooltip = "Yıpranmış günlüklerin özellik içerme şansı (0-100%). Sadece kanlı günlüklerin özellik içerdiği klasik davranış için 0% (varsayılan) olarak ayarlayın.",
+    Sandbox_BurdJournals_EnablePassiveSkillsLoot = "Enable Passive Skills (Loot)",
+    Sandbox_BurdJournals_EnablePassiveSkillsLoot_tooltip = "When enabled, Fitness/Strength can appear and be claimed on worn/bloody journals. When disabled, passive skill entries are hidden but preserved.",
+    Sandbox_BurdJournals_EnablePassiveSkillsPlayer = "Enable Passive Skills (Player)",
+    Sandbox_BurdJournals_EnablePassiveSkillsPlayer_tooltip = "When enabled, Fitness/Strength can be recorded and claimed from player journals. When disabled, passive skill entries are hidden but preserved.",
+    Sandbox_BurdJournals_RequireLightForJournalUse = "Require Light for Journal Use",
+    Sandbox_BurdJournals_RequireLightForJournalUse_tooltip = "When enabled, opening journals and reading/writing journal actions require enough light, following vanilla reading darkness rules.",
 }
+
+
+
+
+
+
 

@@ -1,0 +1,11 @@
+Items_RU = {
+    /* Blank Journals */
+    DisplayName_BlankSurvivalJournal = "Чистый дневник выживания",
+    DisplayName_BlankSurvivalJournal_Worn = "Потрёпанный чистый дневник",
+    DisplayName_BlankSurvivalJournal_Bloody = "Окровавленный чистый дневник",
+    
+    /* Filled Journals */
+    DisplayName_FilledSurvivalJournal = "Заполненный дневник выживания",
+    DisplayName_FilledSurvivalJournal_Worn = "Потрёпанный дневник выживания",
+    DisplayName_FilledSurvivalJournal_Bloody = "Окровавленный дневник выживания",
+}

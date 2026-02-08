@@ -1,0 +1,11 @@
+Items_ES = {
+    /* Blank Journals */
+    DisplayName_BlankSurvivalJournal = "Diario de Supervivencia en Blanco",
+    DisplayName_BlankSurvivalJournal_Worn = "Diario en Blanco Desgastado",
+    DisplayName_BlankSurvivalJournal_Bloody = "Diario en Blanco Ensangrentado",
+    
+    /* Filled Journals */
+    DisplayName_FilledSurvivalJournal = "Diario de Supervivencia Completado",
+    DisplayName_FilledSurvivalJournal_Worn = "Diario de Supervivencia Desgastado",
+    DisplayName_FilledSurvivalJournal_Bloody = "Diario de Supervivencia Ensangrentado",
+}

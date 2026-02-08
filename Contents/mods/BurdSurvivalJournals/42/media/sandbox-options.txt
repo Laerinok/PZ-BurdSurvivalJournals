@@ -29,6 +29,15 @@ option BurdJournals.XPRecoveryMode = {
     valueTranslation = BurdJournals_XPRecoveryMode,
 }
 
+option BurdJournals.DiminishingTrackingMode = {
+    type = enum,
+    numValues = 3,
+    default = 3,
+    page = BurdJournals_Player,
+    translation = BurdJournals_DiminishingTrackingMode,
+    valueTranslation = BurdJournals_DiminishingTrackingMode,
+}
+
 option BurdJournals.DiminishingFirstRead = {
     type = integer,
     min = 50,
@@ -56,33 +65,6 @@ option BurdJournals.DiminishingMinimum = {
     translation = BurdJournals_DiminishingMinimum,
 }
 
-/* XP Multiplier for Worn/Bloody Journals */
-option BurdJournals.JournalXPMultiplier = {
-    type = double,
-    min = 0.1,
-    max = 10.0,
-    default = 1.0,
-    page = BurdJournals_Player,
-    translation = BurdJournals_JournalXPMultiplier,
-}
-
-/* Skill Book Multiplier for Journal Absorption */
-option BurdJournals.SkillBookMultiplierForJournals = {
-    type = boolean,
-    default = true,
-    page = BurdJournals_Advanced,
-    translation = BurdJournals_SkillBookMultiplierForJournals,
-}
-
-option BurdJournals.SkillBookMultiplierCap = {
-    type = double,
-    min = 1.0,
-    max = 16.0,
-    default = 2.0,
-    page = BurdJournals_Advanced,
-    translation = BurdJournals_SkillBookMultiplierCap,
-}
-
 /* Writing Requirements */
 option BurdJournals.RequirePenToWrite = {
     type = boolean,
@@ -107,7 +89,15 @@ option BurdJournals.RequireEraserToErase = {
     translation = BurdJournals_RequireEraserToErase,
 }
 
-/* Learning Time Settings (for absorbing skills/traits) */
+/* Baseline Restriction - Only record earned progress (anti-exploit) */
+option BurdJournals.EnableBaselineRestriction = {
+    type = boolean,
+    default = true,
+    page = BurdJournals_Player,
+    translation = BurdJournals_EnableBaselineRestriction,
+}
+
+/* Skill Learning (Player Journals) */
 option BurdJournals.LearningTimePerSkill = {
     type = double,
     min = 0.5,
@@ -115,6 +105,23 @@ option BurdJournals.LearningTimePerSkill = {
     default = 3.0,
     page = BurdJournals_Player,
     translation = BurdJournals_LearningTimePerSkill,
+}
+
+/* Enable/Disable Passive Skills (Fitness/Strength) in Player Journals */
+/* When disabled, existing passive skill entries are hidden but preserved */
+option BurdJournals.EnablePassiveSkillsPlayer = {
+    type = boolean,
+    default = true,
+    page = BurdJournals_Player,
+    translation = BurdJournals_EnablePassiveSkillsPlayer,
+}
+
+/* Trait Recording & Learning - Player Journals */
+option BurdJournals.EnableTraitRecordingPlayer = {
+    type = boolean,
+    default = true,
+    page = BurdJournals_Player,
+    translation = BurdJournals_EnableTraitRecordingPlayer,
 }
 
 option BurdJournals.LearningTimePerTrait = {
@@ -126,13 +133,22 @@ option BurdJournals.LearningTimePerTrait = {
     translation = BurdJournals_LearningTimePerTrait,
 }
 
-option BurdJournals.LearningTimeMultiplier = {
-    type = double,
-    min = 0.1,
-    max = 5.0,
-    default = 1.0,
+/* Recipe Recording & Learning - Player Journals */
+option BurdJournals.EnableRecipeRecordingPlayer = {
+    type = boolean,
+    default = true,
     page = BurdJournals_Player,
-    translation = BurdJournals_LearningTimeMultiplier,
+    translation = BurdJournals_EnableRecipeRecordingPlayer,
+}
+
+/* Recipe Learning Time (Player Journals) */
+option BurdJournals.LearningTimePerRecipe = {
+    type = double,
+    min = 0.5,
+    max = 30.0,
+    default = 5.0,
+    page = BurdJournals_Player,
+    translation = BurdJournals_LearningTimePerRecipe,
 }
 
 /* Player Stats Recording */
@@ -157,37 +173,14 @@ option BurdJournals.RecordHoursSurvived = {
     translation = BurdJournals_RecordHoursSurvived,
 }
 
-/* Baseline Restriction - Only record earned progress (anti-exploit) */
-option BurdJournals.EnableBaselineRestriction = {
-    type = boolean,
-    default = true,
-    page = BurdJournals_Player,
-    translation = BurdJournals_EnableBaselineRestriction,
-}
-
-/* Trait Recording - Player Journals */
-option BurdJournals.EnableTraitRecordingPlayer = {
-    type = boolean,
-    default = true,
-    page = BurdJournals_Player,
-    translation = BurdJournals_EnableTraitRecordingPlayer,
-}
-
-/* Recipe Recording - Player Journals */
-option BurdJournals.EnableRecipeRecordingPlayer = {
-    type = boolean,
-    default = true,
-    page = BurdJournals_Player,
-    translation = BurdJournals_EnableRecipeRecordingPlayer,
-}
-
-option BurdJournals.LearningTimePerRecipe = {
+/* Global Learning Time Multiplier */
+option BurdJournals.LearningTimeMultiplier = {
     type = double,
-    min = 0.5,
-    max = 30.0,
-    default = 5.0,
+    min = 0.1,
+    max = 5.0,
+    default = 1.0,
     page = BurdJournals_Player,
-    translation = BurdJournals_LearningTimePerRecipe,
+    translation = BurdJournals_LearningTimeMultiplier,
 }
 
 /* Journal Capacity Limits */
@@ -223,6 +216,25 @@ option BurdJournals.MaxRecipesPerJournal = {
 /* TAB 2: SURVIVAL JOURNALS - LOOT                              */
 /* Settings for world-found worn & bloody journals              */
 /* ============================================================ */
+
+/* XP Multiplier for Worn/Bloody Journal rewards */
+option BurdJournals.JournalXPMultiplier = {
+    type = double,
+    min = 0.1,
+    max = 10.0,
+    default = 1.0,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_JournalXPMultiplier,
+}
+
+/* Enable/Disable Passive Skills (Fitness/Strength) in Worn/Bloody Journals */
+/* When disabled, existing passive skill entries are hidden but preserved */
+option BurdJournals.EnablePassiveSkillsLoot = {
+    type = boolean,
+    default = true,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_EnablePassiveSkillsLoot,
+}
 
 /* WORN JOURNALS (World Containers - Light Rewards) */
 option BurdJournals.EnableWornJournalSpawns = {
@@ -278,6 +290,15 @@ option BurdJournals.WornJournalMaxXP = {
 }
 
 /* Worn Journal Recipe Settings */
+/* Enable/Disable Recipe Display on Worn Journals */
+/* When disabled, existing recipes in journals will be hidden but preserved */
+option BurdJournals.EnableWornJournalRecipes = {
+    type = boolean,
+    default = true,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_EnableWornJournalRecipes,
+}
+
 /* Set chance to 0% to completely disable recipes on worn journals */
 option BurdJournals.WornJournalRecipeChance = {
     type = integer,
@@ -297,13 +318,42 @@ option BurdJournals.WornJournalMaxRecipes = {
     translation = BurdJournals_WornJournalMaxRecipes,
 }
 
-/* Enable/Disable Recipe Display on Worn Journals */
-/* When disabled, existing recipes in journals will be hidden but preserved */
-option BurdJournals.EnableWornJournalRecipes = {
+/* Worn Journal Trait Settings (Optional - Default Disabled) */
+/* Enable/Disable Trait Display on Worn Journals */
+/* When disabled, traits tab will be hidden on worn journals but data is preserved */
+option BurdJournals.EnableWornJournalTraits = {
     type = boolean,
     default = true,
     page = BurdJournals_Loot,
-    translation = BurdJournals_EnableWornJournalRecipes,
+    translation = BurdJournals_EnableWornJournalTraits,
+}
+
+/* Set chance to 0% to disable traits on worn journals (default behavior) */
+option BurdJournals.WornJournalTraitChance = {
+    type = integer,
+    min = 0,
+    max = 100,
+    default = 0,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_WornJournalTraitChance,
+}
+
+option BurdJournals.WornJournalMinTraits = {
+    type = integer,
+    min = 1,
+    max = 5,
+    default = 1,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_WornJournalMinTraits,
+}
+
+option BurdJournals.WornJournalMaxTraits = {
+    type = integer,
+    min = 1,
+    max = 5,
+    default = 1,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_WornJournalMaxTraits,
 }
 
 /* BLOODY JOURNALS (Zombie Corpses - Better Rewards + Traits) */
@@ -360,6 +410,15 @@ option BurdJournals.BloodyJournalMaxXP = {
 }
 
 /* Bloody Journal Trait Settings */
+/* Enable/Disable Trait Display on Bloody Journals */
+/* When disabled, existing traits in journals will be hidden but preserved */
+option BurdJournals.EnableBloodyJournalTraits = {
+    type = boolean,
+    default = true,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_EnableBloodyJournalTraits,
+}
+
 /* Set chance to 0% to completely disable traits on bloody journals */
 option BurdJournals.BloodyJournalTraitChance = {
     type = integer,
@@ -379,16 +438,16 @@ option BurdJournals.BloodyJournalMaxTraits = {
     translation = BurdJournals_BloodyJournalMaxTraits,
 }
 
-/* Enable/Disable Trait Display on Bloody Journals */
-/* When disabled, existing traits in journals will be hidden but preserved */
-option BurdJournals.EnableBloodyJournalTraits = {
+/* Bloody Journal Recipe Settings */
+/* Enable/Disable Recipe Display on Bloody Journals */
+/* When disabled, existing recipes in journals will be hidden but preserved */
+option BurdJournals.EnableBloodyJournalRecipes = {
     type = boolean,
     default = true,
     page = BurdJournals_Loot,
-    translation = BurdJournals_EnableBloodyJournalTraits,
+    translation = BurdJournals_EnableBloodyJournalRecipes,
 }
 
-/* Bloody Journal Recipe Settings */
 /* Set chance to 0% to completely disable recipes on bloody journals */
 option BurdJournals.BloodyJournalRecipeChance = {
     type = integer,
@@ -408,19 +467,34 @@ option BurdJournals.BloodyJournalMaxRecipes = {
     translation = BurdJournals_BloodyJournalMaxRecipes,
 }
 
-/* Enable/Disable Recipe Display on Bloody Journals */
-/* When disabled, existing recipes in journals will be hidden but preserved */
-option BurdJournals.EnableBloodyJournalRecipes = {
-    type = boolean,
-    default = true,
-    page = BurdJournals_Loot,
-    translation = BurdJournals_EnableBloodyJournalRecipes,
-}
-
 /* ============================================================ */
 /* TAB 3: SURVIVAL JOURNALS - ADVANCED                          */
 /* Advanced settings and feature toggles                        */
 /* ============================================================ */
+
+/* Journal Reading/Absorption Rules */
+option BurdJournals.SkillBookMultiplierForJournals = {
+    type = boolean,
+    default = true,
+    page = BurdJournals_Advanced,
+    translation = BurdJournals_SkillBookMultiplierForJournals,
+}
+
+option BurdJournals.SkillBookMultiplierCap = {
+    type = double,
+    min = 1.0,
+    max = 16.0,
+    default = 2.0,
+    page = BurdJournals_Advanced,
+    translation = BurdJournals_SkillBookMultiplierCap,
+}
+
+option BurdJournals.RequireLightForJournalUse = {
+    type = boolean,
+    default = false,
+    page = BurdJournals_Advanced,
+    translation = BurdJournals_RequireLightForJournalUse,
+}
 
 /* Reading Skill Integration */
 option BurdJournals.ReadingSkillAffectsSpeed = {
@@ -537,6 +611,20 @@ option BurdJournals.BatchTimeMultiplier = {
     default = 0.25,
     page = BurdJournals_Advanced,
     translation = BurdJournals_BatchTimeMultiplier,
+}
+
+/* ============================================================ */
+/* DEBUG & DEVELOPMENT SETTINGS                                  */
+/* ============================================================ */
+
+/* Allow Debug Commands - Enables /bsjgive, /bsjdump, /bsjtest, etc. */
+/* When enabled, debug commands are available without -debug launch flag */
+/* In SP: Available to all players. In MP: Available to admins only. */
+option BurdJournals.AllowDebugCommands = {
+    type = boolean,
+    default = false,
+    page = BurdJournals_Advanced,
+    translation = BurdJournals_AllowDebugCommands,
 }
 
 /* ============================================================ */

@@ -17,7 +17,11 @@
     Sandbox_BurdJournals_XPRecoveryMode_tooltip = "Cuanta XP se recupera al leer un diario LIMPIO (modo ESTABLECER). No afecta a diarios desgastados/sangrientos.",
     Sandbox_BurdJournals_XPRecoveryMode_option1 = "Recuperacion Total (100%)",
     Sandbox_BurdJournals_XPRecoveryMode_option2 = "Rendimientos Decrecientes",
-
+    Sandbox_BurdJournals_DiminishingTrackingMode = "Diminishing Tracking Mode",
+    Sandbox_BurdJournals_DiminishingTrackingMode_tooltip = "How diminishing returns are tracked for CLEAN journal skill claims when Diminishing Returns is enabled.",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option1 = "Per Claim (Global)",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option2 = "Per Reading Session",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option3 = "Per Skill (Persistent)",
     Sandbox_BurdJournals_DiminishingFirstRead = "% XP Primera Lectura",
     Sandbox_BurdJournals_DiminishingFirstRead_tooltip = "Porcentaje de XP en la primera lectura (50-100%). Solo aplica con Rendimientos Decrecientes.",
 
@@ -72,9 +76,15 @@
     Sandbox_BurdJournals_EnableBaselineRestriction = "Solo Registrar Progreso Ganado",
     Sandbox_BurdJournals_EnableBaselineRestriction_tooltip = "Cuando esta habilitado, los diarios solo registran XP ganada a traves del juego - no los bonos iniciales de profesion o rasgos. Esto previene exploits donde los jugadores granjean habilidades de profesion creando multiples personajes. Recomendado ENCENDIDO para servidores multijugador.",
 
+    -- Trait Recording (Player Journals)
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer = "Habilitar Registro de Rasgos (Jugador)",
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer_tooltip = "Permite a los jugadores registrar rasgos en sus diarios personales. Si esta desactivado, la pestana de rasgos estara oculta pero los datos existentes se preservaran.",
+
+    -- Recipe Recording (Player Journals)
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer = "Habilitar Registro de Recetas (Jugador)",
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer_tooltip = "Permite a los jugadores registrar recetas de revistas en sus diarios personales. Si esta desactivado, la pestana de recetas estara oculta pero los datos existentes se preservaran.",
+
     -- Recipe Recording
-    Sandbox_BurdJournals_EnableRecipeRecording = "Habilitar Registro de Recetas",
-    Sandbox_BurdJournals_EnableRecipeRecording_tooltip = "Permitir a los jugadores registrar recetas aprendidas de revistas en los diarios. Las recetas aprendidas pueden compartirse con otros.",
 
     Sandbox_BurdJournals_LearningTimePerRecipe = "Tiempo de Aprendizaje por Receta (seg)",
     Sandbox_BurdJournals_LearningTimePerRecipe_tooltip = "Tiempo base en segundos para aprender cada receta de un diario.",
@@ -127,6 +137,9 @@
     Sandbox_BurdJournals_BloodyJournalMaxTraits = "Max. Rasgos por Sangriento",
     Sandbox_BurdJournals_BloodyJournalMaxTraits_tooltip = "Numero maximo de rasgos que pueden aparecer en un solo diario sangriento (0-5).",
 
+    Sandbox_BurdJournals_EnableBloodyJournalTraits = "Habilitar Rasgos en Sangrientos",
+    Sandbox_BurdJournals_EnableBloodyJournalTraits_tooltip = "Si esta habilitado, los rasgos se pueden reclamar de los diarios sangrientos. Si esta desactivado, la pestana de rasgos estara oculta pero los datos existentes se preservaran.",
+
     -- Recipe Spawns in Loot Journals
     Sandbox_BurdJournals_WornJournalRecipeChance = "% Receta en Desgastado",
     Sandbox_BurdJournals_WornJournalRecipeChance_tooltip = "Probabilidad de que diarios desgastados incluyan una receta de revista (0-100%). Los desgastados tienen menor probabilidad que los sangrientos.",
@@ -134,11 +147,29 @@
     Sandbox_BurdJournals_WornJournalMaxRecipes = "Max. Recetas por Desgastado",
     Sandbox_BurdJournals_WornJournalMaxRecipes_tooltip = "Numero maximo de recetas de revista que pueden aparecer en un solo diario desgastado (1-5).",
 
+    Sandbox_BurdJournals_EnableWornJournalRecipes = "Habilitar Recetas en Desgastados",
+    Sandbox_BurdJournals_EnableWornJournalRecipes_tooltip = "Si esta habilitado, las recetas se pueden reclamar de los diarios desgastados. Si esta desactivado, la pestana de recetas estara oculta pero los datos existentes se preservaran.",
+
+    Sandbox_BurdJournals_WornJournalTraitChance = "% Probabilidad Rasgo Desgastado",
+    Sandbox_BurdJournals_WornJournalTraitChance_tooltip = "Probabilidad de que los diarios desgastados contengan rasgos (0-100%). Pon 0% (predeterminado) para el comportamiento clasico donde solo los diarios sangrientos tienen rasgos.",
+
+    Sandbox_BurdJournals_WornJournalMinTraits = "Min. Rasgos por Desgastado",
+    Sandbox_BurdJournals_WornJournalMinTraits_tooltip = "Numero minimo de rasgos que pueden aparecer en un diario desgastado (1-5).",
+
+    Sandbox_BurdJournals_WornJournalMaxTraits = "Max. Rasgos por Desgastado",
+    Sandbox_BurdJournals_WornJournalMaxTraits_tooltip = "Numero maximo de rasgos que pueden aparecer en un diario desgastado (1-5).",
+
+    Sandbox_BurdJournals_EnableWornJournalTraits = "Habilitar Rasgos en Desgastados",
+    Sandbox_BurdJournals_EnableWornJournalTraits_tooltip = "Si esta habilitado, los rasgos se pueden reclamar de los diarios desgastados. Si esta desactivado, la pestana de rasgos estara oculta pero los datos existentes se preservaran.",
+
     Sandbox_BurdJournals_BloodyJournalRecipeChance = "% Receta en Sangriento",
     Sandbox_BurdJournals_BloodyJournalRecipeChance_tooltip = "Probabilidad de que diarios sangrientos incluyan recetas de revista (0-100%). Los sangrientos tienen mayor probabilidad que los desgastados.",
 
     Sandbox_BurdJournals_BloodyJournalMaxRecipes = "Max. Recetas por Sangriento",
     Sandbox_BurdJournals_BloodyJournalMaxRecipes_tooltip = "Numero maximo de recetas de revista que pueden aparecer en un solo diario sangriento (1-5).",
+
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes = "Habilitar Recetas en Sangrientos",
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes_tooltip = "Si esta habilitado, las recetas se pueden reclamar de los diarios sangrientos. Si esta desactivado, la pestana de recetas estara oculta pero los datos existentes se preservaran.",
 
     -- ============================================================
     -- TAB 3: ADVANCED SETTINGS
@@ -196,5 +227,22 @@
     -- Batch Time Multiplier
     Sandbox_BurdJournals_BatchTimeMultiplier = "Multiplicador de Tiempo de Lote",
     Sandbox_BurdJournals_BatchTimeMultiplier_tooltip = "Multiplicador para duracion de acciones en lote. Menor = lotes mas rapidos. Ejemplo: 15 recetas a 0.8s cada una = 12s normalmente. Con multiplicador 0.25 = 3s. Solo afecta 'Registrar Todo' y 'Absorber Todo', no clics individuales. Predeterminado: 0.25 (4x mas rapido)",
+
+    -- ============================================================
+    -- DEBUG & DEVELOPMENT SETTINGS
+    -- ============================================================
+
+    Sandbox_BurdJournals_AllowDebugCommands = "Permitir Comandos de Depuracion",
+    Sandbox_BurdJournals_AllowDebugCommands_tooltip = "Habilita comandos de depuracion (/bsjgive, /bsjdump, /bsjdebug, etc.) sin requerir el parametro de lanzamiento -debug. En un jugador, todos los jugadores pueden usarlos. En multijugador, solo los administradores pueden usarlos. Util para pruebas de servidor y desarrollo.",
+    Sandbox_BurdJournals_EnablePassiveSkillsLoot = "Enable Passive Skills (Loot)",
+    Sandbox_BurdJournals_EnablePassiveSkillsLoot_tooltip = "When enabled, Fitness/Strength can appear and be claimed on worn/bloody journals. When disabled, passive skill entries are hidden but preserved.",
+    Sandbox_BurdJournals_EnablePassiveSkillsPlayer = "Enable Passive Skills (Player)",
+    Sandbox_BurdJournals_EnablePassiveSkillsPlayer_tooltip = "When enabled, Fitness/Strength can be recorded and claimed from player journals. When disabled, passive skill entries are hidden but preserved.",
+    Sandbox_BurdJournals_RequireLightForJournalUse = "Require Light for Journal Use",
+    Sandbox_BurdJournals_RequireLightForJournalUse_tooltip = "When enabled, opening journals and reading/writing journal actions require enough light, following vanilla reading darkness rules.",
 }
+
+
+
+
 

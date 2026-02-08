@@ -32,8 +32,263 @@ BurdJournals.MOD_ID = "BurdSurvivalJournals"
 -- Expose safePcall for use throughout the mod
 BurdJournals.safePcall = safePcall
 
+-- Safe event removal helper (avoids pcall spam and stale handler tracking)
+function BurdJournals.safeRemoveEvent(eventTable, handlerFunc)
+    if not eventTable or not handlerFunc then return false end
+    if not eventTable.Remove then return false end
+    local ok = safePcall(function() eventTable.Remove(handlerFunc) end)
+    return ok == true
+end
+
+-- Normalize Java-backed tables/lists into plain Lua tables for safe iteration
+function BurdJournals.normalizeTable(tbl)
+    if not tbl then return nil end
+    local pairsFn = (_safeType and _safeType(_safePairs) == "function") and _safePairs or nil
+
+    -- Fast path: standard Lua table
+    if _safeType and _safeType(tbl) == "table" then
+        if not pairsFn then return nil end
+        local ok, result = safePcall(function()
+            local t = {}
+            for k, v in pairsFn(tbl) do
+                t[k] = v
+            end
+            return t
+        end)
+        if ok and result then return result end
+    end
+
+    -- Java/Kahlua map style (iterable via pairs but not a Lua table type)
+    -- Keep list handling below for size/get-only objects.
+    if pairsFn then
+        local ok, result, hadEntries = safePcall(function()
+            local t = {}
+            local seen = false
+            for k, v in pairsFn(tbl) do
+                seen = true
+                t[k] = v
+            end
+            return t, seen
+        end)
+        if ok and result then
+            if hadEntries or not (tbl.size and tbl.get) then
+                return result
+            end
+        end
+    end
+
+    -- Java list/array style (size/get)
+    if tbl.size and tbl.get then
+        local t = {}
+        local size = tbl:size()
+        for i = 0, size - 1 do
+            t[i + 1] = tbl:get(i)
+        end
+        return t
+    end
+
+    return nil
+end
+
+-- Check if a table-like object has any entries (safe for Java-backed ModData)
+function BurdJournals.hasAnyEntries(tbl)
+    local normalized = BurdJournals.normalizeTable(tbl)
+    if not normalized then return false end
+    if _safeType and _safeType(normalized) ~= "table" then
+        if normalized.size and normalized.get then
+            return (normalized:size() or 0) > 0
+        end
+        return false
+    end
+
+    -- Guard against environments/mods where global next()/pairs() may be missing/overridden.
+    if _safeType and _safeType(_safeNext) == "function" then
+        local ok, firstKey = safePcall(function() return _safeNext(normalized) end)
+        if ok then
+            return firstKey ~= nil
+        end
+    end
+
+    -- Fallback iteration path.
+    if _safeType and _safeType(_safePairs) == "function" then
+        local ok, hasEntries = safePcall(function()
+            for _, _ in _safePairs(normalized) do
+                return true
+            end
+            return false
+        end)
+        if ok then
+            return hasEntries == true
+        end
+    end
+
+    return false
+end
+
+-- Normalize journal data (shallow) so UI can safely iterate without pcall
+function BurdJournals.normalizeJournalData(journalData)
+    if not journalData or (_safeType and _safeType(journalData) ~= "table") then return nil end
+
+    local pairsFn = (_safeType and _safeType(_safePairs) == "function") and _safePairs or nil
+    if not pairsFn then return nil end
+
+    local normalized = {}
+    for k, v in pairsFn(journalData) do
+        normalized[k] = v
+    end
+
+    normalized.skills = BurdJournals.normalizeTable(journalData.skills) or {}
+    normalized.traits = BurdJournals.normalizeTable(journalData.traits) or {}
+    normalized.recipes = BurdJournals.normalizeTable(journalData.recipes) or {}
+    normalized.stats = BurdJournals.normalizeTable(journalData.stats) or {}
+    normalized.claims = BurdJournals.normalizeTable(journalData.claims) or {}
+
+    return normalized
+end
+
+-- ============================================================================
+-- Shared Skill/Trait Helpers (centralized for UI + server usage)
+-- ============================================================================
+
+function BurdJournals.normalizeTraitId(traitId)
+    if not traitId then return nil end
+    local id = tostring(traitId)
+    id = string.gsub(id, "^base:", "")
+    id = string.gsub(id, "^Base%.", "")
+    return id
+end
+
+function BurdJournals.buildTraitLookup(traitsTable)
+    local lookup = {}
+    if not traitsTable then return lookup end
+
+    local tableToScan = BurdJournals.normalizeTable(traitsTable) or traitsTable
+    for traitId, _ in pairs(tableToScan) do
+        if traitId then
+            local normalized = BurdJournals.normalizeTraitId(traitId) or traitId
+            lookup[normalized] = true
+            lookup[string.lower(tostring(normalized))] = true
+
+            if BurdJournals.getTraitAliases then
+                for _, alias in ipairs(BurdJournals.getTraitAliases(normalized)) do
+                    if alias then
+                        local aliasNorm = BurdJournals.normalizeTraitId(alias) or alias
+                        lookup[aliasNorm] = true
+                        lookup[string.lower(tostring(aliasNorm))] = true
+                    end
+                end
+            end
+        end
+    end
+
+    return lookup
+end
+
+function BurdJournals.isTraitInLookup(lookup, traitId)
+    if not lookup or not traitId then return false end
+    local normalized = BurdJournals.normalizeTraitId(traitId) or traitId
+    if lookup[normalized] or lookup[string.lower(tostring(normalized))] then
+        return true
+    end
+    if BurdJournals.getTraitAliases then
+        for _, alias in ipairs(BurdJournals.getTraitAliases(normalized)) do
+            local aliasNorm = BurdJournals.normalizeTraitId(alias) or alias
+            if lookup[aliasNorm] or lookup[string.lower(tostring(aliasNorm))] then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+function BurdJournals.removeTraitFromTable(traitsTable, traitId)
+    if not traitsTable or not traitId then return false end
+    local removed = false
+    local normalized = BurdJournals.normalizeTraitId(traitId) or traitId
+    local normalizedLower = string.lower(tostring(normalized))
+
+    local tableToScan = BurdJournals.normalizeTable(traitsTable) or traitsTable
+    for key, _ in pairs(tableToScan) do
+        local keyNorm = BurdJournals.normalizeTraitId(key) or key
+        if (BurdJournals.traitIdsMatch and BurdJournals.traitIdsMatch(keyNorm, normalized))
+            or string.lower(tostring(keyNorm)) == normalizedLower then
+            traitsTable[key] = nil
+            removed = true
+        end
+    end
+
+    return removed
+end
+
+function BurdJournals.resolveSkillKey(skillsTable, skillName)
+    if not skillsTable or not skillName then return skillName end
+
+    if skillsTable[skillName] ~= nil then
+        return skillName
+    end
+
+    local tableToScan = BurdJournals.normalizeTable(skillsTable) or skillsTable
+    local skillLower = string.lower(tostring(skillName))
+    for key, _ in pairs(tableToScan) do
+        if string.lower(tostring(key)) == skillLower then
+            return key
+        end
+    end
+
+    -- Try mapping perkId -> skill name (e.g., Woodwork -> Carpentry)
+    if BurdJournals.mapPerkIdToSkillName then
+        local mapped = BurdJournals.mapPerkIdToSkillName(skillName)
+        if mapped and skillsTable[mapped] ~= nil then
+            return mapped
+        end
+    end
+
+    -- Try mapping skill name -> perkId (e.g., Carpentry -> Woodwork)
+    if BurdJournals.SKILL_TO_PERK then
+        local perkId = BurdJournals.SKILL_TO_PERK[skillName]
+        if perkId and skillsTable[perkId] ~= nil then
+            return perkId
+        end
+        for skillKey, perkKey in pairs(BurdJournals.SKILL_TO_PERK) do
+            if string.lower(skillKey) == skillLower and skillsTable[perkKey] ~= nil then
+                return perkKey
+            end
+        end
+    end
+
+    return skillName
+end
+
+function BurdJournals.buildTraitCostLookup()
+    local lookup = {}
+    if CharacterTraitDefinition and CharacterTraitDefinition.getTraits then
+        local allDefs = CharacterTraitDefinition.getTraits()
+        if allDefs then
+            for i = 0, allDefs:size() - 1 do
+                local def = allDefs:get(i)
+                if def then
+                    local defTraitId = nil
+                    local traitType = def.getType and def:getType() or nil
+                    if traitType and traitType.getName then
+                        defTraitId = traitType:getName()
+                    elseif traitType then
+                        defTraitId = tostring(traitType):gsub("^base:", "")
+                    end
+                    if defTraitId then
+                        local cost = def.getCost and def:getCost() or 0
+                        lookup[string.lower(defTraitId)] = cost
+                    end
+                end
+            end
+        end
+    end
+    return lookup
+end
+
 -- Sanitization version - increment to force re-sanitization of all journals
 BurdJournals.SANITIZE_VERSION = 1
+-- Migration schema version - increment when persistent journal migration logic changes
+BurdJournals.MIGRATION_SCHEMA_VERSION = 2
 
 -- Check if an item reference is still valid (not a zombie/invalid Java object)
 -- This check uses instanceof which does NOT trigger error logging for zombie objects
@@ -245,60 +500,106 @@ function BurdJournals.findJournalByUUIDInContainer(container, uuid)
 end
 
 BurdJournals.SKILL_CATEGORIES = {
+    -- Physical/Passive skills (special XP handling)
     Passive = {
         "Fitness",
         "Strength"
     },
+    -- Combat - Firearms
     Firearm = {
         "Aiming",
         "Reloading"
     },
+    -- Combat - Melee
     Melee = {
         "Axe",
-        "Blunt",
-        "SmallBlunt",
+        "Blunt",          -- Long Blunt
+        "SmallBlunt",     -- Short Blunt
         "LongBlade",
-        "SmallBlade",
+        "SmallBlade",     -- Short Blade (also maps via ShortBlade)
         "Spear",
         "Maintenance"
     },
+    -- Crafting skills (B42 expanded)
     Crafting = {
-        "Carpentry",
+        "Woodwork",       -- Carpentry
         "Cooking",
-        "Electricity",
-        "MetalWelding",
+        "Electricity",    -- Electrical
+        "MetalWelding",   -- Welding/Metalworking
         "Mechanics",
         "Tailoring",
-        "Blacksmith",
+        "Blacksmith",     -- Blacksmithing
         "Glassmaking",
         "Pottery",
         "Masonry",
         "Carving",
-        "FlintKnapping"
+        "FlintKnapping"   -- Knapping
     },
+    -- Farming skills (B42)
     Farming = {
-        "Farming",
-        "Husbandry",
+        "Farming",        -- Agriculture
+        "Husbandry",      -- Animal Care
         "Butchering"
     },
+    -- Survival skills
     Survival = {
         "Fishing",
         "Trapping",
-        "Foraging",
+        "PlantScavenging", -- Foraging
         "Tracking",
-        "Doctor"
+        "Doctor"          -- First Aid
     },
+    -- Agility skills
     Agility = {
-        "Sprinting",
-        "Lightfoot",
+        "Sprinting",      -- Running
+        "Lightfoot",      -- Lightfooted (will try mapping)
         "Nimble",
-        "Sneak"
+        "Sneak"           -- Sneaking (will try mapping)
+    },
+    -- Lifestyle skills (B42)
+    Lifestyle = {
+        "Art",
+        "Cleaning",
+        "Dancing",
+        "Meditation",
+        "Music"
     }
 }
 
+-- Extended mappings for skill name variations (display name -> perk ID)
+-- This helps handle cases where UI names differ from internal perk names
+
+-- Skill name to internal perk ID mappings
+-- Maps common/display names to actual perk IDs
 BurdJournals.SKILL_TO_PERK = {
+    -- Survival
     Foraging = "PlantScavenging",
-    Carpentry = "Woodwork"
+    ["First Aid"] = "Doctor",
+    FirstAid = "Doctor",
+    -- Crafting
+    Carpentry = "Woodwork",
+    Electrical = "Electricity",
+    Electric = "Electricity",
+    Welding = "MetalWelding",
+    Metalworking = "MetalWelding",
+    Blacksmithing = "Blacksmith",
+    Knapping = "FlintKnapping",
+    -- Farming
+    Agriculture = "Farming",
+    ["Animal Care"] = "Husbandry",
+    AnimalCare = "Husbandry",
+    -- Melee
+    ["Long Blade"] = "LongBlade",
+    ["Short Blade"] = "SmallBlade",
+    ShortBlade = "SmallBlade",
+    ["Long Blunt"] = "Blunt",
+    LongBlunt = "Blunt",
+    ["Short Blunt"] = "SmallBlunt",
+    ShortBlunt = "SmallBlunt",
+    -- Agility
+    Lightfooted = "Lightfoot",
+    Sneaking = "Sneak",
+    Running = "Sprinting",
 }
 
 BurdJournals.ALL_SKILLS = {}
@@ -319,97 +620,320 @@ BurdJournals.EXCLUDED_SKILLS = {
     "MAX",
 }
 
+-- Helper: Check if a skill is a passive skill (Fitness/Strength type)
+-- These skills have special XP handling (5x multiplier) and start at level 5
+-- Uses dynamic detection via parent category when possible
+function BurdJournals.isPassiveSkill(skillName)
+    if not skillName then return false end
+    
+    -- Try to detect via perk parent category
+    local perk = BurdJournals.getPerkByName and BurdJournals.getPerkByName(skillName)
+    if perk then
+        local parent = perk.getParent and perk:getParent() or nil
+        if parent then
+            local parentId = parent.getId and parent:getId() or nil
+            -- "Passive" is the parent category for Fitness/Strength
+            if parentId == "Passive" then
+                return true
+            end
+        end
+    end
+    
+    -- Fallback: check known passive skill names
+    local name = tostring(skillName):lower()
+    return name == "fitness" or name == "strength"
+end
+
+-- Cache for passive skills list
+BurdJournals._passiveSkillsCache = nil
+
+-- Get all passive skills dynamically
+function BurdJournals.getPassiveSkills()
+    if BurdJournals._passiveSkillsCache then
+        return BurdJournals._passiveSkillsCache
+    end
+    
+    local passiveSkills = {}
+    
+    -- Try to discover from PerkFactory
+    if PerkFactory and PerkFactory.PerkList then
+        local perkList = PerkFactory.PerkList
+        for i = 0, perkList:size() - 1 do
+            local perk = perkList:get(i)
+            if perk then
+                local parent = perk.getParent and perk:getParent() or nil
+                if parent then
+                    local parentId = parent.getId and parent:getId() or nil
+                    if parentId == "Passive" then
+                        local perkId = perk.getId and perk:getId() or nil
+                        if perkId then
+                            table.insert(passiveSkills, perkId)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Fallback if discovery fails
+    if #passiveSkills == 0 then
+        passiveSkills = {"Fitness", "Strength"}
+    end
+    
+    BurdJournals._passiveSkillsCache = passiveSkills
+    return passiveSkills
+end
+
 -- Helper: Check if a perk is an actual trainable skill (not a category/parent perk)
 -- Parent perks have getParent():getId() == "None", trainable skills have a real parent
 function BurdJournals.isTrainableSkill(perk)
     if not perk then return false end
 
     local isTrainable = false
-    safePcall(function()
-        local parent = perk:getParent()
-        if parent then
-            local parentId = parent:getId()
-            -- If parent ID is "None", this IS a category perk, not trainable
-            isTrainable = parentId ~= "None"
-        end
-    end)
+    local parent = perk.getParent and perk:getParent() or nil
+    if parent then
+        local parentId = parent.getId and parent:getId() or nil
+        -- If parent ID is "None", this IS a category perk, not trainable
+        isTrainable = parentId ~= "None"
+    end
     return isTrainable
 end
 
-function BurdJournals.discoverAllSkills(forceRefresh)
+-- ============================================================================
+-- ENHANCED SKILL/TRAIT DISCOVERY SYSTEM
+-- Automatically discovers all skills (vanilla + modded) with full metadata
+-- ============================================================================
 
+-- Cache for skill metadata (richer than just names)
+BurdJournals._cachedSkillMetadata = nil
+
+-- Discover all skills with full metadata from PerkFactory
+-- Returns: { [perkId] = { id, displayName, category, isVanilla, isPassive, maxLevel } }
+function BurdJournals.discoverSkillMetadata(forceRefresh)
+    if not forceRefresh and BurdJournals._cachedSkillMetadata then
+        return BurdJournals._cachedSkillMetadata
+    end
+    
+    local metadata = {}
+    
+    -- Build vanilla skill set for detection
+    local vanillaSkillSet = {}
+    for _, skill in ipairs(BurdJournals.ALL_SKILLS) do
+        vanillaSkillSet[string.lower(skill)] = true
+    end
+    if BurdJournals.SKILL_TO_PERK then
+        for _, perkId in pairs(BurdJournals.SKILL_TO_PERK) do
+            vanillaSkillSet[string.lower(perkId)] = true
+        end
+    end
+    
+    -- Discover ALL skills from PerkFactory
+    if PerkFactory and PerkFactory.PerkList then
+        local perkList = PerkFactory.PerkList
+        if perkList and perkList.size then
+            for i = 0, perkList:size() - 1 do
+                local perk = perkList.get and perkList:get(i) or nil
+                if perk then
+                    -- Only process trainable skills (not category perks)
+                    if BurdJournals.isTrainableSkill(perk) then
+                        local skillData = BurdJournals.extractSkillMetadata(perk, vanillaSkillSet)
+                        if skillData and skillData.id then
+                            metadata[skillData.id] = skillData
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Count stats
+    local vanillaCount, modCount = 0, 0
+    for _, data in pairs(metadata) do
+        if data.isVanilla then vanillaCount = vanillaCount + 1
+        else modCount = modCount + 1 end
+    end
+    
+    BurdJournals.debugPrint(string.format("[BurdJournals] Discovered %d skills (%d vanilla, %d modded)", 
+        vanillaCount + modCount, vanillaCount, modCount))
+    
+    BurdJournals._cachedSkillMetadata = metadata
+    return metadata
+end
+
+-- Extract metadata from a single perk object
+function BurdJournals.extractSkillMetadata(perk, vanillaSkillSet)
+    local data = {
+        id = nil,
+        displayName = nil,
+        category = nil,
+        categoryDisplayName = nil,
+        isVanilla = true,
+        isPassive = false,
+        maxLevel = 10,
+        description = nil
+    }
+    
+    -- Get perk ID
+    local perkId = nil
+    if perk.getId then perkId = tostring(perk:getId()) end
+    if (not perkId or perkId == "") and perk.name then
+        perkId = tostring(perk.name())
+    end
+    if not perkId or perkId == "" then
+        local str = tostring(perk)
+        str = str:gsub("^zombie%.characters%.skills%.PerkFactory%$Perk%.", "")
+        str = str:gsub("^Perks%.", "")
+        perkId = str
+    end
+    if not perkId or perkId == "" then return nil end
+    data.id = perkId
+    
+    -- Get display name from PerkFactory
+    if PerkFactory and Perks and PerkFactory.getPerk then
+        local perkDef = PerkFactory.getPerk(Perks[perkId])
+        if perkDef and perkDef.getName then
+            data.displayName = perkDef:getName()
+        end
+    end
+    if not data.displayName then data.displayName = perkId end
+    
+    -- Get category (parent perk)
+    local parent = perk.getParent and perk:getParent() or nil
+    if parent then
+        data.category = parent.getId and parent:getId() or nil
+        -- Try to get category display name
+        if PerkFactory and PerkFactory.getPerk then
+            local parentDef = PerkFactory.getPerk(parent)
+            if parentDef and parentDef.getName then
+                data.categoryDisplayName = parentDef:getName()
+            end
+        end
+    end
+    if not data.categoryDisplayName then data.categoryDisplayName = data.category end
+    
+    -- Check if vanilla or modded
+    if vanillaSkillSet then
+        data.isVanilla = vanillaSkillSet[string.lower(perkId)] or false
+    end
+    
+    -- Check if passive skill
+    data.isPassive = (data.category == "Passive")
+    
+    -- Get description if available
+    if PerkFactory and Perks and PerkFactory.getPerk then
+        local perkDef = PerkFactory.getPerk(Perks[perkId])
+        if perkDef and perkDef.getDescription then
+            data.description = perkDef:getDescription()
+        end
+    end
+    
+    -- Log modded skills for debugging
+    if not data.isVanilla then
+        BurdJournals.debugPrint(string.format("[BurdJournals] Found modded skill: %s (%s) in category %s", 
+            data.id, data.displayName, data.category or "Unknown"))
+    end
+    
+    return data
+end
+
+-- Get skills organized by category (for UI tabs)
+function BurdJournals.getSkillsByCategory(forceRefresh)
+    local metadata = BurdJournals.discoverSkillMetadata(forceRefresh)
+    local byCategory = {}
+    
+    for perkId, data in pairs(metadata) do
+        local cat = data.category or "Other"
+        if not byCategory[cat] then
+            byCategory[cat] = {
+                id = cat,
+                displayName = data.categoryDisplayName or cat,
+                skills = {}
+            }
+        end
+        table.insert(byCategory[cat].skills, data)
+    end
+    
+    -- Sort skills within each category by display name
+    for _, catData in pairs(byCategory) do
+        table.sort(catData.skills, function(a, b)
+            return (a.displayName or a.id) < (b.displayName or b.id)
+        end)
+    end
+    
+    return byCategory
+end
+
+-- Get list of modded skills only
+function BurdJournals.getModdedSkills(forceRefresh)
+    local metadata = BurdJournals.discoverSkillMetadata(forceRefresh)
+    local modded = {}
+    
+    for perkId, data in pairs(metadata) do
+        if not data.isVanilla then
+            table.insert(modded, data)
+        end
+    end
+    
+    table.sort(modded, function(a, b)
+        return (a.displayName or a.id) < (b.displayName or b.id)
+    end)
+    
+    return modded
+end
+
+-- Legacy function: returns simple list of skill names (backward compatible)
+function BurdJournals.discoverAllSkills(forceRefresh)
     if not forceRefresh and BurdJournals._cachedDiscoveredSkills then
         return BurdJournals._cachedDiscoveredSkills
     end
 
     local discoveredSkills = {}
-    local addedSkillSet = {}  -- Track what we've already added (lowercase for comparison)
+    local addedSkillSet = {}
 
-    -- Build set of vanilla skill names (from our hardcoded list) for vanilla vs mod detection
+    -- Build vanilla skill set
     local vanillaSkillSet = {}
     for _, skill in ipairs(BurdJournals.ALL_SKILLS) do
         vanillaSkillSet[string.lower(skill)] = true
     end
-    -- Also include perk ID mappings (e.g., PlantScavenging for Foraging)
     if BurdJournals.SKILL_TO_PERK then
         for skillName, perkId in pairs(BurdJournals.SKILL_TO_PERK) do
             vanillaSkillSet[string.lower(perkId)] = true
         end
     end
 
-    -- First add vanilla skills from our known list
+    -- First add vanilla skills from our known list (preserves order)
     for _, skill in ipairs(BurdJournals.ALL_SKILLS) do
         table.insert(discoveredSkills, skill)
         addedSkillSet[string.lower(skill)] = true
     end
 
-    -- Also mark perk ID mappings as added to prevent duplicates
-    -- e.g., "Foraging" maps to "PlantScavenging" - mark "plantscavenging" as added
-    -- so PerkFactory discovery doesn't add it as a separate skill
+    -- Mark perk ID mappings as added
     if BurdJournals.SKILL_TO_PERK then
         for skillName, perkId in pairs(BurdJournals.SKILL_TO_PERK) do
             addedSkillSet[string.lower(perkId)] = true
         end
     end
 
-    -- Now discover mod-added skills from PerkFactory
-    -- IMPORTANT: Use getParent():getId() to filter out category perks
+    -- Discover mod-added skills from PerkFactory
     local modSkillsFound = 0
     if PerkFactory and PerkFactory.PerkList then
         local perkList = PerkFactory.PerkList
         if perkList and perkList.size then
             for i = 0, perkList:size() - 1 do
-                local perk = perkList:get(i)
-                if perk then
-                    -- CRITICAL: Only process if this is a TRAINABLE skill, not a category
-                    if BurdJournals.isTrainableSkill(perk) then
-                        local perkName = nil
+                local perk = perkList.get and perkList:get(i) or nil
+                if perk and BurdJournals.isTrainableSkill(perk) then
+                    local perkName = nil
+                    if perk.getId then
+                        perkName = perk:getId() and tostring(perk:getId())
+                    end
 
-                        safePcall(function()
-                            if perk.getId then
-                                perkName = tostring(perk:getId())
-                            elseif perk.name then
-                                perkName = tostring(perk.name())
-                            else
-                                perkName = tostring(perk)
-                                perkName = perkName:gsub("^zombie%.characters%.skills%.PerkFactory%$Perk%.", "")
-                                perkName = perkName:gsub("^Perks%.", "")
-                            end
-                        end)
-
-                        if perkName and perkName ~= "" then
-                            local perkNameLower = string.lower(perkName)
-
-                            -- Only add if not already in our list (avoid duplicates)
-                            if not addedSkillSet[perkNameLower] then
-                                table.insert(discoveredSkills, perkName)
-                                addedSkillSet[perkNameLower] = true
-
-                                -- Only count as "mod skill" if not in vanilla set
-                                if not vanillaSkillSet[perkNameLower] then
-                                    modSkillsFound = modSkillsFound + 1
-                                    BurdJournals.debugPrint("[BurdJournals] Found mod skill: " .. perkName)
-                                end
+                    if perkName and perkName ~= "" then
+                        local perkNameLower = string.lower(perkName)
+                        if not addedSkillSet[perkNameLower] then
+                            table.insert(discoveredSkills, perkName)
+                            addedSkillSet[perkNameLower] = true
+                            if not vanillaSkillSet[perkNameLower] then
+                                modSkillsFound = modSkillsFound + 1
                             end
                         end
                     end
@@ -419,7 +943,7 @@ function BurdJournals.discoverAllSkills(forceRefresh)
     end
 
     if modSkillsFound > 0 then
-        BurdJournals.debugPrint("[BurdJournals] Discovered " .. modSkillsFound .. " mod-added skills (total: " .. #discoveredSkills .. ")")
+        BurdJournals.debugPrint("[BurdJournals] Discovered " .. modSkillsFound .. " mod-added skills")
     end
 
     BurdJournals._cachedDiscoveredSkills = discoveredSkills
@@ -428,79 +952,511 @@ end
 
 function BurdJournals.refreshSkillCache()
     BurdJournals._cachedDiscoveredSkills = nil
-    BurdJournals.debugPrint("[BurdJournals] Skill cache cleared - will rediscover on next access")
+    BurdJournals._cachedSkillMetadata = nil
+    BurdJournals._cachedTraitMetadata = nil
+    BurdJournals.debugPrint("[BurdJournals] Skill/trait cache cleared - will rediscover on next access")
 end
 
+-- ============================================================================
+-- TRAIT DISCOVERY SYSTEM
+-- ============================================================================
+
+BurdJournals._cachedTraitMetadata = nil
+
+-- Discover all traits with metadata from TraitFactory
+function BurdJournals.discoverTraitMetadata(forceRefresh)
+    if not forceRefresh and BurdJournals._cachedTraitMetadata then
+        return BurdJournals._cachedTraitMetadata
+    end
+    
+    local metadata = {}
+    
+    -- Build known trait sets
+    local knownPositive = {}
+    local knownNegative = {}
+    if BurdJournals.GRANTABLE_TRAITS then
+        for _, t in ipairs(BurdJournals.GRANTABLE_TRAITS) do
+            knownPositive[string.lower(t)] = true
+        end
+    end
+    if BurdJournals.REMOVABLE_TRAITS then
+        for _, t in ipairs(BurdJournals.REMOVABLE_TRAITS) do
+            knownNegative[string.lower(t)] = true
+        end
+    end
+    
+    -- Discover from TraitFactory
+    if TraitFactory then
+        local traitsList = TraitFactory.getTraits and TraitFactory.getTraits() or nil
+        if traitsList and traitsList.size then
+            for i = 0, traitsList:size() - 1 do
+                local trait = traitsList.get and traitsList:get(i) or nil
+                if trait then
+                    local traitData = BurdJournals.extractTraitMetadata(trait, knownPositive, knownNegative)
+                    if traitData and traitData.id then
+                        metadata[traitData.id] = traitData
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Count stats
+    local posCount, negCount, modCount = 0, 0, 0
+    for _, data in pairs(metadata) do
+        if data.isPositive then posCount = posCount + 1
+        else negCount = negCount + 1 end
+        if not data.isVanilla then modCount = modCount + 1 end
+    end
+    
+    BurdJournals.debugPrint(string.format("[BurdJournals] Discovered %d traits (%d positive, %d negative, %d modded)", 
+        posCount + negCount, posCount, negCount, modCount))
+    
+    BurdJournals._cachedTraitMetadata = metadata
+    return metadata
+end
+
+-- Extract metadata from a single trait object
+function BurdJournals.extractTraitMetadata(trait, knownPositive, knownNegative)
+    local data = {
+        id = nil,
+        displayName = nil,
+        description = nil,
+        isPositive = true,
+        isVanilla = true,
+        cost = 0,
+        isRemovable = true,
+        isFree = false,
+        exclusives = {}
+    }
+    
+    -- Get trait ID
+    if trait.getType then data.id = trait:getType() end
+    if not data.id then return nil end
+    
+    -- Get display name
+    if trait.getLabel then data.displayName = trait:getLabel() end
+    if not data.displayName then data.displayName = data.id end
+    
+    -- Get description
+    if trait.getDescription then data.description = trait:getDescription() end
+    
+    -- Get cost
+    -- In PZ trait definitions:
+    -- cost > 0 = Positive trait (benefits, player pays points to get)
+    -- cost < 0 = Negative trait (drawbacks, player gains points by taking)
+    -- cost = 0 = Neutral/profession traits
+    if trait.getCost then data.cost = trait:getCost() end
+    -- Use polarity function for accurate detection (handles zero-cost fallback)
+    local polarity = BurdJournals.determineTraitPolarity(data.id, data.cost)
+    data.isPositive = (polarity == true)
+    
+    -- Check if free trait
+    if trait.isFree then data.isFree = trait:isFree() end
+    
+    -- Check removability
+    if trait.isRemovable then data.isRemovable = trait:isRemovable() end
+    
+    -- Get mutually exclusive traits
+    if trait.getMutuallyExclusiveTraits then
+        local exclusives = trait:getMutuallyExclusiveTraits()
+        if exclusives and exclusives.size then
+            for i = 0, exclusives:size() - 1 do
+                local ex = exclusives:get(i)
+                if ex then table.insert(data.exclusives, tostring(ex)) end
+            end
+        end
+    end
+    
+    -- Determine if vanilla based on known lists
+    local idLower = string.lower(data.id)
+    if knownPositive and knownPositive[idLower] then
+        data.isVanilla = true
+    elseif knownNegative and knownNegative[idLower] then
+        data.isVanilla = true
+    else
+        -- Assume modded if not in our known lists (conservative approach)
+        -- This will flag some vanilla traits as modded, which is fine
+        data.isVanilla = false
+    end
+    
+    -- Log modded traits
+    if not data.isVanilla then
+        BurdJournals.debugPrint(string.format("[BurdJournals] Found modded trait: %s (%s) cost=%d", 
+            data.id, data.displayName, data.cost))
+    end
+    
+    return data
+end
+
+-- Get traits organized by type (positive/negative)
+function BurdJournals.getTraitsByType(forceRefresh)
+    local metadata = BurdJournals.discoverTraitMetadata(forceRefresh)
+    local byType = {
+        positive = {},
+        negative = {}
+    }
+    
+    for traitId, data in pairs(metadata) do
+        if data.isPositive then
+            table.insert(byType.positive, data)
+        else
+            table.insert(byType.negative, data)
+        end
+    end
+    
+    -- Sort by display name
+    table.sort(byType.positive, function(a, b) return a.displayName < b.displayName end)
+    table.sort(byType.negative, function(a, b) return a.displayName < b.displayName end)
+    
+    return byType
+end
+
+-- Get modded traits only
+function BurdJournals.getModdedTraits(forceRefresh)
+    local metadata = BurdJournals.discoverTraitMetadata(forceRefresh)
+    local modded = {}
+    
+    for traitId, data in pairs(metadata) do
+        if not data.isVanilla then
+            table.insert(modded, data)
+        end
+    end
+    
+    table.sort(modded, function(a, b) return a.displayName < b.displayName end)
+    return modded
+end
+
+-- Positive traits from PZ wiki that can be granted through journals
+-- Comprehensive list including B42 additions
+-- NOTE: Excludes passive skill traits (athletic, strong, stout, fit) as they are auto-granted based on skill levels
 BurdJournals.GRANTABLE_TRAITS = {
-
-    "brave",
-    "resilient",
-    "thickskinned",
-    "fasthealer",
-    "adrenalinejunkie",
-
-    "graceful",
-    "inconspicuous",
-    "nightvision",
-
-    "keenhearing",
-    "eagleeyed",
-
-    "fastlearner",
-    "fastreader",
-    "inventive",
-    "crafty",
-
-    "lighteater",
-    "lowthirst",
-    "needslesssleep",
-    "irongut",
-
-    "organized",
-    "dextrous",
-
-    "outdoorsman",
-    "nutritionist",
-
-    "speeddemon",
-
-    "baseballplayer",
-    "jogger",
-    "gymnast",
-    "firstaid",
-    "gardener",
-    "herbalist",
-    "fishing",
-    "tailor",
-    "mechanics",
-    "cook",
-
-    "hiker",
-    "hunter",
-    "brawler",
-    "formerscout",
-    "handy",
-    "artisan",
-    "blacksmith",
-    "mason",
-    "whittler",
-    "wildernessknowledge",
-
+    -- Combat/Survival
+    "adrenalinejunkie",     -- Adrenaline Junkie
+    "brave",                -- Brave
+    "brawler",              -- Brawler
+    "desensitized",         -- Desensitized
+    "resilient",            -- Resilient
+    "thickskinned",         -- Thick Skinned
+    
+    -- Health/Recovery
+    "fasthealer",           -- Fast Healer
+    
+    -- Stealth/Movement
+    "graceful",             -- Graceful
+    "inconspicuous",        -- Inconspicuous
+    "nightvision",          -- Cat's Eyes
+    "nightowl",             -- Night Owl
+    "runner",               -- Runner (B42+)
+    
+    -- Perception
+    "keenhearing",          -- Keen Hearing
+    "eagleeyed",            -- Eagle Eyed
+    
+    -- Learning
+    "fastlearner",          -- Fast Learner
+    "fastreader",           -- Fast Reader
+    "inventive",            -- Inventive
+    "crafty",               -- Crafty
+    
+    -- Consumption/Metabolism
+    "lighteater",           -- Light Eater
+    "lowthirst",            -- Low Thirst
+    "needslesssleep",       -- Wakeful (Needs Less Sleep)
+    "wakeful",              -- Wakeful (alias)
+    "irongut",              -- Iron Gut
+    "slowmetabolism",       -- Slow Metabolism (technically positive - burn calories slower)
+    
+    -- Organization
+    "organized",            -- Organized
+    "dextrous",             -- Dextrous
+    
+    -- Outdoor/Survival
+    "outdoorsman",          -- Outdoorsman
+    "nutritionist",         -- Nutritionist
+    "wildernessknowledge",  -- Wilderness Knowledge
+    
+    -- Driving
+    "speeddemon",           -- Speed Demon
+    
+    -- Occupation/Hobby Traits
+    -- NOTE: Use INTERNAL IDs, not display names!
+    -- From PZ wiki research: Display Name -> Internal ID
+    "Fishing",              -- Angler (INTERNAL ID is "Fishing")
+    "artisan",              -- Artisan
+    "BaseballPlayer",       -- Baseball Player
+    "blacksmith",           -- Blacksmith
+    "Cook",                 -- Cook trait (6 pts, "Know cooking recipes")
+    "Cook2",                -- Cook profession trait (0 pts, "Know cooking")
+    "FirstAid",             -- First Aider (INTERNAL ID is "FirstAid")
+    "Formerscout",          -- Former Scout
+    "Gardener",             -- Gardener
+    "Gymnast",              -- Gymnast
+    "Handy",                -- Handy
+    "Herbalist",            -- Herbalist
+    "Hiker",                -- Hiker
+    "Hunter",               -- Hunter
+    "Jogger",               -- Runner (INTERNAL ID is "Jogger")
+    "mason",                -- Mason
+    "Mechanics",            -- Amateur Mechanic / Vehicle Knowledge (INTERNAL ID is "Mechanics")
+    "Tailor",               -- Sewer (INTERNAL ID is "Tailor")
+    "whittler",             -- Whittler
 }
 
 BurdJournals.EXCLUDED_TRAITS = {
-
+    -- Passive skill traits (automatically granted/removed based on skill levels)
     "athletic", "strong", "stout", "fit", "feeble", "unfit", "outofshape", "veryheavy", "weak",
-
-    "asthmatic", "deaf", "hardofhearing", "shortsighted", "eagleeyed",
-
+    -- Permanent physical traits that shouldn't be grantable
+    "asthmatic", "deaf", "hardofhearing", "shortsighted",
+    -- Illiterate is a special case
     "illiterate",
 }
+
+-- Negative traits that can be removed through gameplay or journal claims
+-- Excludes permanent traits (deaf, weight traits, etc.) and passive skill traits
+BurdJournals.REMOVABLE_TRAITS = {
+    -- Phobias
+    "agoraphobic",
+    "claustrophobic",
+    "hemophobic",       -- Fear of Blood
+    
+    -- Physical drawbacks (non-permanent)
+    "allthumbs",
+    "clumsy",
+    "conspicuous",
+    "thinskinned",
+    "slowhealer",
+    "hypercondriac",    -- Prone to Illness
+    "weakstomach",
+    
+    -- Mental/Behavioral
+    "cowardly",
+    "pacifist",         -- Reluctant Fighter
+    "smoker",
+    "insomniac",        -- Restless Sleeper
+    "sleepyhead",
+    
+    -- Learning/Perception
+    "slowlearner",
+    "slowreader",
+    
+    -- Consumption
+    "heartyappetite",
+    "highthirst",
+    
+    -- Organization
+    "disorganized",
+    
+    -- Driving
+    "sundaydriver",
+    "poorpassenger",    -- Motion Sensitive
+}
+
+-- Trait ID aliases for handling variant IDs between different game APIs
+-- Maps a trait ID to all its known aliases (bidirectional lookup)
+-- KEY INSIGHT from PZ wiki research: Display names often differ from internal IDs!
+-- Internal IDs (from undeniable.info/pzwiki):
+--   "Angler" display -> "Fishing" internal ID
+--   "Keen Cook" display -> "Cook" internal ID
+--   "Runner" display -> "Jogger" internal ID
+--   "Sewer" display -> "Tailor" internal ID
+--   "Amateur Mechanic" display -> "Mechanics" internal ID
+--   "Cat's Eyes" display -> "NightVision" internal ID
+--   "Wakeful" display -> "NeedsLessSleep" internal ID
+--   "First Aider" display -> "FirstAid" internal ID
+BurdJournals.TRAIT_ALIASES = {
+    -- Angler/Fishing - CRITICAL: Internal ID is "Fishing", NOT "Angler"!
+    angler = {"fishing", "Fishing"},
+    fishing = {"angler", "Angler"},
+    
+    -- Cook variants - TWO different traits in PZ:
+    --   "Cook" (internal: Cook, 6 pts) - "Know cooking recipes"
+    --   "Cook" (internal: Cook2, 0 pts) - profession trait "Know cooking"
+    -- "Keen Cook" is NOT an official trait name, but users often confuse it with "Cook"
+    cook = {"cook2", "keencook", "keen cook", "Cook", "Cook2", "KeenCook"},
+    cook2 = {"cook", "keencook", "keen cook", "Cook", "Cook2", "KeenCook"},
+    keencook = {"cook", "cook2", "keen cook", "Cook", "Cook2", "KeenCook"},
+    ["keen cook"] = {"cook", "cook2", "keencook", "Cook", "Cook2", "KeenCook"},
+    
+    -- Wakeful variants - Internal ID is "NeedsLessSleep"
+    wakeful = {"needslesssleep", "NeedsLessSleep"},
+    needslesssleep = {"wakeful", "Wakeful"},
+    
+    -- Sewer/Tailor - Internal ID is "Tailor"
+    tailor = {"sewer", "Tailor", "Sewer"},
+    sewer = {"tailor", "Tailor", "Sewer"},
+    
+    -- Vehicle Knowledge / Amateur Mechanic - Internal ID is "Mechanics"
+    mechanics = {"vehicleknowledge", "mechanics2", "Mechanics", "Mechanics2"},
+    mechanics2 = {"mechanics", "vehicleknowledge", "Mechanics", "Mechanics2"},
+    vehicleknowledge = {"mechanics", "mechanics2", "Mechanics", "Mechanics2"},
+    
+    -- Runner - Internal ID is "Jogger"
+    runner = {"jogger", "Runner", "Jogger"},
+    jogger = {"runner", "Runner", "Jogger"},
+    
+    -- Cat's Eyes - Internal ID is "NightVision"  
+    catseyes = {"nightvision", "NightVision"},
+    nightvision = {"catseyes", "NightVision"},
+    
+    -- First Aider - Internal ID is "FirstAid"
+    firstaider = {"firstaid", "FirstAid"},
+    firstaid = {"firstaider", "FirstAid"},
+    
+    -- Gardener - Internal ID is "Gardener"
+    gardener = {"Gardener"},
+    
+    -- Hypochondriac spelling variants
+    hypercondriac = {"hypochondriac", "Hypercondriac"},
+    hypochondriac = {"hypercondriac", "Hypercondriac"},
+    
+    -- Iron Gut variants
+    irongut = {"irongut2", "IronGut"},
+    irongut2 = {"irongut", "IronGut"},
+}
+
+-- Helper function to get all aliases for a trait ID (including the ID itself)
+function BurdJournals.getTraitAliases(traitId)
+    if not traitId then return {} end
+    local result = {traitId, string.lower(traitId)}
+    local aliases = BurdJournals.TRAIT_ALIASES[string.lower(traitId)]
+    if aliases then
+        for _, alias in ipairs(aliases) do
+            table.insert(result, alias)
+            table.insert(result, string.lower(alias))
+        end
+    end
+    -- Also add numeric suffix variants
+    local baseId = string.gsub(traitId, "%d+$", "")
+    if baseId ~= traitId then
+        table.insert(result, baseId)
+        table.insert(result, string.lower(baseId))
+    end
+    -- Add with "2" suffix if not already numeric
+    if not string.match(traitId, "%d$") then
+        table.insert(result, traitId .. "2")
+        table.insert(result, string.lower(traitId) .. "2")
+    end
+    return result
+end
+
+-- Helper function to check if two trait IDs refer to the same trait
+function BurdJournals.traitIdsMatch(id1, id2)
+    if not id1 or not id2 then return false end
+    local lower1 = string.lower(id1)
+    local lower2 = string.lower(id2)
+    if lower1 == lower2 then return true end
+    
+    -- Check base IDs (without numeric suffix)
+    local base1 = string.gsub(lower1, "%d+$", "")
+    local base2 = string.gsub(lower2, "%d+$", "")
+    if base1 == base2 then return true end
+    
+    -- Check aliases
+    local aliases1 = BurdJournals.TRAIT_ALIASES[lower1]
+    if aliases1 then
+        for _, alias in ipairs(aliases1) do
+            if string.lower(alias) == lower2 then return true end
+        end
+    end
+    
+    return false
+end
+
+-- Known positive traits lookup table (for zero-cost fallback)
+BurdJournals._knownPositiveTraitsSet = nil
+BurdJournals._knownNegativeTraitsSet = nil
+
+-- Build lookup sets from the hardcoded lists
+function BurdJournals.buildKnownTraitSets()
+    if not BurdJournals._knownPositiveTraitsSet then
+        BurdJournals._knownPositiveTraitsSet = {}
+        for _, traitId in ipairs(BurdJournals.GRANTABLE_TRAITS) do
+            BurdJournals._knownPositiveTraitsSet[string.lower(traitId)] = true
+        end
+    end
+    if not BurdJournals._knownNegativeTraitsSet then
+        BurdJournals._knownNegativeTraitsSet = {}
+        for _, traitId in ipairs(BurdJournals.REMOVABLE_TRAITS) do
+            BurdJournals._knownNegativeTraitsSet[string.lower(traitId)] = true
+        end
+    end
+end
+
+-- Determine trait polarity with fallback for zero-cost traits
+-- Returns: true = positive, false = negative, nil = unknown
+function BurdJournals.determineTraitPolarity(traitId, cost)
+    if not traitId then return nil end
+    
+    -- Primary: use cost
+    -- cost > 0 = positive trait (player pays points)
+    -- cost < 0 = negative trait (player gains points)
+    if cost and cost > 0 then return true end
+    if cost and cost < 0 then return false end
+    
+    -- Fallback for cost == 0: check known lists
+    BurdJournals.buildKnownTraitSets()
+    local lowerTraitId = string.lower(traitId)
+    
+    if BurdJournals._knownPositiveTraitsSet[lowerTraitId] then 
+        return true 
+    end
+    if BurdJournals._knownNegativeTraitsSet[lowerTraitId] then 
+        return false 
+    end
+    
+    -- Check aliases too
+    local aliases = BurdJournals.getTraitAliases(traitId)
+    for _, alias in ipairs(aliases) do
+        local aliasLower = string.lower(alias)
+        if BurdJournals._knownPositiveTraitsSet[aliasLower] then 
+            return true 
+        end
+        if BurdJournals._knownNegativeTraitsSet[aliasLower] then 
+            return false 
+        end
+    end
+    
+    -- Default: assume positive for occupation/neutral traits (cost = 0)
+    return true
+end
 
 BurdJournals._cachedGrantableTraits = nil
 BurdJournals._cachedAllTraits = nil
 
 BurdJournals._traitDisplayNameCache = {}
+
+local function normalizeTraitIdRaw(traitId)
+    if traitId == nil then return nil end
+    local out = tostring(traitId)
+    out = string.gsub(out, "^base:", "")
+    out = string.gsub(out, "^Base%.", "")
+    return out
+end
+
+local function getTraitIdFromDefinition(def)
+    if not (def and def.getType) then return nil end
+    local traitType = def:getType()
+    if not traitType then return nil end
+    if traitType.getName then
+        return normalizeTraitIdRaw(traitType:getName())
+    end
+    return normalizeTraitIdRaw(traitType)
+end
+
+local function getTraitCostFromDefinition(def)
+    if def and def.getCost then
+        return def:getCost() or 0
+    end
+    return 0
+end
+
+local function getTraitLabelFromDefinition(def, fallback)
+    if def and def.getLabel then
+        return def:getLabel() or fallback
+    end
+    return fallback
+end
 
 function BurdJournals.getTraitDisplayName(traitId)
     if not traitId then return "Unknown Trait" end
@@ -512,42 +1468,26 @@ function BurdJournals.getTraitDisplayName(traitId)
     local displayName = nil
 
     if CharacterTraitDefinition and CharacterTraitDefinition.getTraits then
-        safePcall(function()
-            local allTraits = CharacterTraitDefinition.getTraits()
-            if allTraits then
-                for i = 0, allTraits:size() - 1 do
-                    local def = allTraits:get(i)
-                    if def then
-                        local thisTraitId = nil
-                        safePcall(function()
-                            local traitType = def:getType()
-                            if traitType and traitType.getName then
-                                thisTraitId = traitType:getName()
-                            elseif traitType then
-                                thisTraitId = tostring(traitType)
-                                thisTraitId = string.gsub(thisTraitId, "^base:", "")
-                            end
-                        end)
-
-                        if thisTraitId and string.lower(thisTraitId) == string.lower(traitId) then
-                            if def.getLabel then
-                                displayName = def:getLabel()
-                            end
-                            break
-                        end
+        local allTraits = CharacterTraitDefinition.getTraits()
+        if allTraits and allTraits.size and allTraits.get then
+            for i = 0, allTraits:size() - 1 do
+                local def = allTraits:get(i)
+                if def then
+                    local thisTraitId = getTraitIdFromDefinition(def)
+                    if thisTraitId and string.lower(thisTraitId) == string.lower(traitId) then
+                        displayName = getTraitLabelFromDefinition(def, displayName)
+                        break
                     end
                 end
             end
-        end)
+        end
     end
 
     if not displayName and TraitFactory and TraitFactory.getTrait then
-        safePcall(function()
-            local trait = TraitFactory.getTrait(traitId)
-            if trait and trait.getLabel then
-                displayName = trait:getLabel()
-            end
-        end)
+        local trait = TraitFactory.getTrait(traitId)
+        if trait and trait.getLabel then
+            displayName = trait:getLabel()
+        end
     end
 
     if not displayName then
@@ -571,6 +1511,7 @@ function BurdJournals.discoverGrantableTraits(includeNegative, forceRefresh)
     end
 
     local discoveredTraits = {}
+    local addedTraitsLower = {}  -- Track lowercase IDs to prevent duplicates
     local excludedSet = {}
 
     for _, traitId in ipairs(BurdJournals.EXCLUDED_TRAITS) do
@@ -587,35 +1528,36 @@ function BurdJournals.discoverGrantableTraits(includeNegative, forceRefresh)
                     local cost = 0
                     local isPositive = true
 
-                    safePcall(function()
-                        local traitType = def:getType()
-                        if traitType and traitType.getName then
-                            traitId = traitType:getName()
-                        elseif traitType then
-                            traitId = tostring(traitType)
+                    traitId = getTraitIdFromDefinition(def)
+                    cost = getTraitCostFromDefinition(def)
 
-                            traitId = string.gsub(traitId, "^base:", "")
-                        end
-                    end)
-
-                    safePcall(function()
-                        cost = def:getCost() or 0
-                    end)
-
+                    -- In PZ trait definitions:
+                    -- cost > 0 = Positive trait (benefits, player pays points to get)
+                    -- cost < 0 = Negative trait (drawbacks, player gains points by taking)
+                    -- cost = 0 = Neutral/profession traits (no point cost)
                     isPositive = cost > 0
 
                     if traitId then
                         local traitIdLower = string.lower(traitId)
 
-                        if excludedSet[traitIdLower] then
-
-                        elseif cost == 0 then
-
+                        -- Skip if already added (case-insensitive deduplication)
+                        if addedTraitsLower[traitIdLower] then
+                            -- Already have this trait, skip
+                        elseif excludedSet[traitIdLower] then
+                            -- Skip excluded traits (passive skill traits, etc.)
                         elseif isPositive then
+                            -- Positive trait (costs points = beneficial)
                             table.insert(discoveredTraits, traitId)
-
-                        elseif includeNegative and not isPositive then
+                            addedTraitsLower[traitIdLower] = true
+                        elseif cost == 0 then
+                            -- Neutral/profession traits with 0 cost - include them
+                            -- These are often profession-specific or hobby traits
                             table.insert(discoveredTraits, traitId)
+                            addedTraitsLower[traitIdLower] = true
+                        elseif includeNegative and cost < 0 then
+                            -- Negative trait (gives points = drawback) - only if allowed
+                            table.insert(discoveredTraits, traitId)
+                            addedTraitsLower[traitIdLower] = true
                         end
                     end
                 end
@@ -626,16 +1568,10 @@ function BurdJournals.discoverGrantableTraits(includeNegative, forceRefresh)
     local modTraits = BurdJournals.getModRegisteredTraits()
     local addedModTraits = 0
     for traitId, _ in pairs(modTraits) do
-
-        local alreadyExists = false
-        for _, existing in ipairs(discoveredTraits) do
-            if string.lower(existing) == string.lower(traitId) then
-                alreadyExists = true
-                break
-            end
-        end
-        if not alreadyExists and not excludedSet[string.lower(traitId)] then
+        local traitIdLower = string.lower(traitId)
+        if not addedTraitsLower[traitIdLower] and not excludedSet[traitIdLower] then
             table.insert(discoveredTraits, traitId)
+            addedTraitsLower[traitIdLower] = true
             addedModTraits = addedModTraits + 1
         end
     end
@@ -652,6 +1588,90 @@ end
 
 function BurdJournals.getGrantableTraits(includeNegative)
     return BurdJournals.discoverGrantableTraits(includeNegative, false)
+end
+
+-- Get only positive traits (cost > 0 = beneficial traits)
+function BurdJournals.getPositiveTraits(forceRefresh)
+    if not forceRefresh and BurdJournals._cachedPositiveTraits then
+        return BurdJournals._cachedPositiveTraits
+    end
+    
+    local positiveTraits = {}
+    local excludedSet = {}
+    
+    for _, traitId in ipairs(BurdJournals.EXCLUDED_TRAITS or {}) do
+        excludedSet[string.lower(traitId)] = true
+    end
+    
+    if CharacterTraitDefinition and CharacterTraitDefinition.getTraits then
+        local allTraits = CharacterTraitDefinition.getTraits()
+        if allTraits then
+            for i = 0, allTraits:size() - 1 do
+                local def = allTraits:get(i)
+                if def then
+                    local traitId = nil
+                    local cost = 0
+                    traitId = getTraitIdFromDefinition(def)
+                    cost = getTraitCostFromDefinition(def)
+                    
+                    -- cost > 0 = positive trait (beneficial)
+                    if traitId and cost > 0 and not excludedSet[string.lower(traitId)] then
+                        table.insert(positiveTraits, traitId)
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Fallback
+    if #positiveTraits == 0 then
+        positiveTraits = {"Athletic", "Strong", "FastLearner", "Organized", "Lucky", "Brave", "Outdoorsman", "LightEater", "FastReader", "ThickSkinned"}
+    end
+    
+    BurdJournals._cachedPositiveTraits = positiveTraits
+    return positiveTraits
+end
+
+-- Get only negative traits (cost < 0 = drawback traits)
+function BurdJournals.getNegativeTraits(forceRefresh)
+    if not forceRefresh and BurdJournals._cachedNegativeTraits then
+        return BurdJournals._cachedNegativeTraits
+    end
+    
+    local negativeTraits = {}
+    local excludedSet = {}
+    
+    for _, traitId in ipairs(BurdJournals.EXCLUDED_TRAITS or {}) do
+        excludedSet[string.lower(traitId)] = true
+    end
+    
+    if CharacterTraitDefinition and CharacterTraitDefinition.getTraits then
+        local allTraits = CharacterTraitDefinition.getTraits()
+        if allTraits then
+            for i = 0, allTraits:size() - 1 do
+                local def = allTraits:get(i)
+                if def then
+                    local traitId = nil
+                    local cost = 0
+                    traitId = getTraitIdFromDefinition(def)
+                    cost = getTraitCostFromDefinition(def)
+                    
+                    -- cost < 0 = negative trait (drawback)
+                    if traitId and cost < 0 and not excludedSet[string.lower(traitId)] then
+                        table.insert(negativeTraits, traitId)
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Fallback
+    if #negativeTraits == 0 then
+        negativeTraits = {"Conspicuous", "Clumsy", "SlowLearner", "SlowReader", "Cowardly", "Weak", "Overweight", "Underweight", "HighThirst", "Pacifist"}
+    end
+    
+    BurdJournals._cachedNegativeTraits = negativeTraits
+    return negativeTraits
 end
 
 function BurdJournals.isTraitGrantable(traitId, grantableList)
@@ -731,23 +1751,9 @@ function BurdJournals.debugDumpTraits()
             local cost = 0
             local modSource = "vanilla"
 
-            safePcall(function()
-                local traitType = def:getType()
-                if traitType and traitType.getName then
-                    traitId = traitType:getName()
-                elseif traitType then
-                    traitId = tostring(traitType)
-                    traitId = string.gsub(traitId, "^base:", "")
-                end
-            end)
-
-            safePcall(function()
-                traitLabel = def:getLabel() or traitId or "?"
-            end)
-
-            safePcall(function()
-                cost = def:getCost() or 0
-            end)
+            traitId = getTraitIdFromDefinition(def)
+            traitLabel = getTraitLabelFromDefinition(def, traitId or "?")
+            cost = getTraitCostFromDefinition(def)
 
             if traitId then
                 if string.find(traitId, "SOTO") or string.find(traitId, "soto") then
@@ -838,96 +1844,137 @@ function BurdJournals.debugDumpSkills()
 
     print("==================== BURD JOURNALS: SKILL DISCOVERY DEBUG ====================")
 
-    BurdJournals._cachedDiscoveredSkills = nil
-    local allSkills = BurdJournals.discoverAllSkills(true)
-
-    print("[BurdJournals] Total skills discovered: " .. #allSkills)
-    print("")
-
-    local vanillaSkills = {}
-    local modSkills = {}
-
-    local baseSkillSet = {}
-    for _, skill in ipairs(BurdJournals.ALL_SKILLS) do
-        baseSkillSet[string.lower(skill)] = true
-    end
-
-    for _, skillName in ipairs(allSkills) do
-        local displayName = BurdJournals.getPerkDisplayName(skillName)
-        local perk = BurdJournals.getPerkByName(skillName)
-        local isValid = perk ~= nil
-
-        local entry = {
-            name = skillName,
-            displayName = displayName or skillName,
-            isValid = isValid
-        }
-
-        if baseSkillSet[string.lower(skillName)] then
-            table.insert(vanillaSkills, entry)
+    -- Force refresh all caches
+    BurdJournals.refreshSkillCache()
+    
+    -- Use enhanced metadata discovery
+    local skillMetadata = BurdJournals.discoverSkillMetadata(true)
+    
+    -- Organize by category and vanilla/mod status
+    local byCategory = {}
+    local vanillaCount, modCount = 0, 0
+    
+    for perkId, data in pairs(skillMetadata) do
+        local cat = data.category or "Other"
+        if not byCategory[cat] then
+            byCategory[cat] = { vanilla = {}, modded = {} }
+        end
+        
+        if data.isVanilla then
+            table.insert(byCategory[cat].vanilla, data)
+            vanillaCount = vanillaCount + 1
         else
-            table.insert(modSkills, entry)
+            table.insert(byCategory[cat].modded, data)
+            modCount = modCount + 1
         end
     end
-
-    print("=== VANILLA/BASE SKILLS: " .. #vanillaSkills .. " ===")
-    for _, s in ipairs(vanillaSkills) do
-        local status = s.isValid and "[OK]" or "[!]"
-        print("  " .. status .. " " .. s.name .. " -> \"" .. s.displayName .. "\"")
-    end
+    
+    print("[BurdJournals] Total skills discovered: " .. (vanillaCount + modCount))
+    print("  Vanilla: " .. vanillaCount .. ", Modded: " .. modCount)
     print("")
-
-    print("=== MOD-ADDED SKILLS: " .. #modSkills .. " ===")
-    if #modSkills == 0 then
-        print("  (none detected - if you have skill mods, they may not be loaded yet)")
-    else
-        for _, s in ipairs(modSkills) do
-            local status = s.isValid and "[OK]" or "[!]"
-            print("  " .. status .. " " .. s.name .. " -> \"" .. s.displayName .. "\"")
+    
+    -- Print by category
+    local sortedCategories = {}
+    for cat, _ in pairs(byCategory) do
+        table.insert(sortedCategories, cat)
+    end
+    table.sort(sortedCategories)
+    
+    for _, cat in ipairs(sortedCategories) do
+        local catData = byCategory[cat]
+        local catDisplayName = cat
+        
+        -- Try to get category display name from first skill
+        if #catData.vanilla > 0 and catData.vanilla[1].categoryDisplayName then
+            catDisplayName = catData.vanilla[1].categoryDisplayName
+        elseif #catData.modded > 0 and catData.modded[1].categoryDisplayName then
+            catDisplayName = catData.modded[1].categoryDisplayName
         end
-    end
-    print("")
-
-    print("=== RAW PERKFACTORY.PERKLIST ===")
-    if PerkFactory and PerkFactory.PerkList then
-        local perkList = PerkFactory.PerkList
-        if perkList and perkList.size then
-            local count = perkList:size()
-            print("  PerkFactory.PerkList contains " .. count .. " entries")
-            for i = 0, math.min(count - 1, 50) do
-                local perk = perkList:get(i)
-                if perk then
-                    local name = "?"
-                    safePcall(function()
-                        if perk.getId then
-                            name = tostring(perk:getId())
-                        elseif perk.getName then
-                            name = perk:getName()
-                        else
-                            name = tostring(perk)
-                        end
-                    end)
-                    print("    [" .. i .. "] " .. name)
-                end
-            end
-            if count > 50 then
-                print("    ... and " .. (count - 50) .. " more")
-            end
+        
+        local total = #catData.vanilla + #catData.modded
+        print("=== " .. catDisplayName .. " (" .. cat .. ") - " .. total .. " skills ===")
+        
+        -- Sort skills by display name
+        table.sort(catData.vanilla, function(a, b) return a.displayName < b.displayName end)
+        table.sort(catData.modded, function(a, b) return a.displayName < b.displayName end)
+        
+        -- Print vanilla skills
+        for _, s in ipairs(catData.vanilla) do
+            local passive = s.isPassive and " [PASSIVE]" or ""
+            print(string.format("  [OK] %s -> \"%s\"%s", s.id, s.displayName, passive))
         end
-    else
-        print("  PerkFactory.PerkList not available")
+        
+        -- Print modded skills with [MOD] prefix
+        for _, s in ipairs(catData.modded) do
+            local passive = s.isPassive and " [PASSIVE]" or ""
+            print(string.format("  [MOD] %s -> \"%s\"%s", s.id, s.displayName, passive))
+        end
+        print("")
     end
-    print("")
-
+    
     print("=== SUMMARY ===")
-    print("  Vanilla skills: " .. #vanillaSkills)
-    print("  Mod-added skills: " .. #modSkills)
-    print("  Total available: " .. #allSkills)
+    print("  Total categories: " .. #sortedCategories)
+    print("  Vanilla skills: " .. vanillaCount)
+    print("  Mod-added skills: " .. modCount)
+    print("  Total available: " .. (vanillaCount + modCount))
     print("")
     print("  Note: Mod skills may only appear after game has fully loaded.")
     print("  If skills are missing, try running this command again in-game.")
 
     BurdJournals.debugPrint("==================== END SKILL DISCOVERY DEBUG ==")
+end
+
+-- Enhanced debug function to dump trait metadata
+function BurdJournals.debugDumpTraitMetadata()
+    if not BurdJournals.isDebug() then
+        print("[BurdJournals] debugDumpTraitMetadata requires -debug mode")
+        return
+    end
+
+    print("==================== BURD JOURNALS: TRAIT METADATA DEBUG ====================")
+
+    -- Force refresh
+    BurdJournals._cachedTraitMetadata = nil
+    local traitMetadata = BurdJournals.discoverTraitMetadata(true)
+    
+    local positive, negative = {}, {}
+    local moddedCount = 0
+    
+    for traitId, data in pairs(traitMetadata) do
+        if data.isPositive then
+            table.insert(positive, data)
+        else
+            table.insert(negative, data)
+        end
+        if not data.isVanilla then
+            moddedCount = moddedCount + 1
+        end
+    end
+    
+    table.sort(positive, function(a, b) return a.displayName < b.displayName end)
+    table.sort(negative, function(a, b) return a.displayName < b.displayName end)
+    
+    print("[BurdJournals] Total traits discovered: " .. (#positive + #negative))
+    print("  Positive: " .. #positive .. ", Negative: " .. #negative .. ", Modded: " .. moddedCount)
+    print("")
+    
+    print("=== POSITIVE TRAITS ===")
+    for _, t in ipairs(positive) do
+        local mod = t.isVanilla and "" or " [MOD]"
+        local cost = t.cost ~= 0 and string.format(" (cost: %d)", t.cost) or ""
+        print(string.format("  %s -> \"%s\"%s%s", t.id, t.displayName, cost, mod))
+    end
+    print("")
+    
+    print("=== NEGATIVE TRAITS ===")
+    for _, t in ipairs(negative) do
+        local mod = t.isVanilla and "" or " [MOD]"
+        local cost = t.cost ~= 0 and string.format(" (cost: %d)", t.cost) or ""
+        print(string.format("  %s -> \"%s\"%s%s", t.id, t.displayName, cost, mod))
+    end
+    print("")
+
+    print("==================== END TRAIT METADATA DEBUG ====================")
 end
 
 BurdJournals.RECORDABLE_STATS = {
@@ -1012,11 +2059,8 @@ end
 
 function BurdJournals.getStatValue(player, statId)
     local stat = BurdJournals.getStatById(statId)
-    if stat and stat.getValue then
-        local ok, value = safePcall(stat.getValue, player)
-        if ok then
-            return value
-        end
+    if stat and stat.getValue and player then
+        return stat.getValue(player)
     end
     return nil
 end
@@ -1024,10 +2068,7 @@ end
 function BurdJournals.formatStatValue(statId, value)
     local stat = BurdJournals.getStatById(statId)
     if stat and stat.format then
-        local ok, formatted = safePcall(stat.format, value)
-        if ok then
-            return formatted
-        end
+        return stat.format(value)
     end
     return tostring(value)
 end
@@ -1183,6 +2224,7 @@ function BurdJournals.getSandboxOption(optionName)
         DiminishingFirstRead = 100,
         DiminishingDecayRate = 10,
         DiminishingMinimum = 10,
+        DiminishingTrackingMode = 3,
 
         RequirePenToWrite = true,
         PenUsesPerLog = 1,
@@ -1200,6 +2242,8 @@ function BurdJournals.getSandboxOption(optionName)
         -- Player Journal trait/recipe recording toggles
         EnableTraitRecordingPlayer = true,
         EnableRecipeRecordingPlayer = true,
+        EnablePassiveSkillsPlayer = true,
+        EnablePassiveSkillsLoot = true,
 
         -- Loot journal trait/recipe display toggles (hides but preserves data)
         EnableWornJournalRecipes = true,
@@ -1237,6 +2281,7 @@ function BurdJournals.getSandboxOption(optionName)
 
         SkillBookMultiplierForJournals = true,
         SkillBookMultiplierCap = 2.0,
+        RequireLightForJournalUse = false,
 
         AllowOthersToOpenJournals = true,
         AllowOthersToClaimFromJournals = true,
@@ -1256,10 +2301,66 @@ function BurdJournals.isPlayerJournalsEnabled()
     return BurdJournals.getSandboxOption("EnablePlayerJournals") ~= false
 end
 
+function BurdJournals.requiresLightForJournalUse()
+    return BurdJournals.getSandboxOption("RequireLightForJournalUse") == true
+end
+
+function BurdJournals.canUseJournalInCurrentLight(player)
+    if not BurdJournals.requiresLightForJournalUse() then
+        return true, nil
+    end
+
+    local tooDarkText = (getText and getText("ContextMenu_TooDark")) or "Too dark to read."
+    if tooDarkText == "ContextMenu_TooDark" then
+        tooDarkText = "Too dark to read."
+    end
+
+    if not player then
+        return false, tooDarkText
+    end
+
+    if player.tooDarkToRead and player:tooDarkToRead() then
+        return false, tooDarkText
+    end
+
+    return true, nil
+end
+
+-- Check if passive skills (Fitness/Strength) are enabled for this journal context
+function BurdJournals.arePassiveSkillsEnabledForJournal(journalData)
+    if not journalData then return true end
+
+    if journalData.isPlayerCreated then
+        return BurdJournals.getSandboxOption("EnablePassiveSkillsPlayer") ~= false
+    end
+
+    return BurdJournals.getSandboxOption("EnablePassiveSkillsLoot") ~= false
+end
+
+-- Check if a specific skill is enabled for this journal context
+function BurdJournals.isSkillEnabledForJournal(journalData, skillName)
+    if not skillName then return false end
+
+    local isPassive = BurdJournals.isPassiveSkill and BurdJournals.isPassiveSkill(skillName)
+    if isPassive == nil then
+        isPassive = (skillName == "Fitness" or skillName == "Strength")
+    end
+    if not isPassive then
+        return true
+    end
+
+    return BurdJournals.arePassiveSkillsEnabledForJournal(journalData)
+end
+
 -- Check if traits are enabled for a specific journal type
 -- journalType: "player", "worn", "bloody"
 function BurdJournals.areTraitsEnabledForJournal(journalData)
     if not journalData then return false end
+
+    -- Debug-spawned journals ALWAYS allow traits (bypass all restrictions)
+    if journalData.isDebugSpawned then
+        return true
+    end
 
     -- Player journals check EnableTraitRecordingPlayer
     if journalData.isPlayerCreated then
@@ -1278,6 +2379,11 @@ end
 -- Check if recipes are enabled for a specific journal type
 function BurdJournals.areRecipesEnabledForJournal(journalData)
     if not journalData then return false end
+
+    -- Debug-spawned journals ALWAYS allow recipes (bypass all restrictions)
+    if journalData.isDebugSpawned then
+        return true
+    end
 
     -- Player journals check EnableRecipeRecordingPlayer
     if journalData.isPlayerCreated then
@@ -1541,13 +2647,68 @@ function BurdJournals.getCharacterClaims(journalData, player)
     return charClaims
 end
 
+local function hasLegacyUnknownClaim(journalData, claimType, claimId)
+    if not journalData or type(claimType) ~= "string" or claimType == "" or claimId == nil then
+        return false
+    end
+
+    local claims = journalData.claims
+    if type(claims) ~= "table" and BurdJournals.normalizeTable then
+        claims = BurdJournals.normalizeTable(claims)
+    end
+    if type(claims) ~= "table" then
+        return false
+    end
+
+    local legacyClaims = claims["legacy_unknown"]
+    if type(legacyClaims) ~= "table" and BurdJournals.normalizeTable then
+        legacyClaims = BurdJournals.normalizeTable(legacyClaims)
+    end
+    if type(legacyClaims) ~= "table" then
+        return false
+    end
+
+    local claimBucket = legacyClaims[claimType]
+    if type(claimBucket) ~= "table" and BurdJournals.normalizeTable then
+        claimBucket = BurdJournals.normalizeTable(claimBucket)
+    end
+    if type(claimBucket) ~= "table" then
+        return false
+    end
+
+    local value = claimBucket[claimId]
+    return value ~= nil and value ~= false
+end
+
+-- Player journals only track per-character claim state when restored journals are
+-- configured to dissolve. Otherwise they behave like reusable crafted journals.
+function BurdJournals.shouldTrackCharacterClaims(journalData)
+    if type(journalData) ~= "table" then
+        return true
+    end
+
+    if not journalData.isPlayerCreated then
+        return true
+    end
+
+    local isRestored = journalData.wasFromWorn == true
+        or journalData.wasFromBloody == true
+        or journalData.isWorn == true
+        or journalData.isBloody == true
+
+    if not isRestored then
+        return false
+    end
+
+    return BurdJournals.getSandboxOption("AllowPlayerJournalDissolution") == true
+end
+
 function BurdJournals.hasCharacterClaimedSkill(journalData, player, skillName)
     if not journalData or not player or not skillName then return false end
+    if not BurdJournals.shouldTrackCharacterClaims(journalData) then return false end
 
     local characterId = BurdJournals.getPlayerCharacterId(player)
-    if not characterId then return false end
-
-    if journalData.claims and type(journalData.claims) == "table" then
+    if characterId and journalData.claims and type(journalData.claims) == "table" then
         local charClaims = journalData.claims[characterId]
         if charClaims and type(charClaims) == "table" then
             local skillClaims = charClaims.skills
@@ -1557,16 +2718,19 @@ function BurdJournals.hasCharacterClaimedSkill(journalData, player, skillName)
         end
     end
 
+    if hasLegacyUnknownClaim(journalData, "skills", skillName) then
+        return true
+    end
+
     return false
 end
 
 function BurdJournals.hasCharacterClaimedTrait(journalData, player, traitId)
     if not journalData or not player or not traitId then return false end
+    if not BurdJournals.shouldTrackCharacterClaims(journalData) then return false end
 
     local characterId = BurdJournals.getPlayerCharacterId(player)
-    if not characterId then return false end
-
-    if journalData.claims and type(journalData.claims) == "table" then
+    if characterId and journalData.claims and type(journalData.claims) == "table" then
         local charClaims = journalData.claims[characterId]
         if charClaims and type(charClaims) == "table" then
             local traitClaims = charClaims.traits
@@ -1576,16 +2740,19 @@ function BurdJournals.hasCharacterClaimedTrait(journalData, player, traitId)
         end
     end
 
+    if hasLegacyUnknownClaim(journalData, "traits", traitId) then
+        return true
+    end
+
     return false
 end
 
 function BurdJournals.hasCharacterClaimedRecipe(journalData, player, recipeName)
     if not journalData or not player or not recipeName then return false end
+    if not BurdJournals.shouldTrackCharacterClaims(journalData) then return false end
 
     local characterId = BurdJournals.getPlayerCharacterId(player)
-    if not characterId then return false end
-
-    if journalData.claims and type(journalData.claims) == "table" then
+    if characterId and journalData.claims and type(journalData.claims) == "table" then
         local charClaims = journalData.claims[characterId]
         if charClaims and type(charClaims) == "table" then
             local recipeClaims = charClaims.recipes
@@ -1595,11 +2762,16 @@ function BurdJournals.hasCharacterClaimedRecipe(journalData, player, recipeName)
         end
     end
 
+    if hasLegacyUnknownClaim(journalData, "recipes", recipeName) then
+        return true
+    end
+
     return false
 end
 
 function BurdJournals.markSkillClaimedByCharacter(journalData, player, skillName)
     if not journalData or not player or not skillName then return false end
+    if not BurdJournals.shouldTrackCharacterClaims(journalData) then return true end
 
     local claims = BurdJournals.getCharacterClaims(journalData, player)
     if not claims then return false end
@@ -1616,6 +2788,7 @@ end
 
 function BurdJournals.markTraitClaimedByCharacter(journalData, player, traitId)
     if not journalData or not player or not traitId then return false end
+    if not BurdJournals.shouldTrackCharacterClaims(journalData) then return true end
 
     local claims = BurdJournals.getCharacterClaims(journalData, player)
     if not claims then return false end
@@ -1632,6 +2805,7 @@ end
 
 function BurdJournals.markRecipeClaimedByCharacter(journalData, player, recipeName)
     if not journalData or not player or not recipeName then return false end
+    if not BurdJournals.shouldTrackCharacterClaims(journalData) then return true end
 
     local claims = BurdJournals.getCharacterClaims(journalData, player)
     if not claims then return false end
@@ -1752,9 +2926,15 @@ end
 -- Check if a character has claimed a specific stat from a journal
 function BurdJournals.hasCharacterClaimedStat(journalData, player, statId)
     if not journalData or not player or not statId then return false end
+    if not BurdJournals.shouldTrackCharacterClaims(journalData) then return false end
 
     -- For non-player journals (worn/bloody), check global claims first
     if not journalData.isPlayerCreated and journalData.claimedStats and journalData.claimedStats[statId] then
+        return true
+    end
+
+    -- Legacy migration fallback: claimedStats may have been migrated to claims.legacy_unknown.stats
+    if hasLegacyUnknownClaim(journalData, "stats", statId) then
         return true
     end
 
@@ -1773,6 +2953,7 @@ end
 -- Mark a stat as claimed by a specific character
 function BurdJournals.markStatClaimedByCharacter(journalData, player, statId)
     if not journalData or not player or not statId then return false end
+    if not BurdJournals.shouldTrackCharacterClaims(journalData) then return true end
 
     local claims = BurdJournals.getCharacterClaims(journalData, player)
     if not claims then return false end
@@ -1818,6 +2999,203 @@ function BurdJournals.getStatDisplayName(statId)
     return "Unknown"
 end
 
+-- Current compact version - increment when adding new optimizations
+BurdJournals.COMPACT_VERSION = 1
+
+-- Compact journal data by removing redundant fields to reduce ModData size
+-- This helps prevent hitting the 64KB player data limit that can cause save corruption
+-- All removed fields are either derivable from other data or unused
+function BurdJournals.compactJournalData(item)
+    if not item then return end
+    
+    -- Ensure item has getModData method (defensive check)
+    if not item.getModData then
+        BurdJournals.debugPrint("[BurdJournals] WARNING: compactJournalData called with invalid item (no getModData)")
+        return
+    end
+    
+    local modData = item:getModData()
+    if not modData or not modData.BurdJournals then return end
+    local data = modData.BurdJournals
+    
+    -- Ensure data is a table
+    if type(data) ~= "table" then return end
+    
+    -- Check if already compacted at current version
+    if data.compactVersion and data.compactVersion >= BurdJournals.COMPACT_VERSION then
+        return
+    end
+    
+    local fieldsRemoved = 0
+    
+    -- Remove redundant authorship field (duplicates ownerCharacterName)
+    if data.author then
+        data.author = nil
+        fieldsRemoved = fieldsRemoved + 1
+    end
+    
+    -- Remove empty contributors table (never used)
+    if data.contributors then
+        data.contributors = nil
+        fieldsRemoved = fieldsRemoved + 1
+    end
+    
+    -- Remove rarely-used state flags
+    if data.wasFromBloody then
+        data.wasFromBloody = nil
+        fieldsRemoved = fieldsRemoved + 1
+    end
+    if data.wasRestored then
+        data.wasRestored = nil
+        fieldsRemoved = fieldsRemoved + 1
+    end
+    
+    -- Remove professionName (derivable from profession)
+    if data.professionName then
+        data.professionName = nil
+        fieldsRemoved = fieldsRemoved + 1
+    end
+    
+    -- NOTE: We no longer remove skill.level during compaction
+    -- For passive skills (Fitness/Strength), the stored XP is "earned XP" (after baseline)
+    -- but the level is the ABSOLUTE level at recording time. These cannot be derived from
+    -- each other for passive skills due to different XP thresholds.
+    -- Keeping level adds minimal overhead (one integer per skill) but ensures correct display.
+    
+    -- Simplify stats (remove verbose metadata - timestamp and recordedBy)
+    if data.stats then
+        for statName, statData in pairs(data.stats) do
+            if type(statData) == "table" then
+                if statData.timestamp ~= nil then
+                    statData.timestamp = nil
+                    fieldsRemoved = fieldsRemoved + 1
+                end
+                if statData.recordedBy ~= nil then
+                    statData.recordedBy = nil
+                    fieldsRemoved = fieldsRemoved + 1
+                end
+            end
+        end
+    end
+    
+    -- Remove legacy claim fields if per-character claims structure exists
+    -- The migration system already copies these to the claims structure
+    local hasClaimsTable = data.claims and type(data.claims) == "table"
+    local claimsHasEntries = false
+    if hasClaimsTable then
+        -- Safely check if claims table has any entries
+        for _ in pairs(data.claims) do
+            claimsHasEntries = true
+            break
+        end
+    end
+    
+    if claimsHasEntries then
+        if data.claimedSkills then
+            data.claimedSkills = nil
+            fieldsRemoved = fieldsRemoved + 1
+        end
+        if data.claimedTraits then
+            data.claimedTraits = nil
+            fieldsRemoved = fieldsRemoved + 1
+        end
+        if data.claimedRecipes then
+            data.claimedRecipes = nil
+            fieldsRemoved = fieldsRemoved + 1
+        end
+        if data.claimedStats then
+            data.claimedStats = nil
+            fieldsRemoved = fieldsRemoved + 1
+        end
+    end
+    
+    -- Mark as compacted at current version
+    data.compactVersion = BurdJournals.COMPACT_VERSION
+    
+    if fieldsRemoved > 0 then
+        BurdJournals.debugPrint("[BurdJournals] Compacted journal data: removed " .. fieldsRemoved .. " redundant fields")
+    end
+end
+
+-- Helper function to get skill level from XP (for backward compatibility with optimized journals)
+-- Uses actual PZ XP thresholds (non-linear progression)
+-- Optional skillName parameter uses perk's actual thresholds (important for Fitness/Strength)
+-- NOTE: getTotalXpForLevel(N) returns the XP threshold to BE AT level N
+-- This matches how the game engine determines level from XP
+function BurdJournals.getSkillLevelFromXP(xp, skillName)
+    if not xp or xp <= 0 then return 0 end
+    
+    -- If skillName provided, use the perk's actual XP thresholds
+    -- This is important for Fitness/Strength which have different scaling
+    if skillName then
+        local perk = BurdJournals.getPerkByName(skillName)
+        if perk and perk.getTotalXpForLevel then
+            local level = 0
+            for i = 1, 10 do
+                -- getTotalXpForLevel(i) = XP threshold to BE at level i
+                -- To be at level i, player needs XP >= getTotalXpForLevel(i)
+                local threshold = perk:getTotalXpForLevel(i)
+                if threshold and xp >= threshold then
+                    level = i
+                else
+                    break
+                end
+            end
+            return level
+        end
+    end
+    
+    -- Fallback: Standard skill XP thresholds in PZ
+    -- Level:  0,    1,    2,    3,    4,     5,     6,     7,     8,     9,    10
+    local xpTable = {0, 75, 225, 500, 900, 1425, 2075, 2850, 3750, 4775, 5925}
+    
+    local level = 0
+    for i = 1, 10 do
+        -- xpTable[i+1] = XP threshold to BE at level i
+        if xp >= xpTable[i + 1] then
+            level = i
+        else
+            break
+        end
+    end
+    
+    return level
+end
+
+-- Normalize legacy skill entries where level/xp are inconsistent (older patches).
+-- For non-baseline journals (SET mode), if XP is missing/too low for the declared
+-- level, upgrade XP to the exact threshold for that level.
+function BurdJournals.normalizeLegacySkillEntry(skillName, skillData, recordedWithBaseline)
+    if not skillData or type(skillData) ~= "table" then
+        return 0, 0, false
+    end
+
+    local level = tonumber(skillData.level) or 0
+    if level < 0 then level = 0 end
+    if level > 10 then level = 10 end
+
+    local xp = tonumber(skillData.xp) or 0
+    local changed = false
+
+    -- Baseline journals intentionally store earned/delta XP (ADD mode).
+    if recordedWithBaseline ~= true and level > 0 then
+        local thresholdXP = BurdJournals.getXPThresholdForLevel and BurdJournals.getXPThresholdForLevel(skillName, level) or 0
+
+        if xp <= 0 and thresholdXP > 0 then
+            xp = thresholdXP
+            changed = true
+        elseif BurdJournals.getSkillLevelFromXP and thresholdXP > 0 then
+            local computed = BurdJournals.getSkillLevelFromXP(xp, skillName)
+            if computed < level and xp < thresholdXP then
+                xp = thresholdXP
+                changed = true
+            end
+        end
+    end
+
+    return xp, level, changed
+end
+
 function BurdJournals.migrateJournalIfNeeded(item, player)
     if not item then return end
 
@@ -1826,57 +3204,179 @@ function BurdJournals.migrateJournalIfNeeded(item, player)
 
     local journalData = modData.BurdJournals
     local migrated = false
+    local targetMigrationSchemaVersion = tonumber(BurdJournals.MIGRATION_SCHEMA_VERSION) or 1
+    local currentMigrationSchemaVersion = math.max(0, tonumber(journalData.migrationSchemaVersion) or 0)
 
-    if not journalData.ownerSteamId and journalData.ownerUsername and player then
-        local playerUsername = player:getUsername()
-        if playerUsername and journalData.ownerUsername == playerUsername then
-
-            journalData.ownerSteamId = BurdJournals.getPlayerSteamId(player)
-            migrated = true
-            BurdJournals.debugPrint("[BurdJournals] Migrated journal ownership: added Steam ID " .. tostring(journalData.ownerSteamId))
-        end
-    end
-
-    if not journalData.ownerSteamId and journalData.ownerUsername then
-
-        journalData.ownerSteamId = "legacy_" .. journalData.ownerUsername
-        migrated = true
-        BurdJournals.debugPrint("[BurdJournals] Marked legacy journal with placeholder Steam ID: " .. journalData.ownerSteamId)
-    end
-
-    if (journalData.claimedSkills or journalData.claimedTraits or journalData.claimedRecipes) and not journalData.claims then
-
-        journalData.claims = {}
-        journalData.claims["legacy_unknown"] = {
-            skills = journalData.claimedSkills or {},
-            traits = journalData.claimedTraits or {},
-            recipes = journalData.claimedRecipes or {}
-        }
-        migrated = true
-        BurdJournals.debugPrint("[BurdJournals] Migrated legacy claims to per-character structure")
-    end
-
-    -- Infer isPlayerCreated for legacy journals that have owner fields
-    -- Without this, legacy player-created journals may be treated as looted and dissolve incorrectly
-    if journalData.isPlayerCreated == nil then
-        -- If journal has owner fields, it was likely player-created
-        if journalData.ownerUsername or journalData.ownerSteamId or journalData.author then
-            -- Check it's not a world-spawned journal (which might have author set)
-            if not journalData.isWorn and not journalData.isBloody then
-                journalData.isPlayerCreated = true
+    -- Migration step v1: ownership normalization, claim structure merge, debug flags, inferred journal origin.
+    if currentMigrationSchemaVersion < 1 then
+        if not journalData.ownerSteamId and journalData.ownerUsername and player then
+            local playerUsername = player:getUsername()
+            if playerUsername and journalData.ownerUsername == playerUsername then
+                journalData.ownerSteamId = BurdJournals.getPlayerSteamId(player)
                 migrated = true
-                BurdJournals.debugPrint("[BurdJournals] Migrated legacy journal: inferred isPlayerCreated=true from owner fields")
+                BurdJournals.debugPrint("[BurdJournals] Migrated journal ownership: added Steam ID " .. tostring(journalData.ownerSteamId))
+            end
+        end
+
+        if not journalData.ownerSteamId and journalData.ownerUsername then
+
+            journalData.ownerSteamId = "legacy_" .. journalData.ownerUsername
+            migrated = true
+            BurdJournals.debugPrint("[BurdJournals] Marked legacy journal with placeholder Steam ID: " .. journalData.ownerSteamId)
+        end
+
+        if journalData.claimedSkills or journalData.claimedTraits or journalData.claimedRecipes or journalData.claimedStats then
+            if type(journalData.claims) ~= "table" then
+                journalData.claims = {}
+                migrated = true
+            end
+
+            local legacyClaims = journalData.claims["legacy_unknown"]
+            if type(legacyClaims) ~= "table" then
+                legacyClaims = {}
+                journalData.claims["legacy_unknown"] = legacyClaims
+                migrated = true
+            end
+
+            local function mergeLegacyClaimTable(targetKey, sourceTable)
+                local changed = false
+                if type(sourceTable) ~= "table" then
+                    return false
+                end
+                if type(legacyClaims[targetKey]) ~= "table" then
+                    legacyClaims[targetKey] = {}
+                    changed = true
+                end
+                local targetTable = legacyClaims[targetKey]
+                for claimKey, claimValue in pairs(sourceTable) do
+                    if claimKey ~= nil and claimValue and targetTable[claimKey] ~= true then
+                        targetTable[claimKey] = true
+                        changed = true
+                    end
+                end
+                return changed
+            end
+
+            local legacyClaimsMigrated = false
+            if mergeLegacyClaimTable("skills", journalData.claimedSkills) then legacyClaimsMigrated = true end
+            if mergeLegacyClaimTable("traits", journalData.claimedTraits) then legacyClaimsMigrated = true end
+            if mergeLegacyClaimTable("recipes", journalData.claimedRecipes) then legacyClaimsMigrated = true end
+            if mergeLegacyClaimTable("stats", journalData.claimedStats) then legacyClaimsMigrated = true end
+
+            if legacyClaimsMigrated then
+                migrated = true
+                BurdJournals.debugPrint("[BurdJournals] Migrated legacy claims to per-character structure (skills/traits/recipes/stats)")
+            end
+        end
+
+        -- Legacy debug-edited journals from older patches may have isDebugEdited but no isDebugSpawned.
+        -- Promote them so sanitization stays lenient across future updates.
+        if journalData.isDebugEdited and not journalData.isDebugSpawned then
+            journalData.isDebugSpawned = true
+            migrated = true
+            BurdJournals.debugPrint("[BurdJournals] Migrated debug-edited journal: set isDebugSpawned=true for update safety")
+        end
+
+        -- Ensure debug journals have stable UUID for backup/restore keying.
+        if journalData.isDebugSpawned and not journalData.uuid then
+            journalData.uuid = (BurdJournals.generateUUID and BurdJournals.generateUUID())
+                or ("debug-" .. tostring(getTimestampMs and getTimestampMs() or os.time()) .. "-" .. tostring(item:getID()))
+            migrated = true
+        end
+
+        -- Infer isPlayerCreated for legacy journals that have owner fields
+        -- Without this, legacy player-created journals may be treated as looted and dissolve incorrectly
+        if journalData.isPlayerCreated == nil then
+            -- If journal has owner fields, it was likely player-created
+            if journalData.ownerUsername or journalData.ownerSteamId or journalData.author then
+                -- Check it's not a world-spawned journal (which might have author set)
+                if not journalData.isWorn and not journalData.isBloody then
+                    journalData.isPlayerCreated = true
+                    migrated = true
+                    BurdJournals.debugPrint("[BurdJournals] Migrated legacy journal: inferred isPlayerCreated=true from owner fields")
+                else
+                    journalData.isPlayerCreated = false
+                    migrated = true
+                    BurdJournals.debugPrint("[BurdJournals] Migrated legacy journal: inferred isPlayerCreated=false (worn/bloody)")
+                end
             else
+                -- No owner info - assume it's a world-spawned journal
                 journalData.isPlayerCreated = false
                 migrated = true
-                BurdJournals.debugPrint("[BurdJournals] Migrated legacy journal: inferred isPlayerCreated=false (worn/bloody)")
+                BurdJournals.debugPrint("[BurdJournals] Migrated legacy journal: inferred isPlayerCreated=false (no owner)")
             end
-        else
-            -- No owner info - assume it's a world-spawned journal
-            journalData.isPlayerCreated = false
-            migrated = true
-            BurdJournals.debugPrint("[BurdJournals] Migrated legacy journal: inferred isPlayerCreated=false (no owner)")
         end
+
+        currentMigrationSchemaVersion = 1
+        journalData.migrationSchemaVersion = currentMigrationSchemaVersion
+        migrated = true
+    end
+
+    -- Migration step v2: mode-3 per-skill diminishing counters from legacy global read counters.
+    if currentMigrationSchemaVersion < 2 then
+        local legacyReadSeed = math.max(
+            math.max(0, tonumber(journalData.readCount) or 0),
+            math.max(0, tonumber(journalData.readSessionCount) or 0),
+            math.max(0, tonumber(journalData.currentSessionReadCount) or 0)
+        )
+        if legacyReadSeed > 0 and journalData.drLegacyMode3Migrated ~= true then
+            local skillReadCounts = journalData.skillReadCounts
+            if type(skillReadCounts) ~= "table" and BurdJournals.normalizeTable then
+                skillReadCounts = BurdJournals.normalizeTable(skillReadCounts)
+                if type(skillReadCounts) == "table" then
+                    journalData.skillReadCounts = skillReadCounts
+                end
+            end
+            if type(skillReadCounts) ~= "table" then
+                skillReadCounts = {}
+                journalData.skillReadCounts = skillReadCounts
+            end
+
+            local hasPositiveSkillCount = false
+            for _, count in pairs(skillReadCounts) do
+                if (tonumber(count) or 0) > 0 then
+                    hasPositiveSkillCount = true
+                    break
+                end
+            end
+
+            local seededAny = false
+            if not hasPositiveSkillCount then
+                local skills = journalData.skills
+                if type(skills) ~= "table" and BurdJournals.normalizeTable then
+                    skills = BurdJournals.normalizeTable(skills)
+                    if type(skills) == "table" then
+                        journalData.skills = skills
+                    end
+                end
+
+                if type(skills) == "table" then
+                    for skillName, _ in pairs(skills) do
+                        if type(skillName) == "string" and skillName ~= "" then
+                            skillReadCounts[skillName] = legacyReadSeed
+                            seededAny = true
+                        end
+                    end
+                end
+            end
+
+            -- Mark complete after first migration attempt so deliberate debug resets to 0 do not reseed.
+            journalData.drLegacyMode3Migrated = true
+            migrated = true
+            if seededAny then
+                BurdJournals.debugPrint("[BurdJournals] Migrated legacy DR counters to per-skill seed=" .. tostring(legacyReadSeed))
+            end
+        end
+
+        currentMigrationSchemaVersion = 2
+        journalData.migrationSchemaVersion = currentMigrationSchemaVersion
+        migrated = true
+    end
+
+    -- Forward compatibility: if schema target is bumped later, stamp journals once.
+    if currentMigrationSchemaVersion < targetMigrationSchemaVersion then
+        journalData.migrationSchemaVersion = targetMigrationSchemaVersion
+        migrated = true
     end
 
     -- Run sanitization if needed (checks version internally)
@@ -1896,6 +3396,12 @@ function BurdJournals.migrateJournalIfNeeded(item, player)
             item:transmitModData()
         end
     end
+    
+    -- Compact journal data after migration to reduce ModData size
+    -- This helps prevent hitting the 64KB player data limit
+    if BurdJournals.compactJournalData then
+        BurdJournals.compactJournalData(item)
+    end
 end
 
 -- Sanitize journal data by removing/auto-claiming invalid entries
@@ -1914,6 +3420,27 @@ function BurdJournals.sanitizeJournalData(item, player)
     if data.sanitizedVersion and data.sanitizedVersion >= currentVersion then
         return { cleaned = false, alreadySanitized = true }
     end
+    
+    -- DEBUG-SPAWNED JOURNALS: More lenient sanitization to preserve data across restarts
+    -- These journals may have data that was valid at spawn time but might fail lookup
+    -- after a mod update or server restart (e.g., skill perks not loaded yet)
+    if data.isDebugSpawned or data.isDebugEdited then
+        BurdJournals.debugPrint("[BurdJournals] Sanitizing debug-spawned journal - using lenient mode")
+        -- Only mark as sanitized, don't remove any data
+        -- This preserves all skills/traits/recipes that were valid when spawned
+        data.isDebugSpawned = true
+        data.isDebugEdited = true
+        data.isPlayerCreated = true
+        if not data.uuid then
+            data.uuid = (BurdJournals.generateUUID and BurdJournals.generateUUID())
+                or ("debug-" .. tostring(getTimestampMs and getTimestampMs() or os.time()) .. "-" .. tostring(item:getID()))
+        end
+        data.sanitizedVersion = currentVersion
+        if item.transmitModData then
+            item:transmitModData()
+        end
+        return { cleaned = false, debugSpawnedPreserved = true }
+    end
 
     local result = {
         cleaned = false,
@@ -1925,22 +3452,34 @@ function BurdJournals.sanitizeJournalData(item, player)
         autoClaimedRecipes = {}
     }
 
-    -- Build set of valid skills (both name and lowercase for comparison)
+    -- Build set of known skill IDs (both name and lowercase for comparison)
     local validSkillSet = {}
     local allowedSkills = BurdJournals.getAllowedSkills and BurdJournals.getAllowedSkills() or {}
     for _, skill in ipairs(allowedSkills) do
         validSkillSet[skill] = true
         validSkillSet[string.lower(skill)] = true
     end
+    -- If perk registry is unavailable at sanitize time, avoid destructive false negatives.
+    local validationHasPerkRegistry = (Perks ~= nil) and (PerkFactory ~= nil) and (PerkFactory.getPerk ~= nil)
 
-    -- Helper: Check if skill is valid (in allowed list AND has a real perk)
+    -- Helper: Check if skill is valid.
+    -- Prefer runtime perk lookup; fall back to known IDs; fail-open if registry is unavailable.
     local function isValidSkill(skillName)
-        if not skillName then return false end
-        if not validSkillSet[skillName] and not validSkillSet[string.lower(skillName)] then
+        if type(skillName) ~= "string" or skillName == "" then
             return false
         end
         local perk = BurdJournals.getPerkByName and BurdJournals.getPerkByName(skillName)
-        return perk ~= nil
+        if perk ~= nil then
+            return true
+        end
+        local lowerName = string.lower(skillName)
+        if validSkillSet[skillName] or validSkillSet[lowerName] then
+            return true
+        end
+        if not validationHasPerkRegistry then
+            return true
+        end
+        return false
     end
 
     -- Helper: Check if trait exists in game
@@ -1955,54 +3494,45 @@ function BurdJournals.sanitizeJournalData(item, player)
         -- Note: CharacterTraitDefinition.getCharacterTraitDefinition() expects a CharacterTrait enum,
         -- not a string, and throws a Java exception that pcall cannot catch
         if CharacterTraitDefinition and CharacterTraitDefinition.getTraits then
-            local ok, found = safePcall(function()
-                local allTraits = CharacterTraitDefinition.getTraits()
-                if allTraits then
-                    local traitIdLower = string.lower(traitId)
-                    for i = 0, allTraits:size() - 1 do
-                        local def = allTraits:get(i)
-                        if def then
-                            local defType = def:getType()
-                            if defType then
-                                local defName = defType:getName()
-                                if defName and string.lower(defName) == traitIdLower then
-                                    return true
-                                end
+            local allTraits = CharacterTraitDefinition.getTraits()
+            if allTraits and allTraits.size and allTraits.get then
+                local traitIdLower = string.lower(traitId)
+                for i = 0, allTraits:size() - 1 do
+                    local def = allTraits:get(i)
+                    if def then
+                        local defType = def:getType()
+                        if defType then
+                            local defName = defType:getName()
+                            if defName and string.lower(defName) == traitIdLower then
+                                return true
                             end
                         end
                     end
                 end
-                return false
-            end)
-            if ok and found then return true end
+            end
         end
         return false
     end
 
-    -- Build recipe name cache once for O(1) lookups (avoids O(n²) with validateRecipeName)
+    -- Build recipe name cache once for O(1) lookups (avoids O(n^2) with validateRecipeName)
     local validRecipeSet = {}
     local recipeCacheBuilt = false
     local function buildRecipeCache()
         if recipeCacheBuilt then return end  -- Already built
         recipeCacheBuilt = true  -- Mark as built before iteration to prevent re-entry
-        local ok, err = safePcall(function()
-            local recipes = getAllRecipes()
-            if recipes and recipes.size then
-                local size = recipes:size()
-                for i = 0, size - 1 do
-                    local recipe = recipes:get(i)
-                    if recipe and recipe.getName then
-                        local nameOk, name = safePcall(function() return recipe:getName() end)
-                        if nameOk and name and type(name) == "string" then
-                            validRecipeSet[name] = true
-                            validRecipeSet[string.lower(name)] = true
-                        end
+        local recipes = getAllRecipes and getAllRecipes() or nil
+        if recipes and recipes.size and recipes.get then
+            local size = recipes:size()
+            for i = 0, size - 1 do
+                local recipe = recipes:get(i)
+                if recipe and recipe.getName then
+                    local name = recipe:getName()
+                    if name and type(name) == "string" then
+                        validRecipeSet[name] = true
+                        validRecipeSet[string.lower(name)] = true
                     end
                 end
             end
-        end)
-        if not ok then
-            print("[BurdJournals] Warning: Failed to build recipe cache: " .. tostring(err))
         end
     end
 
@@ -2115,9 +3645,129 @@ end
 -- Debug logging helper - only prints when running with -debug flag
 -- Use for verbose operational logs. Keep print() for errors/warnings.
 function BurdJournals.debugPrint(msg)
-    if BurdJournals.isDebug() then
+    if BurdJournals.isDebug() or BurdJournals.verboseLogging then
         print(msg)
     end
+end
+
+function BurdJournals.runSelfTests()
+    local results = {
+        total = 0,
+        passed = 0,
+        failed = 0,
+        skipped = 0,
+        failures = {}
+    }
+
+    local function run(name, fn)
+        results.total = results.total + 1
+        local ok, err = safePcall(fn)
+        if ok then
+            results.passed = results.passed + 1
+            return
+        end
+
+        results.failed = results.failed + 1
+        table.insert(results.failures, {
+            name = name,
+            err = tostring(err)
+        })
+    end
+
+    local function skip(name, reason)
+        results.total = results.total + 1
+        results.skipped = results.skipped + 1
+        print("[BSJ SELFTEST] SKIP " .. tostring(name) .. ": " .. tostring(reason))
+    end
+
+    run("normalizeTraitId strips base prefix", function()
+        if BurdJournals.normalizeTraitId("base:Strong") ~= "Strong" then
+            error("Expected base:Strong -> Strong")
+        end
+        if BurdJournals.normalizeTraitId("Base.Strong") ~= "Strong" then
+            error("Expected Base.Strong -> Strong")
+        end
+    end)
+
+    run("resolveSkillKey is case-insensitive", function()
+        local skills = {Aiming = {xp = 0, level = 0}}
+        local key = BurdJournals.resolveSkillKey(skills, "aiming")
+        if key ~= "Aiming" then
+            error("Expected key Aiming, got " .. tostring(key))
+        end
+    end)
+
+    run("buildTraitLookup recognizes prefixed IDs", function()
+        local lookup = BurdJournals.buildTraitLookup({
+            ["Strong"] = true,
+            ["base:Athletic"] = true
+        })
+        if not BurdJournals.isTraitInLookup(lookup, "Strong") then
+            error("Strong should be present")
+        end
+        if not BurdJournals.isTraitInLookup(lookup, "Athletic") then
+            error("Athletic should be present via base: prefix")
+        end
+    end)
+
+    run("normalizeTable clones Lua tables", function()
+        local input = {A = 1, B = 2}
+        local output = BurdJournals.normalizeTable(input)
+        if type(output) ~= "table" then
+            error("normalizeTable should return a table")
+        end
+        if output.A ~= 1 or output.B ~= 2 then
+            error("normalizeTable should preserve key/value pairs")
+        end
+        if output == input then
+            error("normalizeTable should return a clone, not same reference")
+        end
+    end)
+
+    run("normalizeJournalData initializes required containers", function()
+        local normalized = BurdJournals.normalizeJournalData({foo = "bar"})
+        if type(normalized) ~= "table" then
+            error("normalizeJournalData should return table")
+        end
+        if type(normalized.skills) ~= "table" then
+            error("normalized.skills should be table")
+        end
+        if type(normalized.traits) ~= "table" then
+            error("normalized.traits should be table")
+        end
+        if type(normalized.recipes) ~= "table" then
+            error("normalized.recipes should be table")
+        end
+        if type(normalized.stats) ~= "table" then
+            error("normalized.stats should be table")
+        end
+        if type(normalized.claims) ~= "table" then
+            error("normalized.claims should be table")
+        end
+    end)
+
+    if type(getText) == "function" then
+        run("safeGetText falls back on missing key", function()
+            local missing = BurdJournals.safeGetText("UI_BSJ_MISSING_KEY", "FallbackValue")
+            if missing ~= "FallbackValue" then
+                error("Expected fallback for missing key, got " .. tostring(missing))
+            end
+        end)
+    else
+        skip("safeGetText falls back on missing key", "getText() unavailable")
+    end
+
+    results.ok = results.failed == 0
+    results.summary = string.format("BSJ self-tests: %d passed, %d failed, %d skipped", results.passed, results.failed, results.skipped)
+
+    print("[BSJ SELFTEST] " .. results.summary)
+    if results.failed > 0 then
+        for _, failure in ipairs(results.failures) do
+            print("[BSJ SELFTEST] FAIL " .. tostring(failure.name) .. ": " .. tostring(failure.err))
+        end
+    end
+
+    return results
 end
 
 function BurdJournals.isSkillAllowed(skillName)
@@ -2174,8 +3824,11 @@ end
 
 function BurdJournals.getPerkDisplayName(perkName)
     local perk = BurdJournals.getPerkByName(perkName)
-    if perk then
-        return PerkFactory.getPerk(perk):getName()
+    if perk and PerkFactory and PerkFactory.getPerk then
+        local perkDef = PerkFactory.getPerk(perk)
+        if perkDef and perkDef.getName then
+            return perkDef:getName()
+        end
     end
     return perkName
 end
@@ -2190,21 +3843,13 @@ function BurdJournals.getSkillNameFromPerk(perk)
     end
 
     if not perkName and PerkFactory and PerkFactory.getPerk then
-        local ok, result = safePcall(function()
-            local perkDef = PerkFactory.getPerk(perk)
-            if perkDef then
-
-                if perkDef.getId then
-                    return tostring(perkDef:getId())
-                elseif perkDef.getName then
-
-                    return perkDef:getName()
-                end
+        local perkDef = PerkFactory.getPerk(perk)
+        if perkDef then
+            if perkDef.getId then
+                perkName = tostring(perkDef:getId())
+            elseif perkDef.getName then
+                perkName = perkDef:getName()
             end
-            return nil
-        end)
-        if ok and result then
-            perkName = result
         end
     end
 
@@ -2494,9 +4139,27 @@ BurdJournals.FILLED_JOURNAL_TYPES = {
     "BurdJournals.FilledSurvivalJournal_Bloody",
 }
 
+local function getItemModData(item)
+    if not (item and item.getModData) then return nil end
+    return item:getModData()
+end
+
+local function getItemFullType(item)
+    if not (item and item.getFullType) then return nil end
+    local fullType = item:getFullType()
+    return fullType and tostring(fullType) or nil
+end
+
+local function getItemJournalModData(item)
+    local modData = getItemModData(item)
+    if not modData then return nil end
+    return modData.BurdJournals
+end
+
 function BurdJournals.isBlankJournal(item)
     if not item then return false end
-    local fullType = item:getFullType()
+    local fullType = getItemFullType(item)
+    if not fullType then return false end
     for _, jType in ipairs(BurdJournals.BLANK_JOURNAL_TYPES) do
         if fullType == jType then return true end
     end
@@ -2505,7 +4168,8 @@ end
 
 function BurdJournals.isFilledJournal(item)
     if not item then return false end
-    local fullType = item:getFullType()
+    local fullType = getItemFullType(item)
+    if not fullType then return false end
     for _, jType in ipairs(BurdJournals.FILLED_JOURNAL_TYPES) do
         if fullType == jType then return true end
     end
@@ -2519,7 +4183,7 @@ function BurdJournals.isAnyJournal(item)
         return true
     end
 
-    local fullType = item:getFullType()
+    local fullType = getItemFullType(item)
     if fullType and fullType:find("BurdJournals") and fullType:find("SurvivalJournal") then
         return true
     end
@@ -2530,17 +4194,13 @@ end
 function BurdJournals.isWorn(item)
     if not item then return false end
 
-    -- Guard against zombie/invalid item objects
-    local ok, modData = safePcall(function() return item:getModData() end)
-    if not ok or not modData then return false end
-
-    if modData.BurdJournals and modData.BurdJournals.isWorn == true then
+    local data = getItemJournalModData(item)
+    if data and data.isWorn == true then
         return true
     end
 
-    -- Fallback: check item type name (also protected)
-    local ok2, fullType = safePcall(function() return item:getFullType() end)
-    if ok2 and fullType and fullType:find("_Worn") then
+    local fullType = getItemFullType(item)
+    if fullType and fullType:find("_Worn") then
         return true
     end
 
@@ -2550,17 +4210,13 @@ end
 function BurdJournals.isBloody(item)
     if not item then return false end
 
-    -- Guard against zombie/invalid item objects
-    local ok, modData = safePcall(function() return item:getModData() end)
-    if not ok or not modData then return false end
-
-    if modData.BurdJournals and modData.BurdJournals.isBloody == true then
+    local data = getItemJournalModData(item)
+    if data and data.isBloody == true then
         return true
     end
 
-    -- Fallback: check item type name (also protected)
-    local ok2, fullType = safePcall(function() return item:getFullType() end)
-    if ok2 and fullType and fullType:find("_Bloody") then
+    local fullType = getItemFullType(item)
+    if fullType and fullType:find("_Bloody") then
         return true
     end
 
@@ -2574,8 +4230,8 @@ end
 
 function BurdJournals.wasFromBloody(item)
     if not item then return false end
-    local modData = item:getModData()
-    return modData.BurdJournals and modData.BurdJournals.wasFromBloody == true
+    local data = getItemJournalModData(item)
+    return data and data.wasFromBloody == true
 end
 
 function BurdJournals.hasBloodyOrigin(item)
@@ -2584,8 +4240,8 @@ end
 
 function BurdJournals.isPlayerJournal(item)
     if not item then return false end
-    local modData = item:getModData()
-    return modData.BurdJournals and modData.BurdJournals.isPlayerCreated == true
+    local data = getItemJournalModData(item)
+    return data and data.isPlayerCreated == true
 end
 
 function BurdJournals.isRestoredJournal(item)
@@ -2605,7 +4261,8 @@ end
 
 function BurdJournals.setWorn(item, worn)
     if not item then return end
-    local modData = item:getModData()
+    local modData = getItemModData(item)
+    if not modData then return end
     if not modData.BurdJournals then
         modData.BurdJournals = {}
     end
@@ -2617,7 +4274,8 @@ end
 
 function BurdJournals.setBloody(item, bloody)
     if not item then return end
-    local modData = item:getModData()
+    local modData = getItemModData(item)
+    if not modData then return end
     if not modData.BurdJournals then
         modData.BurdJournals = {}
     end
@@ -2629,7 +4287,8 @@ end
 
 function BurdJournals.setClean(item)
     if not item then return end
-    local modData = item:getModData()
+    local modData = getItemModData(item)
+    if not modData then return end
     if not modData.BurdJournals then
         modData.BurdJournals = {}
     end
@@ -2665,11 +4324,9 @@ end
 
 function BurdJournals.getClaimedSkills(item)
     if not item then return {} end
-    -- Guard against zombie/invalid item objects
-    local ok, modData = safePcall(function() return item:getModData() end)
-    if not ok or not modData then return {} end
-    if modData.BurdJournals and modData.BurdJournals.claimedSkills then
-        return modData.BurdJournals.claimedSkills
+    local data = getItemJournalModData(item)
+    if data and data.claimedSkills then
+        return data.claimedSkills
     end
     return {}
 end
@@ -2681,7 +4338,8 @@ end
 
 function BurdJournals.claimSkill(item, skillName)
     if not item then return false end
-    local modData = item:getModData()
+    local modData = getItemModData(item)
+    if not modData then return false end
     if not modData.BurdJournals then
         modData.BurdJournals = {}
     end
@@ -2700,16 +4358,19 @@ function BurdJournals.getUnclaimedSkills(item, player)
     local unclaimed = {}
 
     for skillName, skillData in pairs(data.skills) do
-        -- Use per-character claims if player provided, otherwise global
-        local isClaimed = false
-        if player then
-            isClaimed = BurdJournals.hasCharacterClaimedSkill(data, player, skillName)
-        else
-            local claimed = BurdJournals.getClaimedSkills(item)
-            isClaimed = claimed[skillName]
-        end
-        if not isClaimed then
-            unclaimed[skillName] = skillData
+        local enabledForJournal = not BurdJournals.isSkillEnabledForJournal or BurdJournals.isSkillEnabledForJournal(data, skillName)
+        if enabledForJournal then
+            -- Use per-character claims if player provided, otherwise global
+            local isClaimed = false
+            if player then
+                isClaimed = BurdJournals.hasCharacterClaimedSkill(data, player, skillName)
+            else
+                local claimed = BurdJournals.getClaimedSkills(item)
+                isClaimed = claimed[skillName]
+            end
+            if not isClaimed then
+                unclaimed[skillName] = skillData
+            end
         end
     end
 
@@ -2725,16 +4386,21 @@ function BurdJournals.getTotalSkillCount(item)
     if not item then return 0 end
     local data = BurdJournals.getJournalData(item)
     if not data or not data.skills then return 0 end
-    return BurdJournals.countTable(data.skills)
+    local count = 0
+    for skillName, _ in pairs(data.skills) do
+        local enabledForJournal = not BurdJournals.isSkillEnabledForJournal or BurdJournals.isSkillEnabledForJournal(data, skillName)
+        if enabledForJournal then
+            count = count + 1
+        end
+    end
+    return count
 end
 
 function BurdJournals.getClaimedTraits(item)
     if not item then return {} end
-    -- Guard against zombie/invalid item objects
-    local ok, modData = safePcall(function() return item:getModData() end)
-    if not ok or not modData then return {} end
-    if modData.BurdJournals and modData.BurdJournals.claimedTraits then
-        return modData.BurdJournals.claimedTraits
+    local data = getItemJournalModData(item)
+    if data and data.claimedTraits then
+        return data.claimedTraits
     end
     return {}
 end
@@ -2746,7 +4412,8 @@ end
 
 function BurdJournals.claimTrait(item, traitId)
     if not item then return false end
-    local modData = item:getModData()
+    local modData = getItemModData(item)
+    if not modData then return false end
     if not modData.BurdJournals then
         modData.BurdJournals = {}
     end
@@ -2795,13 +4462,50 @@ local function tableHasEntries(t)
     return false
 end
 
--- Helper function to count unclaimed entries (avoids next())
-local function countUnclaimedEntries(dataTable, claimedTable)
+-- Helper function to count unclaimed entries for a specific player
+-- Checks BOTH legacy claims (claimedSkills) AND per-character claims (claims[characterId].skills)
+local function countUnclaimedEntriesForPlayer(dataTable, legacyClaimedTable, journalData, player, entryType)
     if type(dataTable) ~= "table" then return 0 end
     local count = 0
+    
+    -- Get character ID for per-character claim checking
+    local characterId = nil
+    if player and BurdJournals.getPlayerCharacterId then
+        characterId = BurdJournals.getPlayerCharacterId(player)
+    end
+    
+    -- Get per-character claims table
+    local perCharClaims = nil
+    if characterId and journalData and journalData.claims and journalData.claims[characterId] then
+        local charClaims = journalData.claims[characterId]
+        if entryType == "skills" then
+            perCharClaims = charClaims.skills
+        elseif entryType == "traits" then
+            perCharClaims = charClaims.traits
+        elseif entryType == "recipes" then
+            perCharClaims = charClaims.recipes
+        end
+    end
+
+    -- Legacy migration fallback claims bucket.
+    local legacyUnknownClaims = nil
+    if journalData and type(journalData.claims) == "table" and type(journalData.claims["legacy_unknown"]) == "table" then
+        legacyUnknownClaims = journalData.claims["legacy_unknown"][entryType]
+    end
+    
     for key, _ in pairs(dataTable) do
-        if not claimedTable or not claimedTable[key] then
-            count = count + 1
+        local enabledForJournal = true
+        if entryType == "skills" and BurdJournals.isSkillEnabledForJournal then
+            enabledForJournal = BurdJournals.isSkillEnabledForJournal(journalData, key)
+        end
+        if enabledForJournal then
+            -- Check both legacy claims AND per-character claims
+            local isClaimedLegacy = legacyClaimedTable and legacyClaimedTable[key]
+            local isClaimedPerChar = perCharClaims and perCharClaims[key]
+            local isClaimedLegacyUnknown = legacyUnknownClaims and legacyUnknownClaims[key]
+            if not isClaimedLegacy and not isClaimedPerChar and not isClaimedLegacyUnknown then
+                count = count + 1
+            end
         end
     end
     return count
@@ -2814,16 +4518,14 @@ function BurdJournals.shouldDissolve(item, player)
         return false
     end
 
-    -- Try to get modData directly
-    local modData = item:getModData()
-    if not modData or not modData.BurdJournals then
+    local data = getItemJournalModData(item)
+    if not data then
         print("[BurdJournals] shouldDissolve: No BurdJournals modData")
         return false
     end
-    local data = modData.BurdJournals
 
     -- Get item type for worn/bloody detection
-    local fullType = item:getFullType()
+    local fullType = getItemFullType(item)
     local isWornFromType = fullType and string.find(fullType, "_Worn") ~= nil
     local isBloodyFromType = fullType and string.find(fullType, "_Bloody") ~= nil
     local isWorn = data.isWorn or isWornFromType
@@ -2859,15 +4561,26 @@ function BurdJournals.shouldDissolve(item, player)
     end
 
     -- Check if journal has any content (using helper to avoid next())
-    local hasSkills = tableHasEntries(data.skills)
+    local hasSkills = false
+    if type(data.skills) == "table" then
+        for skillName, _ in pairs(data.skills) do
+            local enabledForJournal = not BurdJournals.isSkillEnabledForJournal or BurdJournals.isSkillEnabledForJournal(data, skillName)
+            if enabledForJournal then
+                hasSkills = true
+                break
+            end
+        end
+    end
     local hasTraits = tableHasEntries(data.traits)
     local hasRecipes = tableHasEntries(data.recipes)
 
-    -- Check claims
+    -- Check claims (both legacy and per-character)
     local wasSanitized = data.sanitizedVersion and data.sanitizedVersion > 0
-    local hasClaims = tableHasEntries(data.claimedSkills)
+    local hasLegacyClaims = tableHasEntries(data.claimedSkills)
         or tableHasEntries(data.claimedTraits)
         or tableHasEntries(data.claimedRecipes)
+    local hasPerCharClaims = tableHasEntries(data.claims)
+    local hasClaims = hasLegacyClaims or hasPerCharClaims
 
     print("[BurdJournals] shouldDissolve: hasSkills=" .. tostring(hasSkills) .. ", hasTraits=" .. tostring(hasTraits) .. ", hasRecipes=" .. tostring(hasRecipes))
 
@@ -2881,10 +4594,10 @@ function BurdJournals.shouldDissolve(item, player)
         return false
     end
 
-    -- Count unclaimed items using helper function
-    local unclaimedSkills = countUnclaimedEntries(data.skills, data.claimedSkills)
-    local unclaimedTraits = countUnclaimedEntries(data.traits, data.claimedTraits)
-    local unclaimedRecipes = countUnclaimedEntries(data.recipes, data.claimedRecipes)
+    -- Count unclaimed items - checks BOTH legacy AND per-character claims
+    local unclaimedSkills = countUnclaimedEntriesForPlayer(data.skills, data.claimedSkills, data, player, "skills")
+    local unclaimedTraits = countUnclaimedEntriesForPlayer(data.traits, data.claimedTraits, data, player, "traits")
+    local unclaimedRecipes = countUnclaimedEntriesForPlayer(data.recipes, data.claimedRecipes, data, player, "recipes")
 
     print("[BurdJournals] shouldDissolve: unclaimedSkills=" .. tostring(unclaimedSkills) .. ", unclaimedTraits=" .. tostring(unclaimedTraits) .. ", unclaimedRecipes=" .. tostring(unclaimedRecipes))
 
@@ -2912,7 +4625,8 @@ function BurdJournals.updateJournalIcon(item)
     if not item then return end
     if not BurdJournals.isAnyJournal(item) then return end
 
-    local fullType = item:getFullType()
+    local fullType = getItemFullType(item)
+    if not fullType then return end
     if fullType:find("_Worn") or fullType:find("_Bloody") then
 
         return
@@ -2957,10 +4671,7 @@ end
 
 function BurdJournals.getJournalData(item)
     if not item then return nil end
-    -- Guard against zombie/invalid item objects
-    local ok, modData = safePcall(function() return item:getModData() end)
-    if not ok or not modData then return nil end
-    return modData.BurdJournals
+    return getItemJournalModData(item)
 end
 
 function BurdJournals.safeGetText(key, fallback)
@@ -2976,8 +4687,7 @@ end
 function BurdJournals.computeLocalizedName(item)
     if not item then return nil end
 
-    local modData = item:getModData()
-    local data = modData.BurdJournals or {}
+    local data = getItemJournalModData(item) or {}
 
     local isWornState = data.isWorn
     local isBloodyState = data.isBloody
@@ -3039,7 +4749,8 @@ end
 function BurdJournals.updateJournalName(item, forceUpdate)
     if not item then return end
 
-    local modData = item:getModData()
+    local modData = getItemModData(item)
+    if not modData then return end
     local data = modData.BurdJournals or {}
 
     if data.customName then
@@ -3097,8 +4808,11 @@ end
 
 function BurdJournals.countTable(tbl)
     if not tbl then return 0 end
+    local normalized = BurdJournals.normalizeTable(tbl)
+    if not normalized then return 0 end
+
     local count = 0
-    for _ in pairs(tbl) do
+    for _ in pairs(normalized) do
         count = count + 1
     end
     return count
@@ -3124,41 +4838,34 @@ end
 function BurdJournals.getSkillBookMultiplier(player, skillName)
     -- Check if feature is enabled
     local featureEnabled = BurdJournals.getSandboxOption("SkillBookMultiplierForJournals")
-    print("[BurdJournals] getSkillBookMultiplier: featureEnabled=" .. tostring(featureEnabled))
     if not featureEnabled then
-        print("[BurdJournals] getSkillBookMultiplier: Feature disabled, returning 1.0")
         return 1.0, false
     end
     
     if not player then 
-        print("[BurdJournals] getSkillBookMultiplier: No player, returning 1.0")
         return 1.0, false 
     end
     local perk = BurdJournals.getPerkByName(skillName)
     if not perk then 
-        print("[BurdJournals] getSkillBookMultiplier: No perk for " .. tostring(skillName) .. ", returning 1.0")
         return 1.0, false 
     end
     
     local xpObj = player:getXp()
     if not xpObj or not xpObj.getMultiplier then 
-        print("[BurdJournals] getSkillBookMultiplier: No xpObj or getMultiplier, returning 1.0")
         return 1.0, false 
     end
     
-    local rawMultiplier = xpObj:getMultiplier(perk)
-    print("[BurdJournals] getSkillBookMultiplier: rawMultiplier for " .. tostring(skillName) .. " = " .. tostring(rawMultiplier))
+    local rawMultiplier = tonumber(xpObj:getMultiplier(perk)) or 1.0
     if rawMultiplier <= 1.0 then 
-        print("[BurdJournals] getSkillBookMultiplier: rawMultiplier <= 1.0, returning 1.0")
         return 1.0, false 
     end
     
     -- Apply sandbox cap (default 2.0)
-    local cap = BurdJournals.getSandboxOption("SkillBookMultiplierCap") or 2.0
-    local cappedMultiplier = math.min(rawMultiplier, cap)
-    print("[BurdJournals] getSkillBookMultiplier: cap=" .. tostring(cap) .. ", cappedMultiplier=" .. tostring(cappedMultiplier))
+    local cap = tonumber(BurdJournals.getSandboxOption("SkillBookMultiplierCap")) or 2.0
+    if cap < 1.0 then cap = 1.0 end
+    local cappedMultiplier = math.max(1.0, math.min(rawMultiplier, cap))
     
-    return cappedMultiplier, true
+    return cappedMultiplier, cappedMultiplier > 1.0
 end
 
 -- Calculate effective XP with capped skill book multiplier
@@ -3166,6 +4873,820 @@ end
 function BurdJournals.getEffectiveXP(player, skillName, baseXP)
     local multiplier, hasBoost = BurdJournals.getSkillBookMultiplier(player, skillName)
     return baseXP * multiplier, hasBoost
+end
+
+function BurdJournals.getXPRecoveryMode()
+    return tonumber(BurdJournals.getSandboxOption("XPRecoveryMode")) or 1
+end
+
+function BurdJournals.getDiminishingTrackingMode()
+    local mode = tonumber(BurdJournals.getSandboxOption("DiminishingTrackingMode")) or 3
+    if mode < 1 or mode > 3 then
+        mode = 3
+    end
+    return mode
+end
+
+function BurdJournals.getDiminishingConfig()
+    local firstRead = (tonumber(BurdJournals.getSandboxOption("DiminishingFirstRead")) or 100) / 100
+    local decayRate = (tonumber(BurdJournals.getSandboxOption("DiminishingDecayRate")) or 10) / 100
+    local minimum = (tonumber(BurdJournals.getSandboxOption("DiminishingMinimum")) or 10) / 100
+
+    firstRead = math.max(0, math.min(1, firstRead))
+    decayRate = math.max(0, decayRate)
+    minimum = math.max(0, math.min(1, minimum))
+    if minimum > firstRead then
+        minimum = firstRead
+    end
+
+    return firstRead, decayRate, minimum
+end
+
+function BurdJournals.getDiminishingMultiplierForReadCount(readCount)
+    if BurdJournals.getXPRecoveryMode() ~= 2 then
+        return 1.0
+    end
+
+    local normalizedReadCount = math.max(0, tonumber(readCount) or 0)
+    local firstRead, decayRate, minimum = BurdJournals.getDiminishingConfig()
+
+    local multiplier
+    if normalizedReadCount == 0 then
+        multiplier = firstRead
+    else
+        multiplier = firstRead - (decayRate * normalizedReadCount)
+    end
+
+    return math.max(minimum, multiplier)
+end
+
+local function sanitizeClaimSessionId(claimSessionId)
+    if type(claimSessionId) ~= "string" or claimSessionId == "" then
+        return nil
+    end
+    return claimSessionId
+end
+
+local function addSkillKeyCandidate(candidates, seen, key)
+    if type(key) ~= "string" or key == "" then
+        return
+    end
+    local lowered = string.lower(key)
+    if seen[lowered] then
+        return
+    end
+    seen[lowered] = true
+    candidates[#candidates + 1] = key
+end
+
+local function getCanonicalSkillReadKey(skillName)
+    if type(skillName) ~= "string" or skillName == "" then
+        return nil
+    end
+
+    local map = BurdJournals.SKILL_TO_PERK
+    if map then
+        local direct = map[skillName]
+        if type(direct) == "string" and direct ~= "" then
+            return direct
+        end
+
+        local skillLower = string.lower(skillName)
+        for alias, perkId in pairs(map) do
+            if type(alias) == "string" and type(perkId) == "string" and string.lower(alias) == skillLower then
+                return perkId
+            end
+        end
+    end
+
+    return skillName
+end
+
+local function resolveSkillReadCounterKey(skillReadCounts, skillName)
+    if type(skillReadCounts) ~= "table" or type(skillName) ~= "string" or skillName == "" then
+        return nil, skillName
+    end
+
+    local candidates, seen = {}, {}
+    local canonicalKey = getCanonicalSkillReadKey(skillName) or skillName
+
+    addSkillKeyCandidate(candidates, seen, skillName)
+    addSkillKeyCandidate(candidates, seen, canonicalKey)
+
+    if BurdJournals.mapPerkIdToSkillName then
+        local mappedSkill = BurdJournals.mapPerkIdToSkillName(skillName)
+        addSkillKeyCandidate(candidates, seen, mappedSkill)
+        addSkillKeyCandidate(candidates, seen, getCanonicalSkillReadKey(mappedSkill))
+    end
+
+    if BurdJournals.resolveSkillKey then
+        local resolvedLegacy = BurdJournals.resolveSkillKey(skillReadCounts, skillName)
+        addSkillKeyCandidate(candidates, seen, resolvedLegacy)
+        addSkillKeyCandidate(candidates, seen, getCanonicalSkillReadKey(resolvedLegacy))
+    end
+
+    for _, candidate in ipairs(candidates) do
+        if skillReadCounts[candidate] ~= nil then
+            return candidate, canonicalKey
+        end
+    end
+
+    for existingKey, _ in pairs(skillReadCounts) do
+        local existingLower = string.lower(tostring(existingKey))
+        for _, candidate in ipairs(candidates) do
+            if existingLower == string.lower(candidate) then
+                return existingKey, canonicalKey
+            end
+        end
+    end
+
+    return nil, canonicalKey
+end
+
+local function mirrorLegacySkillReadCountAliases(skillReadCounts, skillName, nextCount, preferredKey)
+    if type(skillReadCounts) ~= "table" or type(skillName) ~= "string" or skillName == "" then
+        return
+    end
+    local skillLower = string.lower(skillName)
+    for existingKey, _ in pairs(skillReadCounts) do
+        if existingKey ~= preferredKey and string.lower(tostring(existingKey)) == skillLower then
+            skillReadCounts[existingKey] = nextCount
+        end
+    end
+end
+
+local function readSkillReadCountField(container, key)
+    if not container or type(key) ~= "string" or key == "" then
+        return nil
+    end
+    local ok, value = safePcall(function()
+        return container[key]
+    end)
+    if ok then
+        return value
+    end
+    return nil
+end
+
+local function writeSkillReadCountField(container, key, value)
+    if not container or type(key) ~= "string" or key == "" then
+        return false
+    end
+    local ok = safePcall(function()
+        container[key] = value
+    end)
+    return ok == true
+end
+
+local function getDRCharacterSkillReadCounts(journalData, player, createIfMissing)
+    if not journalData or not player then
+        return nil
+    end
+
+    local getCharacterId = BurdJournals.getPlayerCharacterId
+    if not getCharacterId then
+        return nil
+    end
+
+    local characterId = getCharacterId(player)
+    if not characterId then
+        return nil
+    end
+
+    local claims = journalData.claims
+    if type(claims) ~= "table" and BurdJournals.normalizeTable then
+        claims = BurdJournals.normalizeTable(claims)
+    end
+    if type(claims) ~= "table" then
+        if not createIfMissing then
+            return nil
+        end
+        claims = {}
+    end
+    journalData.claims = claims
+
+    local charClaims = claims[characterId]
+    if type(charClaims) ~= "table" and BurdJournals.normalizeTable then
+        charClaims = BurdJournals.normalizeTable(charClaims)
+    end
+    if type(charClaims) ~= "table" then
+        if not createIfMissing then
+            return nil
+        end
+        charClaims = {}
+    end
+    claims[characterId] = charClaims
+
+    local drSkillReadCounts = charClaims.drSkillReadCounts
+    if type(drSkillReadCounts) ~= "table" and BurdJournals.normalizeTable then
+        drSkillReadCounts = BurdJournals.normalizeTable(drSkillReadCounts)
+    end
+    if type(drSkillReadCounts) ~= "table" then
+        if not createIfMissing then
+            return nil
+        end
+        drSkillReadCounts = {}
+    end
+    charClaims.drSkillReadCounts = drSkillReadCounts
+    return drSkillReadCounts
+end
+
+local function mirrorDRSkillReadCountToCharacterClaims(journalData, player, skillName, nextCount)
+    if not journalData or not player or type(skillName) ~= "string" or skillName == "" then
+        return
+    end
+    local drSkillReadCounts = getDRCharacterSkillReadCounts(journalData, player, true)
+    if type(drSkillReadCounts) ~= "table" then
+        return
+    end
+
+    local resolvedKey, canonicalKey = resolveSkillReadCounterKey(drSkillReadCounts, skillName)
+    local targetKey = canonicalKey or resolvedKey or skillName
+    local count = math.max(0, tonumber(nextCount) or 0)
+    local existing = math.max(0, tonumber(drSkillReadCounts[targetKey]) or 0)
+    if count < existing then
+        count = existing
+    end
+    drSkillReadCounts[targetKey] = count
+    if resolvedKey and resolvedKey ~= targetKey then
+        drSkillReadCounts[resolvedKey] = count
+    end
+end
+
+local function getSkillReadCount(journalData, skillName, player)
+    if not journalData or type(skillName) ~= "string" or skillName == "" then
+        return 0
+    end
+    local skillReadCounts = journalData.skillReadCounts
+    if type(skillReadCounts) ~= "table" and BurdJournals.normalizeTable then
+        skillReadCounts = BurdJournals.normalizeTable(skillReadCounts)
+        if type(skillReadCounts) == "table" then
+            journalData.skillReadCounts = skillReadCounts
+        end
+    end
+    if type(skillReadCounts) ~= "table" then
+        local candidates, seen = {}, {}
+        local canonicalKey = getCanonicalSkillReadKey(skillName) or skillName
+        addSkillKeyCandidate(candidates, seen, skillName)
+        addSkillKeyCandidate(candidates, seen, canonicalKey)
+        if BurdJournals.mapPerkIdToSkillName then
+            local mappedSkill = BurdJournals.mapPerkIdToSkillName(skillName)
+            addSkillKeyCandidate(candidates, seen, mappedSkill)
+            addSkillKeyCandidate(candidates, seen, getCanonicalSkillReadKey(mappedSkill))
+        end
+        if BurdJournals.SKILL_TO_PERK then
+            local perkId = BurdJournals.SKILL_TO_PERK[skillName]
+            addSkillKeyCandidate(candidates, seen, perkId)
+        end
+
+        local claimCount = 0
+        for _, candidate in ipairs(candidates) do
+            local candidateCount = math.max(0, tonumber(readSkillReadCountField(skillReadCounts, candidate)) or 0)
+            if candidateCount > claimCount then
+                claimCount = candidateCount
+            end
+        end
+        if claimCount > 0 then
+            BurdJournals.debugPrint("[BurdJournals] DR: Recovered non-table skillReadCounts for " .. tostring(skillName) .. " = " .. tostring(claimCount))
+            writeSkillReadCountField(skillReadCounts, canonicalKey, claimCount)
+            mirrorDRSkillReadCountToCharacterClaims(journalData, player, canonicalKey, claimCount)
+            return claimCount
+        end
+
+        local claimSkillReadCounts = getDRCharacterSkillReadCounts(journalData, player, false)
+        if type(claimSkillReadCounts) ~= "table" then
+            return 0
+        end
+        local resolvedKey, canonicalKey = resolveSkillReadCounterKey(claimSkillReadCounts, skillName)
+        local activeKey = resolvedKey or canonicalKey or skillName
+        local claimCount = math.max(0, tonumber(claimSkillReadCounts[activeKey]) or 0)
+        if claimCount > 0 then
+            local restored = {}
+            restored[canonicalKey or activeKey] = claimCount
+            journalData.skillReadCounts = restored
+        end
+        return claimCount
+    end
+
+    local resolvedKey, canonicalKey = resolveSkillReadCounterKey(skillReadCounts, skillName)
+    local activeKey = resolvedKey or canonicalKey or skillName
+    local count = math.max(0, tonumber(skillReadCounts[activeKey]) or 0)
+
+    -- Migrate legacy key variants to canonical key so counters survive key/mapping changes between patches.
+    if canonicalKey and canonicalKey ~= activeKey then
+        local canonicalCount = math.max(0, tonumber(skillReadCounts[canonicalKey]) or 0)
+        local merged = math.max(count, canonicalCount)
+        skillReadCounts[canonicalKey] = merged
+        count = merged
+    end
+
+    if count > 0 then
+        mirrorDRSkillReadCountToCharacterClaims(journalData, player, canonicalKey or activeKey, count)
+    end
+
+    return count
+end
+
+-- Returns: multiplier, readCountUsed
+function BurdJournals.getJournalClaimMultiplier(journalData, readOffset, skillName, claimSessionId, player)
+    local readCount = 0
+    local offset = tonumber(readOffset) or 0
+    local trackingMode = BurdJournals.getDiminishingTrackingMode()
+
+    if trackingMode == 2 then
+        local baseSessionCount = tonumber(journalData and journalData.readSessionCount) or 0
+        local normalizedSessionId = sanitizeClaimSessionId(claimSessionId)
+        local currentSessionId = sanitizeClaimSessionId(journalData and journalData.currentSessionId)
+        if normalizedSessionId and currentSessionId and normalizedSessionId == currentSessionId then
+            -- This read belongs to the session already counted in readSessionCount.
+            readCount = math.max(0, baseSessionCount - 1)
+        else
+            readCount = baseSessionCount
+        end
+    elseif trackingMode == 3 then
+        readCount = getSkillReadCount(journalData, skillName, player)
+    else
+        readCount = math.max(0, tonumber(journalData and journalData.readCount) or 0)
+    end
+
+    readCount = math.max(0, readCount + offset)
+    local multiplier = BurdJournals.getDiminishingMultiplierForReadCount(readCount)
+    return multiplier, readCount
+end
+
+-- Applies diminishing-returns read consumption to this journal and returns:
+-- multiplier used for this read, readCount prior to increment
+function BurdJournals.consumeJournalClaimRead(journalData, skillName, claimSessionId, player)
+    local multiplier, readCount = BurdJournals.getJournalClaimMultiplier(journalData, 0, skillName, claimSessionId, player)
+    if journalData and BurdJournals.getXPRecoveryMode() == 2 then
+        local trackingMode = BurdJournals.getDiminishingTrackingMode()
+        if trackingMode == 2 then
+            local normalizedSessionId = sanitizeClaimSessionId(claimSessionId)
+            local currentSessionId = sanitizeClaimSessionId(journalData.currentSessionId)
+            if normalizedSessionId and currentSessionId and normalizedSessionId == currentSessionId then
+                journalData.currentSessionReadCount = math.max(1, tonumber(journalData.currentSessionReadCount) or 1)
+            elseif normalizedSessionId then
+                journalData.readSessionCount = math.max(0, tonumber(journalData.readSessionCount) or 0) + 1
+                journalData.currentSessionId = normalizedSessionId
+                journalData.currentSessionReadCount = 1
+            else
+                -- Fallback: treat as one-shot session if no session token is supplied
+                journalData.readSessionCount = math.max(0, tonumber(journalData.readSessionCount) or 0) + 1
+                journalData.currentSessionId = nil
+                journalData.currentSessionReadCount = 0
+            end
+        elseif trackingMode == 3 then
+            if type(skillName) == "string" and skillName ~= "" then
+                local skillReadCounts = journalData.skillReadCounts
+                if type(skillReadCounts) ~= "table" and BurdJournals.normalizeTable then
+                    skillReadCounts = BurdJournals.normalizeTable(skillReadCounts)
+                end
+                if not skillReadCounts then
+                    skillReadCounts = {}
+                end
+                if type(skillReadCounts) ~= "table" and type(skillReadCounts) ~= "userdata" then
+                    skillReadCounts = {}
+                end
+                journalData.skillReadCounts = skillReadCounts
+
+                if type(skillReadCounts) == "table" then
+                    local resolvedKey, canonicalKey = resolveSkillReadCounterKey(skillReadCounts, skillName)
+                    local targetKey = canonicalKey or resolvedKey or skillName
+                    local currentSkillCount = math.max(0, tonumber(skillReadCounts[targetKey]) or 0)
+                    if resolvedKey and resolvedKey ~= targetKey then
+                        currentSkillCount = math.max(currentSkillCount, math.max(0, tonumber(skillReadCounts[resolvedKey]) or 0))
+                    end
+                    local nextCount = currentSkillCount + 1
+                    skillReadCounts[targetKey] = nextCount
+                    mirrorLegacySkillReadCountAliases(skillReadCounts, skillName, nextCount, targetKey)
+                    -- Mirror the legacy key when present so pre-patch readers still see accurate counters.
+                    if resolvedKey and resolvedKey ~= targetKey then
+                        skillReadCounts[resolvedKey] = nextCount
+                    end
+                    mirrorDRSkillReadCountToCharacterClaims(journalData, player, targetKey, nextCount)
+                else
+                    local canonicalKey = getCanonicalSkillReadKey(skillName) or skillName
+                    local currentSkillCount = math.max(0, tonumber(readSkillReadCountField(skillReadCounts, canonicalKey)) or 0)
+                    local directSkillCount = math.max(0, tonumber(readSkillReadCountField(skillReadCounts, skillName)) or 0)
+                    local nextCount = math.max(currentSkillCount, directSkillCount) + 1
+                    BurdJournals.debugPrint("[BurdJournals] DR: Incrementing non-table skillReadCounts for " .. tostring(skillName) .. " to " .. tostring(nextCount))
+                    writeSkillReadCountField(skillReadCounts, canonicalKey, nextCount)
+                    if canonicalKey ~= skillName then
+                        writeSkillReadCountField(skillReadCounts, skillName, nextCount)
+                    end
+                    mirrorDRSkillReadCountToCharacterClaims(journalData, player, canonicalKey, nextCount)
+                end
+            else
+                journalData.readCount = readCount + 1
+            end
+        else
+            journalData.readCount = readCount + 1
+        end
+    end
+    return multiplier, readCount
+end
+
+local function hasPositiveDRSkillReadCounts(skillReadCounts)
+    local counts = skillReadCounts
+    if type(counts) ~= "table" and BurdJournals.normalizeTable then
+        counts = BurdJournals.normalizeTable(counts)
+    end
+    if type(counts) ~= "table" then
+        return false
+    end
+    for _, value in pairs(counts) do
+        if (tonumber(value) or 0) > 0 then
+            return true
+        end
+    end
+    return false
+end
+
+local function copyDRSkillReadCounts(skillReadCounts)
+    local counts = skillReadCounts
+    if type(counts) ~= "table" and BurdJournals.normalizeTable then
+        counts = BurdJournals.normalizeTable(counts)
+    end
+    local copied = {}
+    if type(counts) == "table" then
+        for skillName, count in pairs(counts) do
+            if skillName ~= nil then
+                copied[tostring(skillName)] = math.max(0, tonumber(count) or 0)
+            end
+        end
+    end
+    return copied
+end
+
+local function drReadField(tbl, key)
+    if not tbl then
+        return nil
+    end
+    local ok, value = safePcall(function()
+        return tbl[key]
+    end)
+    if ok then
+        return value
+    end
+    return nil
+end
+
+local function drWriteField(tbl, key, value)
+    if not tbl then
+        return false
+    end
+    local ok = safePcall(function()
+        tbl[key] = value
+    end)
+    return ok == true
+end
+
+function BurdJournals.hasJournalDRData(journalData)
+    if not journalData then
+        return false
+    end
+    if (tonumber(drReadField(journalData, "readCount")) or 0) > 0 then return true end
+    if (tonumber(drReadField(journalData, "readSessionCount")) or 0) > 0 then return true end
+    if (tonumber(drReadField(journalData, "currentSessionReadCount")) or 0) > 0 then return true end
+    return hasPositiveDRSkillReadCounts(drReadField(journalData, "skillReadCounts"))
+end
+
+local function ensureDRCacheMap(cache, key)
+    if not cache then
+        return nil
+    end
+
+    local map = cache[key]
+    if type(map) ~= "table" and BurdJournals.normalizeTable then
+        map = BurdJournals.normalizeTable(map)
+    end
+    if type(map) ~= "table" then
+        map = {}
+    end
+    cache[key] = map
+    return map
+end
+
+function BurdJournals.getOrCreateJournalDRCache()
+    if not ModData or not ModData.getOrCreate then
+        return nil
+    end
+    local cache = ModData.getOrCreate("BurdJournals_JournalDRCache")
+    ensureDRCacheMap(cache, "journals")
+    ensureDRCacheMap(cache, "aliases")
+    return cache
+end
+
+local function normalizeDRAliasComponent(value)
+    if value == nil then
+        return ""
+    end
+    local s = tostring(value)
+    s = string.lower(s)
+    s = string.gsub(s, "|", "_")
+    return s
+end
+
+local function buildJournalDRAliasKeys(data, journal)
+    local aliases = {}
+    local seen = {}
+    local function addAlias(alias)
+        if type(alias) ~= "string" or alias == "" then
+            return
+        end
+        if seen[alias] then
+            return
+        end
+        seen[alias] = true
+        aliases[#aliases + 1] = alias
+    end
+
+    if not data then
+        return aliases
+    end
+
+    local itemType = normalizeDRAliasComponent(drReadField(data, "itemType") or (journal and journal.getFullType and journal:getFullType()) or "")
+    local ts = tonumber(drReadField(data, "timestamp"))
+    local tsKey = ts and tostring(math.floor(ts * 1000) / 1000) or ""
+    local steam = normalizeDRAliasComponent(drReadField(data, "ownerSteamId"))
+    local user = normalizeDRAliasComponent(drReadField(data, "ownerUsername"))
+    local charName = normalizeDRAliasComponent(drReadField(data, "ownerCharacterName"))
+    local author = normalizeDRAliasComponent(drReadField(data, "author"))
+
+    if drReadField(data, "isPlayerCreated") == true and (steam ~= "" or user ~= "") then
+        addAlias("player|" .. steam .. "|" .. user .. "|" .. tsKey .. "|" .. itemType)
+        addAlias("playerchar|" .. steam .. "|" .. charName .. "|" .. tsKey .. "|" .. itemType)
+    end
+    if author ~= "" and tsKey ~= "" then
+        addAlias("author|" .. author .. "|" .. tsKey .. "|" .. itemType)
+    end
+
+    return aliases
+end
+
+local function makeJournalDRSnapshot(data, journal, sourceTag)
+    return {
+        readCount = math.max(0, tonumber(drReadField(data, "readCount")) or 0),
+        readSessionCount = math.max(0, tonumber(drReadField(data, "readSessionCount")) or 0),
+        currentSessionId = drReadField(data, "currentSessionId"),
+        currentSessionReadCount = math.max(0, tonumber(drReadField(data, "currentSessionReadCount")) or 0),
+        skillReadCounts = copyDRSkillReadCounts(drReadField(data, "skillReadCounts")),
+        drLegacyMode3Migrated = drReadField(data, "drLegacyMode3Migrated") == true,
+        itemType = (journal and journal.getFullType and journal:getFullType()) or drReadField(data, "itemType") or nil,
+        updatedAt = getTimestampMs and getTimestampMs() or os.time(),
+        source = sourceTag
+    }
+end
+
+local function getOrCreatePlayerJournalDRCache(player)
+    if not player or not player.getModData then
+        return nil
+    end
+    local playerModData = player:getModData()
+    if type(playerModData) ~= "table" then
+        return nil
+    end
+    playerModData.BurdJournals = playerModData.BurdJournals or {}
+    if type(playerModData.BurdJournals.journalDRCache) ~= "table" then
+        playerModData.BurdJournals.journalDRCache = {}
+    end
+    local cache = playerModData.BurdJournals.journalDRCache
+    ensureDRCacheMap(cache, "journals")
+    ensureDRCacheMap(cache, "aliases")
+    return cache
+end
+
+local function findJournalDRSnapshot(cache, journalKey, aliases)
+    if not cache then
+        return nil, nil
+    end
+    local journals = ensureDRCacheMap(cache, "journals")
+    local aliasMap = ensureDRCacheMap(cache, "aliases")
+    if type(journals) ~= "table" then
+        return nil, nil
+    end
+
+    if journalKey and type(journals[journalKey]) == "table" then
+        return journals[journalKey], journalKey
+    end
+
+    if type(aliasMap) == "table" and type(aliases) == "table" then
+        for _, alias in ipairs(aliases) do
+            local mappedKey = aliasMap[alias]
+            if mappedKey and type(journals[mappedKey]) == "table" then
+                return journals[mappedKey], mappedKey
+            end
+        end
+    end
+
+    return nil, nil
+end
+
+function BurdJournals.getJournalDRCacheKey(journal, allowCreate)
+    if not journal or not journal.getModData then
+        return nil
+    end
+    local createWhenMissing = allowCreate ~= false
+    local modData = journal:getModData()
+    if not modData then
+        return nil
+    end
+    local data = modData.BurdJournals
+    if not data then
+        return nil
+    end
+
+    local currentUuid = drReadField(data, "uuid")
+    if type(currentUuid) == "string" and currentUuid ~= "" then
+        return currentUuid
+    end
+    if not createWhenMissing then
+        return nil
+    end
+
+    local generatedUuid = (BurdJournals.generateUUID and BurdJournals.generateUUID())
+        or ("journal-" .. tostring(getTimestampMs and getTimestampMs() or os.time()) .. "-" .. tostring(journal:getID()))
+    if drWriteField(data, "uuid", generatedUuid) then
+        if journal.transmitModData then
+            journal:transmitModData()
+        end
+        return generatedUuid
+    end
+
+    return nil
+end
+
+local function getFallbackJournalDRCacheKey(data, journal)
+    local aliases = buildJournalDRAliasKeys(data, journal)
+    if #aliases > 0 then
+        return "alias:" .. aliases[1]
+    end
+
+    local fullType = ""
+    if journal and journal.getFullType then
+        fullType = tostring(journal:getFullType() or "")
+    end
+    local itemId = ""
+    if journal and journal.getID then
+        itemId = tostring(journal:getID() or "")
+    end
+    if fullType ~= "" or itemId ~= "" then
+        return "item:" .. fullType .. "|" .. itemId
+    end
+
+    return nil
+end
+
+function BurdJournals.captureJournalDRState(journal, sourceTag, player)
+    if not journal or not journal.getModData then
+        return false
+    end
+    local modData = journal:getModData()
+    local data = modData and modData.BurdJournals
+    if not data then
+        return false
+    end
+
+    local cache = BurdJournals.getOrCreateJournalDRCache()
+    local journalKey = BurdJournals.getJournalDRCacheKey(journal)
+    if not journalKey then
+        journalKey = getFallbackJournalDRCacheKey(data, journal)
+    end
+    if not cache or not journalKey then
+        return false
+    end
+
+    local aliases = buildJournalDRAliasKeys(data, journal)
+    local journals = ensureDRCacheMap(cache, "journals")
+    local aliasMap = ensureDRCacheMap(cache, "aliases")
+    if type(journals) ~= "table" or type(aliasMap) ~= "table" then
+        return false
+    end
+
+    local snapshot = makeJournalDRSnapshot(data, journal, sourceTag)
+    local existingSnapshot, existingKey = findJournalDRSnapshot(cache, journalKey, aliases)
+    if type(existingSnapshot) == "table"
+        and BurdJournals.hasJournalDRData(existingSnapshot)
+        and not BurdJournals.hasJournalDRData(snapshot) then
+        snapshot = existingSnapshot
+        if existingKey and type(existingKey) == "string" and existingKey ~= "" then
+            journalKey = existingKey
+        end
+    end
+
+    journals[journalKey] = snapshot
+    for _, alias in ipairs(aliases) do
+        aliasMap[alias] = journalKey
+    end
+
+    if ModData and ModData.transmit then
+        ModData.transmit("BurdJournals_JournalDRCache")
+    end
+
+    local playerCache = getOrCreatePlayerJournalDRCache(player)
+    if playerCache then
+        local playerJournals = ensureDRCacheMap(playerCache, "journals")
+        local playerAliases = ensureDRCacheMap(playerCache, "aliases")
+        if type(playerJournals) == "table" then
+            playerJournals[journalKey] = snapshot
+        end
+        for _, alias in ipairs(aliases) do
+            if type(playerAliases) == "table" then
+                playerAliases[alias] = journalKey
+            end
+        end
+        if player.transmitModData then
+            player:transmitModData()
+        end
+    end
+    BurdJournals.debugPrint(
+        "[BurdJournals] Captured DR cache key="
+        .. tostring(journalKey)
+        .. " source="
+        .. tostring(sourceTag or "unknown")
+        .. " readCount="
+        .. tostring(snapshot.readCount)
+        .. " readSessionCount="
+        .. tostring(snapshot.readSessionCount)
+    )
+    return true
+end
+
+function BurdJournals.restoreJournalDRStateIfMissing(journal, sourceTag, player)
+    if not journal or not journal.getModData then
+        return false
+    end
+    local modData = journal:getModData()
+    local data = modData and modData.BurdJournals
+    if not data then
+        return false
+    end
+
+    local cache = BurdJournals.getOrCreateJournalDRCache()
+    if not cache then
+        return false
+    end
+
+    local journalKey = BurdJournals.getJournalDRCacheKey(journal, false)
+    if not journalKey then
+        journalKey = getFallbackJournalDRCacheKey(data, journal)
+    end
+    local aliases = buildJournalDRAliasKeys(data, journal)
+    local backup, resolvedKey = findJournalDRSnapshot(cache, journalKey, aliases)
+
+    if type(backup) ~= "table" then
+        local playerCache = getOrCreatePlayerJournalDRCache(player)
+        backup, resolvedKey = findJournalDRSnapshot(playerCache, journalKey, aliases)
+    end
+
+    if type(backup) ~= "table" then
+        BurdJournals.debugPrint(
+            "[BurdJournals] DR restore miss (no backup) key="
+            .. tostring(journalKey)
+            .. " aliases="
+            .. tostring(#aliases)
+            .. " source="
+            .. tostring(sourceTag or "unknown")
+        )
+        return false
+    end
+
+    if (not journalKey)
+        and resolvedKey
+        and type(resolvedKey) == "string"
+        and resolvedKey ~= ""
+        and not string.find(resolvedKey, "^alias:", 1, true)
+        and not string.find(resolvedKey, "^item:", 1, true) then
+        drWriteField(data, "uuid", resolvedKey)
+        journalKey = resolvedKey
+    end
+
+    local hasCurrent = BurdJournals.hasJournalDRData(data)
+    local hasBackup = BurdJournals.hasJournalDRData(backup)
+    if hasCurrent or not hasBackup then
+        return false
+    end
+
+    drWriteField(data, "readCount", math.max(0, tonumber(backup.readCount) or 0))
+    drWriteField(data, "readSessionCount", math.max(0, tonumber(backup.readSessionCount) or 0))
+    drWriteField(data, "currentSessionId", backup.currentSessionId)
+    drWriteField(data, "currentSessionReadCount", math.max(0, tonumber(backup.currentSessionReadCount) or 0))
+    drWriteField(data, "skillReadCounts", copyDRSkillReadCounts(backup.skillReadCounts))
+    drWriteField(data, "drLegacyMode3Migrated", backup.drLegacyMode3Migrated == true)
+
+    if journal.transmitModData then
+        journal:transmitModData()
+    end
+    BurdJournals.captureJournalDRState(journal, "restore:" .. tostring(sourceTag or "unknown"), player)
+
+    BurdJournals.debugPrint(
+        "[BurdJournals] Restored DR counters from cache for journal "
+        .. tostring(journalKey or resolvedKey)
+        .. " (source="
+        .. tostring(sourceTag or "unknown")
+        .. ")"
+    )
+    return true
 end
 
 function BurdJournals.formatTimestamp(hours)
@@ -3293,21 +5814,302 @@ end
 
 function BurdJournals.getSkillBaseline(player, skillName)
     if not player then return 0 end
+    
+    -- Check for stored baseline first (allows manual adjustment via debug panel)
     local modData = player:getModData()
-    if not modData.BurdJournals then return 0 end
-    if not modData.BurdJournals.skillBaseline then return 0 end
-    return modData.BurdJournals.skillBaseline[skillName] or 0
+    if modData.BurdJournals and modData.BurdJournals.skillBaseline then
+        local storedBaseline = modData.BurdJournals.skillBaseline[skillName]
+        if storedBaseline and storedBaseline > 0 then
+            return storedBaseline
+        end
+    end
+    
+    -- For passive skills (Fitness/Strength), default to Level 5 baseline if not manually set
+    -- Passive skill traits (Athletic, Strong, etc.) are dynamically granted/removed
+    -- based on skill level - they're not true "starting" traits.
+    -- The default baseline is the innate Level 5 that everyone starts with.
+    if skillName == "Fitness" or skillName == "Strength" then
+        local perk = BurdJournals.getPerkByName(skillName)
+        if perk and perk.getTotalXpForLevel then
+            -- Entry to Level 5 = getTotalXpForLevel(4) (XP to complete level 4)
+            local level5Entry = perk:getTotalXpForLevel(4) or 0
+            return level5Entry
+        end
+        return 0
+    end
+    
+    -- For non-passive skills with no stored baseline, return 0
+    return 0
+end
+
+-- Set skill baseline for a specific skill (level-based, converts to XP internally)
+-- This allows admins/debuggers to manually adjust individual skill baselines
+function BurdJournals.setSkillBaseline(player, skillName, level)
+    if not player or not skillName then return false end
+    
+    -- Get the perk to calculate XP for the level
+    local perk = BurdJournals.getPerkByName(skillName)
+    if not perk then return false end
+    
+    -- Calculate XP required for the specified level
+    local baselineXP = 0
+    if level > 0 and perk.getTotalXpForLevel then
+        -- getTotalXpForLevel(level-1) gives the XP to ENTER that level
+        baselineXP = perk:getTotalXpForLevel(level - 1) or 0
+    end
+    
+    -- For passive skills, handle specially
+    local isPassive = BurdJournals.isPassiveSkill and BurdJournals.isPassiveSkill(skillName)
+    if isPassive == nil then isPassive = (skillName == "Fitness" or skillName == "Strength") end
+    
+    -- Store in mod data
+    local modData = player:getModData()
+    modData.BurdJournals = modData.BurdJournals or {}
+    modData.BurdJournals.skillBaseline = modData.BurdJournals.skillBaseline or {}
+    modData.BurdJournals.skillBaseline[skillName] = baselineXP
+    
+    -- Also update the alternative baseline storage format if it exists
+    if modData.BurdJournals_Baseline then
+        modData.BurdJournals_Baseline.skills = modData.BurdJournals_Baseline.skills or {}
+        modData.BurdJournals_Baseline.skills[skillName] = baselineXP
+    end
+    
+    BurdJournals.debugPrint("[BurdJournals] Set skill baseline: " .. skillName .. " = Level " .. level .. " (" .. baselineXP .. " XP)")
+    
+    -- Notify any open UI panels that baseline has changed
+    if BurdJournals.notifyBaselineChanged then
+        BurdJournals.notifyBaselineChanged(player, "skill", skillName)
+    end
+    
+    return true
+end
+
+-- Get skill baseline as a level (for display purposes)
+function BurdJournals.getSkillBaselineLevel(player, skillName)
+    if not player or not skillName then return 0 end
+    
+    local baselineXP = BurdJournals.getSkillBaseline(player, skillName)
+    if baselineXP <= 0 then return 0 end
+    
+    -- Convert XP to level
+    local perk = BurdJournals.getPerkByName(skillName)
+    if not perk then return 0 end
+    
+    local level = 0
+    if perk.getTotalXpForLevel then
+        for lvl = 0, 10 do
+            local xpNeeded = perk:getTotalXpForLevel(lvl) or 0
+            if baselineXP >= xpNeeded then
+                level = lvl + 1
+            else
+                break
+            end
+        end
+    end
+    
+    return math.min(level, 10)
+end
+
+-- Set trait baseline (whether the trait is considered a "starting" trait)
+function BurdJournals.setTraitBaseline(player, traitId, isBaseline)
+    if not player or not traitId then return false end
+    
+    local modData = player:getModData()
+    modData.BurdJournals = modData.BurdJournals or {}
+    modData.BurdJournals.traitBaseline = modData.BurdJournals.traitBaseline or {}
+    
+    -- Use alias system to store all variations for reliable lookup
+    local allAliases = BurdJournals.getTraitAliases(traitId)
+    
+    if isBaseline then
+        -- Store all variations as baseline
+        for _, alias in ipairs(allAliases) do
+            modData.BurdJournals.traitBaseline[alias] = true
+        end
+    else
+        -- Clear all variations
+        for _, alias in ipairs(allAliases) do
+            modData.BurdJournals.traitBaseline[alias] = nil
+        end
+    end
+    
+    -- Also update the alternative baseline storage format if it exists
+    if modData.BurdJournals_Baseline then
+        modData.BurdJournals_Baseline.traits = modData.BurdJournals_Baseline.traits or {}
+        if isBaseline then
+            modData.BurdJournals_Baseline.traits[traitId] = true
+        else
+            modData.BurdJournals_Baseline.traits[traitId] = nil
+        end
+    end
+    
+    BurdJournals.debugPrint("[BurdJournals] Set trait baseline: " .. traitId .. " = " .. tostring(isBaseline) .. " (aliases: " .. #allAliases .. ")")
+    
+    -- Notify any open UI panels that baseline has changed
+    if BurdJournals.notifyBaselineChanged then
+        BurdJournals.notifyBaselineChanged(player, "trait", traitId)
+    end
+    
+    return true
+end
+
+-- Set recipe baseline (whether the recipe is considered a "starting" recipe)
+function BurdJournals.setRecipeBaseline(player, recipeName, isBaseline)
+    if not player or not recipeName then return false end
+    
+    local modData = player:getModData()
+    modData.BurdJournals = modData.BurdJournals or {}
+    modData.BurdJournals.recipeBaseline = modData.BurdJournals.recipeBaseline or {}
+    
+    if isBaseline then
+        modData.BurdJournals.recipeBaseline[recipeName] = true
+    else
+        modData.BurdJournals.recipeBaseline[recipeName] = nil
+    end
+    
+    -- Also update the alternative baseline storage format if it exists
+    if modData.BurdJournals_Baseline then
+        modData.BurdJournals_Baseline.recipes = modData.BurdJournals_Baseline.recipes or {}
+        if isBaseline then
+            modData.BurdJournals_Baseline.recipes[recipeName] = true
+        else
+            modData.BurdJournals_Baseline.recipes[recipeName] = nil
+        end
+    end
+    
+    BurdJournals.debugPrint("[BurdJournals] Set recipe baseline: " .. recipeName .. " = " .. tostring(isBaseline))
+    return true
+end
+
+-- Get comprehensive baseline data for a player (for UI display)
+function BurdJournals.getPlayerBaselineData(player)
+    if not player then return nil end
+    
+    local data = {
+        skills = {},
+        traits = {},
+        recipes = {},
+        username = player:getUsername()
+    }
+    
+    -- Get all skills with their baselines
+    local allSkills = BurdJournals.discoverAllSkills and BurdJournals.discoverAllSkills() or {}
+    for _, skillInfo in ipairs(allSkills) do
+        local skillName = type(skillInfo) == "table" and skillInfo.id or skillInfo
+        local perk = BurdJournals.getPerkByName(skillName)
+        if perk then
+            local currentLevel = player:getPerkLevel(perk)
+            local baselineLevel = BurdJournals.getSkillBaselineLevel(player, skillName)
+            local baselineXP = BurdJournals.getSkillBaseline(player, skillName)
+            local currentXP = player:getXp():getXP(perk)
+            
+            table.insert(data.skills, {
+                name = skillName,
+                displayName = BurdJournals.getSkillDisplayName and BurdJournals.getSkillDisplayName(skillName) or skillName,
+                currentLevel = currentLevel,
+                currentXP = currentXP,
+                baselineLevel = baselineLevel,
+                baselineXP = baselineXP,
+                isPassive = BurdJournals.isPassiveSkill and BurdJournals.isPassiveSkill(skillName) or false
+            })
+        end
+    end
+    
+    -- Get all traits with their baselines
+    local traitBaseline = BurdJournals.getTraitBaseline(player)
+    local playerTraits = player:getTraits()
+    if playerTraits then
+        for i = 0, playerTraits:size() - 1 do
+            local trait = playerTraits:get(i)
+            if trait then
+                local traitId = tostring(trait)
+                table.insert(data.traits, {
+                    id = traitId,
+                    displayName = BurdJournals.getTraitDisplayName and BurdJournals.getTraitDisplayName(traitId) or traitId,
+                    hasTrait = true,
+                    isBaseline = traitBaseline[traitId] == true or traitBaseline[string.lower(traitId)] == true,
+                    isPassiveSkillTrait = BurdJournals.isPassiveSkillTrait and BurdJournals.isPassiveSkillTrait(traitId) or false
+                })
+            end
+        end
+    end
+    
+    -- Get recipes - simplified for now
+    local recipeBaseline = BurdJournals.getRecipeBaseline(player)
+    data.recipeCount = 0
+    for _ in pairs(recipeBaseline) do
+        data.recipeCount = data.recipeCount + 1
+    end
+    
+    return data
+end
+
+-- Passive skill traits that are automatically granted/removed based on skill levels
+-- These should NEVER be considered "starting" traits because they're earned through gameplay
+BurdJournals.PASSIVE_SKILL_TRAITS = {
+    -- Fitness-based traits (granted at certain fitness levels)
+    ["Athletic"] = true,      -- Granted at Fitness 4+
+    ["Fit"] = true,           -- Alternative name
+    ["Unfit"] = true,         -- Low fitness
+    ["OutOfShape"] = true,    -- Very low fitness
+    -- Strength-based traits (granted at certain strength levels)
+    ["Strong"] = true,        -- Granted at Strength 4+
+    ["Stout"] = true,         -- Alternative name for Strong
+    ["Weak"] = true,          -- Low strength
+    ["Feeble"] = true,        -- Very low strength
+    -- Weight-based traits (can change during gameplay)
+    ["Overweight"] = true,
+    ["Obese"] = true,
+    ["Underweight"] = true,
+    ["VeryUnderweight"] = true,
+    ["Emaciated"] = true,
+}
+
+function BurdJournals.isPassiveSkillTrait(traitId)
+    if not traitId then return false end
+    -- Check both original and normalized (without "base:" prefix)
+    local normalized = string.gsub(traitId, "^base:", "")
+    return BurdJournals.PASSIVE_SKILL_TRAITS[traitId] == true 
+        or BurdJournals.PASSIVE_SKILL_TRAITS[normalized] == true
 end
 
 function BurdJournals.isStartingTrait(player, traitId)
     if not player then return false end
     if not traitId then return false end
+    
+    -- Passive skill traits (Athletic, Strong, etc.) are NEVER starting traits
+    -- They are earned through gameplay progression, not selected at character creation
+    if BurdJournals.isPassiveSkillTrait(traitId) then
+        return false
+    end
+    
     local modData = player:getModData()
-    if not modData.BurdJournals then return false end
-    if not modData.BurdJournals.traitBaseline then return false end
-
-    return modData.BurdJournals.traitBaseline[traitId] == true
-        or modData.BurdJournals.traitBaseline[string.lower(traitId)] == true
+    if not modData.BurdJournals then 
+        return false 
+    end
+    if not modData.BurdJournals.traitBaseline then 
+        return false 
+    end
+    
+    local baseline = modData.BurdJournals.traitBaseline
+    
+    -- Use alias system for comprehensive matching
+    -- Check if any alias of the input trait is in the baseline
+    local allAliases = BurdJournals.getTraitAliases(traitId)
+    for _, alias in ipairs(allAliases) do
+        if baseline[alias] == true then
+            return true
+        end
+    end
+    
+    -- Also use traitIdsMatch for any baseline entries (catches edge cases)
+    for storedTraitId, isBaseline in pairs(baseline) do
+        if isBaseline and BurdJournals.traitIdsMatch(traitId, storedTraitId) then
+            return true
+        end
+    end
+    
+    return false
 end
 
 function BurdJournals.getTraitBaseline(player)
@@ -3381,29 +6183,63 @@ function BurdJournals.collectPlayerSkills(player)
     local skills = {}
     local allowedSkills = BurdJournals.getAllowedSkills()
     local useBaseline = BurdJournals.shouldEnforceBaseline(player)
+    local playerJournalContext = { isPlayerCreated = true }
 
     for _, skillName in ipairs(allowedSkills) do
-        local perk = BurdJournals.getPerkByName(skillName)
-        if perk then
-            local currentXP = player:getXp():getXP(perk)
-            local level = player:getPerkLevel(perk)
+        local enabledForJournal = not BurdJournals.isSkillEnabledForJournal or BurdJournals.isSkillEnabledForJournal(playerJournalContext, skillName)
+        if enabledForJournal then
+            local perk = BurdJournals.getPerkByName(skillName)
+            if perk then
+                local currentXP = player:getXp():getXP(perk)
+                local level = player:getPerkLevel(perk)
 
-            local recordXP = currentXP
-            if useBaseline then
-                local baseline = BurdJournals.getSkillBaseline(player, skillName)
-                recordXP = math.max(0, currentXP - baseline)
-            end
+                local recordXP = currentXP
+                if useBaseline then
+                    local baseline = BurdJournals.getSkillBaseline(player, skillName)
+                    recordXP = math.max(0, currentXP - baseline)
 
-            if recordXP > 0 then
-                skills[skillName] = {
-                    xp = recordXP,
-                    level = level
-                }
+                    -- Fix for floating-point precision: If player is AT a level, ensure recorded XP
+                    -- represents at least that many levels of progress from baseline.
+                    -- This prevents "Level 9.999" situations when admin'ing exact levels.
+                    if perk.getTotalXpForLevel and level > 0 then
+                        local baselineLevel = BurdJournals.getSkillLevelFromXP(baseline, skillName)
+                        local earnedLevels = level - baselineLevel
+                        if earnedLevels > 0 then
+                            -- Calculate minimum XP needed to go from baselineLevel to current level
+                            -- This is (XP for target level) - (XP for baseline level)
+                            local xpForTargetLevel = perk:getTotalXpForLevel(level) or 0
+                            local xpForBaselineLevel = perk:getTotalXpForLevel(baselineLevel) or 0
+                            local minEarnedXP = xpForTargetLevel - xpForBaselineLevel
+                            if minEarnedXP > 0 and recordXP < minEarnedXP then
+                                -- Bump up to exactly the threshold to avoid "almost Level X" display
+                                recordXP = minEarnedXP
+                            end
+                        end
+                    end
+                end
+
+                if recordXP > 0 then
+                    skills[skillName] = {
+                        xp = recordXP,
+                        level = level
+                    }
+                end
             end
         end
     end
 
     return skills
+end
+
+local function traitTypeToName(traitType)
+    if not traitType then return nil end
+    if traitType.getName then
+        local name = traitType:getName()
+        if name and name ~= "" then
+            return tostring(name)
+        end
+    end
+    return tostring(traitType)
 end
 
 function BurdJournals.collectPlayerTraits(player, excludeStarting)
@@ -3415,58 +6251,47 @@ function BurdJournals.collectPlayerTraits(player, excludeStarting)
 
     local traits = {}
 
-    local ok, err = safePcall(function()
-        local charTraits = player:getCharacterTraits()
-        if charTraits then
-            local knownTraits = charTraits:getKnownTraits()
-            if knownTraits then
-                for i = 0, knownTraits:size() - 1 do
-                    local traitType = knownTraits:get(i)
-                    if traitType then
+    local charTraits = player.getCharacterTraits and player:getCharacterTraits() or nil
+    if not (charTraits and charTraits.getKnownTraits) then
+        return traits
+    end
 
-                        local traitDef = CharacterTraitDefinition.getCharacterTraitDefinition(traitType)
+    local knownTraits = charTraits:getKnownTraits()
+    if not (knownTraits and knownTraits.size and knownTraits.get) then
+        return traits
+    end
 
-                        local traitId = nil
-                        safePcall(function()
-                            if traitType.getName then
-                                traitId = traitType:getName()
-                            else
-                                traitId = tostring(traitType)
-                            end
-                        end)
+    for i = 0, knownTraits:size() - 1 do
+        local traitType = knownTraits:get(i)
+        if traitType then
+            local traitDef = CharacterTraitDefinition
+                and CharacterTraitDefinition.getCharacterTraitDefinition
+                and CharacterTraitDefinition.getCharacterTraitDefinition(traitType)
+                or nil
+            local traitId = traitTypeToName(traitType)
 
-                        if traitId then
+            if traitId then
+                traitId = string.gsub(traitId, "^base:", "")
 
-                            traitId = string.gsub(traitId, "^base:", "")
+                if not (excludeStarting and BurdJournals.isStartingTrait(player, traitId)) then
+                    local traitData = {
+                        name = traitId,
+                        cost = 0,
+                        isPositive = false
+                    }
 
-                            if excludeStarting and BurdJournals.isStartingTrait(player, traitId) then
-
-                            else
-                                local traitData = {
-                                    name = traitId,
-                                    cost = 0,
-                                    isPositive = false
-                                }
-
-                                if traitDef then
-                                    safePcall(function()
-                                        traitData.name = traitDef:getLabel() or traitId
-                                        traitData.cost = traitDef:getCost() or 0
-                                        traitData.isPositive = (traitDef:getCost() or 0) < 0
-                                    end)
-                                end
-
-                                traits[traitId] = traitData
-                            end
-                        end
+                    if traitDef then
+                        traitData.name = (traitDef.getLabel and traitDef:getLabel()) or traitId
+                        local cost = (traitDef.getCost and traitDef:getCost()) or 0
+                        traitData.cost = cost
+                        -- cost > 0 = positive trait, cost < 0 = negative trait
+                        traitData.isPositive = cost > 0
                     end
+
+                    traits[traitId] = traitData
                 end
             end
         end
-    end)
-
-    if not ok then
-        print("[BurdJournals] collectPlayerTraits error: " .. tostring(err))
     end
 
     return traits
@@ -3507,13 +6332,34 @@ function BurdJournals.collectAllPlayerData(player)
     }
 end
 
-function BurdJournals.playerHasTrait(player, traitId)
+function BurdJournals.playerHasTrait(player, traitIdOrObj)
+    if not player then return false end
+    if not traitIdOrObj then return false end
 
-    local ok, result = safePcall(function()
-        if not player then return false end
-        if not traitId then return false end
+    local traitObj = nil
+    local traitId = nil
 
-        local traitObj = nil
+    if type(traitIdOrObj) == "string" then
+        traitId = traitIdOrObj
+    else
+        traitObj = traitIdOrObj
+        -- Ensure we pass a CharacterTrait object when possible
+        if instanceof and traitObj and not instanceof(traitObj, "CharacterTrait") then
+            local name = nil
+            if traitObj.getName then
+                name = traitObj:getName()
+            else
+                name = tostring(traitObj)
+            end
+            if name and CharacterTrait and CharacterTrait.get and ResourceLocation and ResourceLocation.of then
+                traitObj = CharacterTrait.get(ResourceLocation.of(name))
+            else
+                traitObj = nil
+            end
+        end
+    end
+
+    if not traitObj and traitId then
         local traitIdLower = string.lower(traitId)
         local traitIdNorm = string.lower(traitId:gsub("%s", ""))
 
@@ -3526,9 +6372,11 @@ function BurdJournals.playerHasTrait(player, traitId)
                 local defName = ""
 
                 if defType then
-                    safePcall(function()
+                    if defType.getName then
                         defName = defType:getName() or tostring(defType)
-                    end)
+                    else
+                        defName = tostring(defType)
+                    end
                 end
 
                 local defLabelLower = string.lower(defLabel)
@@ -3539,56 +6387,52 @@ function BurdJournals.playerHasTrait(player, traitId)
                 local exactMatch = (defLabel == traitId) or (defName == traitId)
                 local lowerMatch = (defLabelLower == traitIdLower) or (defNameLower == traitIdLower)
                 local normalizedMatch = (defLabelNorm == traitIdNorm) or (defNameNorm == traitIdNorm)
-                local partialMatch = defLabelLower:find(traitIdLower, 1, true) or traitIdLower:find(defLabelLower, 1, true)
+                -- Partial match with length similarity check to prevent "conspicuous" matching "inconspicuous"
+                -- Only allow partial match if lengths are within 3 characters of each other
+                local labelLengthDiff = math.abs(#defLabelLower - #traitIdLower)
+                local nameLengthDiff = math.abs(#defNameLower - #traitIdLower)
+                local partialMatch = (labelLengthDiff <= 3 and defLabelLower:find(traitIdLower, 1, true))
+                    or (nameLengthDiff <= 3 and defNameLower:find(traitIdLower, 1, true))
 
                 if exactMatch or lowerMatch or normalizedMatch or partialMatch then
-                    traitObj = defType
+                    if defType and (not instanceof or instanceof(defType, "CharacterTrait")) then
+                        traitObj = defType
+                    elseif defName and CharacterTrait and CharacterTrait.get and ResourceLocation and ResourceLocation.of then
+                        traitObj = CharacterTrait.get(ResourceLocation.of(defName))
+                    end
                     break
                 end
             end
         end
-
-        if not traitObj and CharacterTrait then
-            local lookups = {
-                string.upper(traitId),
-                traitId:gsub("(%u)", "_%1"):sub(2):upper(),
-                traitId,
-            }
-            for _, key in ipairs(lookups) do
-                if CharacterTrait[key] then
-                    local ct = CharacterTrait[key]
-                    if type(ct) == "string" and CharacterTrait.get and ResourceLocation and ResourceLocation.of then
-                        local ok2, res = safePcall(function()
-                            return CharacterTrait.get(ResourceLocation.of(ct))
-                        end)
-                        if ok2 and res then
-                            traitObj = res
-                            break
-                        end
-                    else
-                        traitObj = ct
-                        break
-                    end
-                end
-            end
-        end
-
-        if traitObj and player.hasTrait then
-            return player:hasTrait(traitObj) == true
-        end
-
-        if type(player.HasTrait) == "function" then
-            return player:HasTrait(traitId) == true
-        end
-
-        return false
-    end)
-
-    if ok then
-        return result == true
     end
 
-    print("[BurdJournals] playerHasTrait error (safe): " .. tostring(result))
+    if not traitObj and traitId and CharacterTrait then
+        local lookups = {
+            string.upper(traitId),
+            traitId:gsub("(%u)", "_%1"):sub(2):upper(),
+            traitId,
+        }
+        for _, key in ipairs(lookups) do
+            if CharacterTrait[key] then
+                local ct = CharacterTrait[key]
+                if type(ct) == "string" and CharacterTrait.get and ResourceLocation and ResourceLocation.of then
+                    traitObj = CharacterTrait.get(ResourceLocation.of(ct))
+                else
+                    traitObj = ct
+                end
+                if traitObj then break end
+            end
+        end
+    end
+
+    if traitObj and player.hasTrait then
+        return player:hasTrait(traitObj) == true
+    end
+
+    if traitId and type(player.HasTrait) == "function" then
+        return player:HasTrait(traitId) == true
+    end
+
     return false
 end
 
@@ -3613,9 +6457,7 @@ function BurdJournals.dumpAllTraits()
         local defName = "?"
 
         if defType then
-            safePcall(function()
-                defName = defType:getName() or tostring(defType)
-            end)
+            defName = traitTypeToName(defType) or "?"
         end
 
         print(string.format("[BurdJournals] [%d] Label='%s' Name='%s' Type=%s", i, defLabel, defName, tostring(defType)))
@@ -3647,9 +6489,7 @@ function BurdJournals.safeAddTrait(player, traitId)
             local defName = ""
 
             if defType then
-                safePcall(function()
-                    defName = defType:getName() or tostring(defType)
-                end)
+                defName = traitTypeToName(defType) or ""
             end
 
             local defLabelLower = string.lower(defLabel)
@@ -3665,7 +6505,12 @@ function BurdJournals.safeAddTrait(player, traitId)
 
             local normalizedMatch = (defLabelNorm == traitIdNorm) or (defNameNorm == traitIdNorm)
 
-            local partialMatch = defLabelLower:find(traitIdLower, 1, true) or traitIdLower:find(defLabelLower, 1, true)
+            -- Partial match with length similarity check to prevent "conspicuous" matching "inconspicuous"
+            -- Only allow partial match if lengths are within 3 characters of each other
+            local labelLengthDiff = math.abs(#defLabelLower - #traitIdLower)
+            local nameLengthDiff = math.abs(#defNameLower - #traitIdLower)
+            local partialMatch = (labelLengthDiff <= 3 and defLabelLower:find(traitIdLower, 1, true))
+                or (nameLengthDiff <= 3 and defNameLower:find(traitIdLower, 1, true))
 
             if labelMatch or nameMatch or labelLowerMatch or nameLowerMatch or normalizedMatch or partialMatch then
                 traitDef = def
@@ -3682,15 +6527,13 @@ function BurdJournals.safeAddTrait(player, traitId)
 
         local formats = {
             "base:" .. string.lower(traitId),
-            "base:" .. string.lower(traitId:gsub("(%u)", " %1"):sub(2)),
             "base:" .. string.lower(traitId:gsub("(%u)", "_%1"):sub(2)),
+            "base:" .. string.lower(traitId:gsub("%s+", "")),
         }
 
         for _, resourceLoc in ipairs(formats) do
-            local ok, result = safePcall(function()
-                return CharacterTrait.get(ResourceLocation.of(resourceLoc))
-            end)
-            if ok and result then
+            local result = CharacterTrait.get(ResourceLocation.of(resourceLoc))
+            if result then
                 traitObj = result
                 break
             end
@@ -3708,10 +6551,8 @@ function BurdJournals.safeAddTrait(player, traitId)
             local ct = CharacterTrait[key]
             if ct then
                 if type(ct) == "string" and CharacterTrait.get and ResourceLocation and ResourceLocation.of then
-                    local ok, result = safePcall(function()
-                        return CharacterTrait.get(ResourceLocation.of(ct))
-                    end)
-                    if ok and result then
+                    local result = CharacterTrait.get(ResourceLocation.of(ct))
+                    if result then
                         traitObj = result
                         break
                     end
@@ -3724,72 +6565,68 @@ function BurdJournals.safeAddTrait(player, traitId)
     end
 
     if traitObj then
+        local charTraits = player.getCharacterTraits and player:getCharacterTraits() or nil
+        if not (charTraits and charTraits.add) then
+            return false
+        end
 
-        local ok, err = safePcall(function()
+        charTraits:add(traitObj)
 
-            player:getCharacterTraits():add(traitObj)
+        local traitForBoost = traitDef and traitDef:getType() or traitObj
+        if player.modifyTraitXPBoost then
+            player:modifyTraitXPBoost(traitForBoost, false)
+        end
 
-            local traitForBoost = traitDef and traitDef:getType() or traitObj
-            if player.modifyTraitXPBoost then
-                player:modifyTraitXPBoost(traitForBoost, false)
-            end
+        if traitDef and traitDef.getXpBoosts and transformIntoKahluaTable then
+            local xpBoosts = transformIntoKahluaTable(traitDef:getXpBoosts())
+            if type(xpBoosts) == "table" then
+                for perk, level in pairs(xpBoosts) do
+                    local perkId = tostring(perk)
+                    local levelNum = tonumber(tostring(level))
+                    if levelNum and levelNum > 0 then
+                        local perkObj = Perks and Perks[perkId]
+                        if perkObj and perkObj.getTotalXpForLevel then
+                            local currentLevel = 0
+                            if player.getPerkLevel then
+                                currentLevel = player:getPerkLevel(perkObj) or 0
+                            end
 
-            if SyncXp then
-                SyncXp(player)
-            end
-        end)
-
-        if ok then
-
-            if traitDef and traitDef.getXpBoosts and transformIntoKahluaTable then
-                local applyOk, applyErr = safePcall(function()
-                    local xpBoosts = transformIntoKahluaTable(traitDef:getXpBoosts())
-                    if xpBoosts then
-                        for perk, level in pairs(xpBoosts) do
-                            local perkId = tostring(perk)
-                            local levelNum = tonumber(tostring(level))
-                            if levelNum and levelNum > 0 then
-
-                                local perkObj = Perks and Perks[perkId]
-                                if perkObj and perkObj.getTotalXpForLevel then
-
-                                    local currentLevel = 0
-                                    if player.getPerkLevel then
-                                        currentLevel = player:getPerkLevel(perkObj) or 0
-                                    end
-
-                                    local targetLevel = math.min(currentLevel + levelNum, 10)
-                                    local targetXp = perkObj:getTotalXpForLevel(targetLevel)
-                                    local currentXp = player:getXp():getXP(perkObj) or 0
-                                    local xpToAdd = targetXp - currentXp
-                                    if xpToAdd > 0 then
-                                        player:getXp():AddXP(perkObj, xpToAdd, true, false, false)
-                                        print("[BurdJournals] Trait " .. traitId .. " granted +" .. levelNum .. " " .. perkId .. " (+" .. math.floor(xpToAdd) .. " XP)")
-                                    end
-                                end
+                            local targetLevel = math.min(currentLevel + levelNum, 10)
+                            local targetXp = perkObj:getTotalXpForLevel(targetLevel)
+                            local currentXp = player:getXp():getXP(perkObj) or 0
+                            local xpToAdd = targetXp - currentXp
+                            if xpToAdd > 0 then
+                                player:getXp():AddXP(perkObj, xpToAdd, true, false, false)
+                                print("[BurdJournals] Trait " .. traitId .. " granted +" .. levelNum .. " " .. perkId .. " (+" .. math.floor(xpToAdd) .. " XP)")
                             end
                         end
                     end
-                end)
-                if not applyOk then
-                    print("[BurdJournals] Warning: Failed to apply trait XP boosts: " .. tostring(applyErr))
                 end
             end
-
-            if SyncXp then
-                SyncXp(player)
-            end
-
-            return true
-        else
         end
-    else
+
+        if SyncXp then
+            SyncXp(player)
+        end
+
+        return true
     end
 
     return false
 end
 
 BurdJournals._magazineRecipeCache = nil
+
+local function hasLearnedRecipes(learnedRecipes)
+    if not learnedRecipes then return false end
+    if learnedRecipes.isEmpty then
+        return not learnedRecipes:isEmpty()
+    end
+    if learnedRecipes.size then
+        return learnedRecipes:size() > 0
+    end
+    return false
+end
 
 function BurdJournals.buildMagazineRecipeCache(forceRefresh)
     if not forceRefresh and BurdJournals._magazineRecipeCache then
@@ -3806,43 +6643,33 @@ function BurdJournals.buildMagazineRecipeCache(forceRefresh)
         end
     end
 
-    local ok, err = safePcall(function()
-        local scriptManager = getScriptManager()
-        if not scriptManager then
-            print("[BurdJournals] buildMagazineRecipeCache: no scriptManager")
-            return
-        end
-
+    local scriptManager = getScriptManager and getScriptManager() or nil
+    if not scriptManager then
+        print("[BurdJournals] buildMagazineRecipeCache: no scriptManager")
+    else
         local allItems = scriptManager:getAllItems()
-        if not allItems then
+        if not (allItems and allItems.size and allItems.get) then
             print("[BurdJournals] buildMagazineRecipeCache: no allItems")
-            return
-        end
+        else
+            print("[BurdJournals] buildMagazineRecipeCache: scanning " .. allItems:size() .. " items (including mods)")
 
-        print("[BurdJournals] buildMagazineRecipeCache: scanning " .. allItems:size() .. " items (including mods)")
-
-        for i = 0, allItems:size() - 1 do
-            local script = allItems:get(i)
-            if script then
-                local learnedRecipes = nil
-                safePcall(function()
-                    learnedRecipes = script:getLearnedRecipes()
-                end)
-
-                if learnedRecipes and not learnedRecipes:isEmpty() then
-                    local fullType = script:getFullName()
-                    print("[BurdJournals] Found magazine with recipes: " .. tostring(fullType))
-                    for j = 0, learnedRecipes:size() - 1 do
-                        local recipeName = learnedRecipes:get(j)
-                        if recipeName then
-
-                            if BurdJournals.isRecipeExcluded(recipeName) then
-                                print("[BurdJournals]   - Recipe (EXCLUDED): " .. tostring(recipeName))
-                            else
-                                print("[BurdJournals]   - Recipe: " .. tostring(recipeName))
-
-                                if not cache[recipeName] then
-                                    cache[recipeName] = fullType
+            for i = 0, allItems:size() - 1 do
+                local script = allItems:get(i)
+                if script and script.getLearnedRecipes and script.getFullName then
+                    local learnedRecipes = script:getLearnedRecipes()
+                    if hasLearnedRecipes(learnedRecipes) and learnedRecipes.size and learnedRecipes.get then
+                        local fullType = script:getFullName()
+                        print("[BurdJournals] Found magazine with recipes: " .. tostring(fullType))
+                        for j = 0, learnedRecipes:size() - 1 do
+                            local recipeName = learnedRecipes:get(j)
+                            if recipeName then
+                                if BurdJournals.isRecipeExcluded(recipeName) then
+                                    print("[BurdJournals]   - Recipe (EXCLUDED): " .. tostring(recipeName))
+                                else
+                                    print("[BurdJournals]   - Recipe: " .. tostring(recipeName))
+                                    if not cache[recipeName] then
+                                        cache[recipeName] = fullType
+                                    end
                                 end
                             end
                         end
@@ -3850,10 +6677,6 @@ function BurdJournals.buildMagazineRecipeCache(forceRefresh)
                 end
             end
         end
-    end)
-
-    if not ok then
-        print("[BurdJournals] buildMagazineRecipeCache error: " .. tostring(err))
     end
 
     BurdJournals._magazineRecipeCache = cache
@@ -3894,54 +6717,109 @@ function BurdJournals.buildMagazineToRecipesCache(forceRefresh)
         end
     end
 
-    local ok, err = safePcall(function()
-        local scriptManager = getScriptManager()
-        if not scriptManager then return end
-
+    local scriptManager = getScriptManager and getScriptManager() or nil
+    if scriptManager then
         local allItems = scriptManager:getAllItems()
-        if not allItems then return end
-
-        for i = 0, allItems:size() - 1 do
-            local script = allItems:get(i)
-            if script then
-                local learnedRecipes = nil
-                safePcall(function()
-                    learnedRecipes = script:getLearnedRecipes()
-                end)
-
-                if learnedRecipes and not learnedRecipes:isEmpty() then
-                    local fullType = script:getFullName()
-                    local recipeList = cache[fullType] or {}
-                    for j = 0, learnedRecipes:size() - 1 do
-                        local recipeName = learnedRecipes:get(j)
-                        if recipeName and not BurdJournals.isRecipeExcluded(recipeName) then
-
-                            local isDupe = false
-                            for _, existing in ipairs(recipeList) do
-                                if existing == recipeName then
-                                    isDupe = true
-                                    break
+        if allItems and allItems.size and allItems.get then
+            for i = 0, allItems:size() - 1 do
+                local script = allItems:get(i)
+                if script and script.getLearnedRecipes and script.getFullName then
+                    local learnedRecipes = script:getLearnedRecipes()
+                    if hasLearnedRecipes(learnedRecipes) and learnedRecipes.size and learnedRecipes.get then
+                        local fullType = script:getFullName()
+                        local recipeList = cache[fullType] or {}
+                        for j = 0, learnedRecipes:size() - 1 do
+                            local recipeName = learnedRecipes:get(j)
+                            if recipeName and not BurdJournals.isRecipeExcluded(recipeName) then
+                                local isDupe = false
+                                for _, existing in ipairs(recipeList) do
+                                    if existing == recipeName then
+                                        isDupe = true
+                                        break
+                                    end
+                                end
+                                if not isDupe then
+                                    table.insert(recipeList, recipeName)
                                 end
                             end
-                            if not isDupe then
-                                table.insert(recipeList, recipeName)
-                            end
                         end
-                    end
-                    if #recipeList > 0 then
-                        cache[fullType] = recipeList
+                        if #recipeList > 0 then
+                            cache[fullType] = recipeList
+                        end
                     end
                 end
             end
         end
-    end)
-
-    if not ok then
-        print("[BurdJournals] buildMagazineToRecipesCache error: " .. tostring(err))
     end
 
     BurdJournals._magazineToRecipesCache = cache
     return cache
+end
+
+-- Normalize Java/Lua list-like object to string array for recipe checks.
+local function listToStringArray(listObj)
+    if not listObj then return nil end
+
+    if type(listObj) == "table" then
+        local out = {}
+        if listObj[1] ~= nil then
+            for i = 1, #listObj do
+                local value = listObj[i]
+                if value ~= nil then
+                    table.insert(out, tostring(value))
+                end
+            end
+        else
+            for _, value in pairs(listObj) do
+                if value ~= nil then
+                    table.insert(out, tostring(value))
+                end
+            end
+        end
+        return out
+    end
+
+    if listObj.size and listObj.get then
+        local out = {}
+        local count = listObj:size()
+        for i = 0, count - 1 do
+            local value = listObj:get(i)
+            if value ~= nil then
+                table.insert(out, tostring(value))
+            end
+        end
+        return out
+    end
+
+    return nil
+end
+
+local function arrayToSet(arr)
+    local set = {}
+    if not arr then return set end
+    for i = 1, #arr do
+        set[arr[i]] = true
+    end
+    return set
+end
+
+local function listContainsString(listObj, value)
+    if not listObj or value == nil then return false end
+
+    if listObj.contains and listObj:contains(value) then
+        return true
+    end
+
+    local arr = listToStringArray(listObj)
+    if not arr then return false end
+
+    local wanted = tostring(value)
+    for i = 1, #arr do
+        if arr[i] == wanted then
+            return true
+        end
+    end
+    return false
 end
 
 function BurdJournals.collectPlayerMagazineRecipes(player, excludeStarting)
@@ -3968,52 +6846,43 @@ function BurdJournals.collectPlayerMagazineRecipes(player, excludeStarting)
     for _ in pairs(magToRecipes) do magCount = magCount + 1 end
     BurdJournals.debugPrint("[BurdJournals] collectPlayerMagazineRecipes: checking " .. magCount .. " magazine types")
 
-    -- Check if SeeNotLearntRecipe sandbox option is enabled
-    -- When enabled, isRecipeKnown() returns true for ALL recipes, making it useless
-    -- for detecting actually learned recipes. We must rely on other methods.
-    local seeNotLearnt = false
-    safePcall(function()
-        seeNotLearnt = SandboxVars and SandboxVars.SeeNotLearntRecipe
-    end)
+    local seeNotLearnt = (SandboxVars and SandboxVars.SeeNotLearntRecipe) and true or false
 
-    local ok, err = safePcall(function()
+    local knownRecipesList = player.getKnownRecipes and player:getKnownRecipes() or nil
+    local knownRecipesArray = listToStringArray(knownRecipesList) or {}
+    local knownRecipesSet = arrayToSet(knownRecipesArray)
 
-        -- Method 1: Using isRecipeKnown() - SKIP if SeeNotLearntRecipe is enabled
-        -- because it will return true for ALL recipes, not just learned ones
-        BurdJournals.debugPrint("[BurdJournals] Method 1: Using isRecipeKnown() for each magazine recipe...")
-        local method1Count = 0
+    local readBooksList = player.getAlreadyReadBook and player:getAlreadyReadBook() or nil
+    local readBooksArray = listToStringArray(readBooksList) or {}
+    local readBooksSet = arrayToSet(readBooksArray)
 
-        if seeNotLearnt then
-            BurdJournals.debugPrint("[BurdJournals] Method 1: SKIPPED - SeeNotLearntRecipe is enabled (returns true for all recipes)")
-        elseif player.isRecipeKnown then
-            for magazineType, recipeList in pairs(magToRecipes) do
-                for _, recipeName in ipairs(recipeList) do
-                    if not recipes[recipeName] then
-                        local isKnown = false
-                        safePcall(function()
-                            isKnown = player:isRecipeKnown(recipeName)
-                        end)
-                        if isKnown then
-                            method1Count = method1Count + 1
-                            recipes[recipeName] = true
-                        end
-                    end
+    -- Method 1: Using isRecipeKnown() - SKIP if SeeNotLearntRecipe is enabled
+    -- because it will return true for ALL recipes, not just learned ones
+    BurdJournals.debugPrint("[BurdJournals] Method 1: Using isRecipeKnown() for each magazine recipe...")
+    local method1Count = 0
+
+    if seeNotLearnt then
+        BurdJournals.debugPrint("[BurdJournals] Method 1: SKIPPED - SeeNotLearntRecipe is enabled (returns true for all recipes)")
+    elseif player.isRecipeKnown then
+        for _, recipeList in pairs(magToRecipes) do
+            for _, recipeName in ipairs(recipeList) do
+                if not recipes[recipeName] and player:isRecipeKnown(recipeName) then
+                    method1Count = method1Count + 1
+                    recipes[recipeName] = true
                 end
             end
-            BurdJournals.debugPrint("[BurdJournals] Method 1 (isRecipeKnown): found " .. method1Count .. " known recipes")
-        else
-            BurdJournals.debugPrint("[BurdJournals] Method 1: isRecipeKnown not available, skipping")
         end
+        BurdJournals.debugPrint("[BurdJournals] Method 1 (isRecipeKnown): found " .. method1Count .. " known recipes")
+    else
+        BurdJournals.debugPrint("[BurdJournals] Method 1: isRecipeKnown not available, skipping")
+    end
 
-        BurdJournals.debugPrint("[BurdJournals] Method 2: Checking getAlreadyReadPages for each magazine...")
-        local method2Count = 0
-
+    -- Method 2: getAlreadyReadPages per magazine
+    BurdJournals.debugPrint("[BurdJournals] Method 2: Checking getAlreadyReadPages for each magazine...")
+    local method2Count = 0
+    if player.getAlreadyReadPages then
         for magazineType, recipeList in pairs(magToRecipes) do
-            local pagesRead = 0
-            safePcall(function()
-                pagesRead = player:getAlreadyReadPages(magazineType) or 0
-            end)
-
+            local pagesRead = player:getAlreadyReadPages(magazineType) or 0
             if pagesRead > 0 then
                 for _, recipeName in ipairs(recipeList) do
                     if not recipes[recipeName] then
@@ -4023,125 +6892,71 @@ function BurdJournals.collectPlayerMagazineRecipes(player, excludeStarting)
                 end
             end
         end
-        BurdJournals.debugPrint("[BurdJournals] Method 2 (getAlreadyReadPages): found " .. method2Count .. " additional recipes")
-
-        BurdJournals.debugPrint("[BurdJournals] Method 3: Checking getAlreadyReadBook list...")
-        local method3Count = 0
-        local readBooks = nil
-        safePcall(function()
-            readBooks = player:getAlreadyReadBook()
-        end)
-
-        if readBooks then
-            local hasSize, bookCount = safePcall(function() return readBooks:size() end)
-            if hasSize and bookCount then
-                BurdJournals.debugPrint("[BurdJournals] Method 3: player has " .. bookCount .. " items in getAlreadyReadBook")
-                for i = 0, bookCount - 1 do
-                    local bookType = nil
-                    safePcall(function() bookType = readBooks:get(i) end)
-                    if bookType then
-                        local recipeList = magToRecipes[tostring(bookType)]
-                        if recipeList then
-                            for _, recipeName in ipairs(recipeList) do
-                                if not recipes[recipeName] then
-                                    method3Count = method3Count + 1
-                                    recipes[recipeName] = true
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        else
-            BurdJournals.debugPrint("[BurdJournals] Method 3: getAlreadyReadBook returned nil")
-        end
-        BurdJournals.debugPrint("[BurdJournals] Method 3 (getAlreadyReadBook): found " .. method3Count .. " additional recipes")
-
-        BurdJournals.debugPrint("[BurdJournals] Method 4: Checking getKnownRecipes...")
-        local method4Count = 0
-        local knownRecipes = nil
-        safePcall(function()
-            knownRecipes = player:getKnownRecipes()
-        end)
-
-        if knownRecipes then
-            local hasSize, recipeCount = safePcall(function() return knownRecipes:size() end)
-            if hasSize and recipeCount and recipeCount > 0 then
-                BurdJournals.debugPrint("[BurdJournals] Method 4: player has " .. recipeCount .. " items in getKnownRecipes")
-                -- Debug: Log first few recipes to see what's actually in the list
-                local debugLimit = math.min(recipeCount, 5)
-                for i = 0, debugLimit - 1 do
-                    local debugRecipe = nil
-                    safePcall(function() debugRecipe = knownRecipes:get(i) end)
-                    if debugRecipe then
-                        BurdJournals.debugPrint("[BurdJournals] Method 4 sample[" .. i .. "]: " .. tostring(debugRecipe))
-                    end
-                end
-                -- Process all recipes
-                for i = 0, recipeCount - 1 do
-                    local recipeName = nil
-                    safePcall(function() recipeName = knownRecipes:get(i) end)
-                    if recipeName then
-                        recipeName = tostring(recipeName)
-                        local magazineType = recipeToMag[recipeName]
-                        if magazineType and not recipes[recipeName] then
-                            method4Count = method4Count + 1
-                            recipes[recipeName] = true
-                        end
-                    end
-                end
-            else
-                BurdJournals.debugPrint("[BurdJournals] Method 4: getKnownRecipes returned empty or nil size")
-            end
-        else
-            BurdJournals.debugPrint("[BurdJournals] Method 4: getKnownRecipes returned nil")
-        end
-        BurdJournals.debugPrint("[BurdJournals] Method 4 (getKnownRecipes): found " .. method4Count .. " additional recipes")
-
-        -- Method 5: Catch modded recipes not in our cache by checking needToBeLearn flag
-        -- This handles mods that use non-standard magazine implementations
-        BurdJournals.debugPrint("[BurdJournals] Method 5: Checking needToBeLearn recipes not in cache...")
-        local method5Count = 0
-
-        if knownRecipes then
-            local scriptManager = getScriptManager()
-            local hasSize, recipeCount = safePcall(function() return knownRecipes:size() end)
-            if hasSize and recipeCount and recipeCount > 0 and scriptManager then
-                for i = 0, recipeCount - 1 do
-                    local recipeName = nil
-                    safePcall(function() recipeName = knownRecipes:get(i) end)
-                    if recipeName then
-                        recipeName = tostring(recipeName)
-                        -- Skip if already found by previous methods
-                        if not recipes[recipeName] then
-                            -- Check if this recipe requires learning (needToBeLearn=true)
-                            local recipeScript = nil
-                            safePcall(function()
-                                recipeScript = scriptManager:getRecipe(recipeName)
-                            end)
-                            if recipeScript then
-                                local needsLearning = false
-                                safePcall(function()
-                                    needsLearning = recipeScript:needToBeLearn()
-                                end)
-                                if needsLearning then
-                                    -- This is a learnable recipe not in our cache - add it
-                                    method5Count = method5Count + 1
-                                    recipes[recipeName] = true
-                                    BurdJournals.debugPrint("[BurdJournals] Method 5: Added '" .. recipeName .. "' (needToBeLearn but not in magazine cache)")
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        BurdJournals.debugPrint("[BurdJournals] Method 5 (needToBeLearn fallback): found " .. method5Count .. " additional recipes")
-    end)
-
-    if not ok then
-        print("[BurdJournals] collectPlayerMagazineRecipes error: " .. tostring(err))
     end
+    BurdJournals.debugPrint("[BurdJournals] Method 2 (getAlreadyReadPages): found " .. method2Count .. " additional recipes")
+
+    -- Method 3: already-read books list
+    BurdJournals.debugPrint("[BurdJournals] Method 3: Checking getAlreadyReadBook list...")
+    local method3Count = 0
+    if #readBooksArray > 0 then
+        BurdJournals.debugPrint("[BurdJournals] Method 3: player has " .. #readBooksArray .. " items in getAlreadyReadBook")
+        for i = 1, #readBooksArray do
+            local recipeList = magToRecipes[readBooksArray[i]]
+            if recipeList then
+                for _, recipeName in ipairs(recipeList) do
+                    if not recipes[recipeName] then
+                        method3Count = method3Count + 1
+                        recipes[recipeName] = true
+                    end
+                end
+            end
+        end
+    else
+        BurdJournals.debugPrint("[BurdJournals] Method 3: getAlreadyReadBook returned nil/empty")
+    end
+    BurdJournals.debugPrint("[BurdJournals] Method 3 (getAlreadyReadBook): found " .. method3Count .. " additional recipes")
+
+    -- Method 4: known recipes list
+    BurdJournals.debugPrint("[BurdJournals] Method 4: Checking getKnownRecipes...")
+    local method4Count = 0
+    if #knownRecipesArray > 0 then
+        BurdJournals.debugPrint("[BurdJournals] Method 4: player has " .. #knownRecipesArray .. " items in getKnownRecipes")
+        local debugLimit = math.min(#knownRecipesArray, 5)
+        for i = 1, debugLimit do
+            BurdJournals.debugPrint("[BurdJournals] Method 4 sample[" .. tostring(i - 1) .. "]: " .. tostring(knownRecipesArray[i]))
+        end
+        for i = 1, #knownRecipesArray do
+            local recipeName = knownRecipesArray[i]
+            local magazineType = recipeToMag[recipeName]
+            if magazineType and not recipes[recipeName] then
+                method4Count = method4Count + 1
+                recipes[recipeName] = true
+            end
+        end
+    else
+        BurdJournals.debugPrint("[BurdJournals] Method 4: getKnownRecipes returned nil/empty")
+    end
+    BurdJournals.debugPrint("[BurdJournals] Method 4 (getKnownRecipes): found " .. method4Count .. " additional recipes")
+
+    -- Method 5: Catch modded recipes not in our cache by checking needToBeLearn flag
+    BurdJournals.debugPrint("[BurdJournals] Method 5: Checking needToBeLearn recipes not in cache...")
+    local method5Count = 0
+    local scriptManager = getScriptManager and getScriptManager() or nil
+    if scriptManager and #knownRecipesArray > 0 then
+        for i = 1, #knownRecipesArray do
+            local recipeName = knownRecipesArray[i]
+            if not recipes[recipeName] then
+                local recipeScript = scriptManager:getRecipe(recipeName)
+                local needsLearning = recipeScript and recipeScript.needToBeLearn and recipeScript:needToBeLearn()
+                if needsLearning then
+                    method5Count = method5Count + 1
+                    recipes[recipeName] = true
+                    BurdJournals.debugPrint("[BurdJournals] Method 5: Added '" .. recipeName .. "' (needToBeLearn but not in magazine cache)")
+                end
+            end
+        end
+    end
+    BurdJournals.debugPrint("[BurdJournals] Method 5 (needToBeLearn fallback): found " .. method5Count .. " additional recipes")
 
     local foundCount = 0
     for _ in pairs(recipes) do foundCount = foundCount + 1 end
@@ -4152,10 +6967,12 @@ function BurdJournals.collectPlayerMagazineRecipes(player, excludeStarting)
         print("[BurdJournals] WARNING: No magazine recipes detected! magCount=" .. magCount .. " excludeStarting=" .. tostring(excludeStarting))
         -- Check getKnownRecipes directly
         local knownCount = 0
-        pcall(function()
+        if player and player.getKnownRecipes then
             local known = player:getKnownRecipes()
-            if known then knownCount = known:size() end
-        end)
+            if known and known.size then
+                knownCount = known:size()
+            end
+        end
         print("[BurdJournals] Player has " .. knownCount .. " total known recipes (from getKnownRecipes)")
     end
 
@@ -4190,55 +7007,44 @@ function BurdJournals.playerKnowsRecipe(player, recipeName)
     local DEBUG_RECIPE_CHECK = false
 
     -- Check if SeeNotLearntRecipe sandbox option is enabled
-    -- When enabled, isRecipeKnown() returns true for ALL recipes, making it useless
-    local seeNotLearnt = false
-    safePcall(function()
-        seeNotLearnt = SandboxVars and SandboxVars.SeeNotLearntRecipe
-    end)
+    -- When enabled, isRecipeKnown() returns true for ALL recipes, making it useless.
+    local seeNotLearnt = (SandboxVars and SandboxVars.SeeNotLearntRecipe) and true or false
 
-    local ok, result = safePcall(function()
-
-        -- Skip isRecipeKnown() if SeeNotLearntRecipe is enabled - it returns true for everything
-        if not seeNotLearnt and player.isRecipeKnown then
-            local known = player:isRecipeKnown(recipeName)
-            if known then
-                if DEBUG_RECIPE_CHECK then
-                    print("[BurdJournals DEBUG] playerKnowsRecipe(" .. recipeName .. ") -> TRUE via isRecipeKnown()")
-                end
-                return true
+    -- Skip isRecipeKnown() if SeeNotLearntRecipe is enabled - it returns true for everything.
+    if not seeNotLearnt and player.isRecipeKnown then
+        if player:isRecipeKnown(recipeName) then
+            if DEBUG_RECIPE_CHECK then
+                print("[BurdJournals DEBUG] playerKnowsRecipe(" .. recipeName .. ") -> TRUE via isRecipeKnown()")
             end
+            return true
+        end
+    end
+
+    local knownRecipes = player.getKnownRecipes and player:getKnownRecipes() or nil
+    if knownRecipes then
+        if knownRecipes.contains and knownRecipes:contains(recipeName) then
+            if DEBUG_RECIPE_CHECK then
+                print("[BurdJournals DEBUG] playerKnowsRecipe(" .. recipeName .. ") -> TRUE via getKnownRecipes():contains()")
+            end
+            return true
         end
 
-        local knownRecipes = player:getKnownRecipes()
-        if knownRecipes then
-
-            local hasContains, containsResult = safePcall(function()
-                return knownRecipes:contains(recipeName)
-            end)
-            if hasContains and containsResult then
-                if DEBUG_RECIPE_CHECK then
-                    print("[BurdJournals DEBUG] playerKnowsRecipe(" .. recipeName .. ") -> TRUE via getKnownRecipes():contains()")
-                end
-                return true
-            end
-
-            local hasSize, listSize = safePcall(function() return knownRecipes:size() end)
-            if hasSize and listSize and listSize > 0 then
-                for i = 0, listSize - 1 do
-                    local known = knownRecipes:get(i)
-                    if known and tostring(known) == recipeName then
-                        if DEBUG_RECIPE_CHECK then
-                            print("[BurdJournals DEBUG] playerKnowsRecipe(" .. recipeName .. ") -> TRUE via getKnownRecipes() iteration")
-                        end
-                        return true
+        local knownRecipesArray = listToStringArray(knownRecipes)
+        if knownRecipesArray then
+            for i = 1, #knownRecipesArray do
+                if knownRecipesArray[i] == recipeName then
+                    if DEBUG_RECIPE_CHECK then
+                        print("[BurdJournals DEBUG] playerKnowsRecipe(" .. recipeName .. ") -> TRUE via getKnownRecipes() iteration")
                     end
+                    return true
                 end
             end
         end
+    end
 
-        local magazineType = BurdJournals.getMagazineForRecipe(recipeName)
-        if magazineType then
-
+    local magazineType = BurdJournals.getMagazineForRecipe(recipeName)
+    if magazineType then
+        if player.getAlreadyReadPages then
             local pagesRead = player:getAlreadyReadPages(magazineType) or 0
             if pagesRead > 0 then
                 if DEBUG_RECIPE_CHECK then
@@ -4246,86 +7052,73 @@ function BurdJournals.playerKnowsRecipe(player, recipeName)
                 end
                 return true
             end
+        end
 
-            local readBooks = player:getAlreadyReadBook()
-            if readBooks then
-                local hasSize, bookCount = safePcall(function() return readBooks:size() end)
-                if hasSize and bookCount and bookCount > 0 then
-                    for i = 0, bookCount - 1 do
-                        local bookType = readBooks:get(i)
-                        if bookType and tostring(bookType) == magazineType then
-                            if DEBUG_RECIPE_CHECK then
-                                print("[BurdJournals DEBUG] playerKnowsRecipe(" .. recipeName .. ") -> TRUE via getAlreadyReadBook contains " .. magazineType)
-                            end
-                            return true
-                        end
-                    end
-                end
+        local readBooks = player.getAlreadyReadBook and player:getAlreadyReadBook() or nil
+        if listContainsString(readBooks, magazineType) then
+            if DEBUG_RECIPE_CHECK then
+                print("[BurdJournals DEBUG] playerKnowsRecipe(" .. recipeName .. ") -> TRUE via getAlreadyReadBook contains " .. magazineType)
             end
+            return true
         end
+    end
 
-        if DEBUG_RECIPE_CHECK then
-            print("[BurdJournals DEBUG] playerKnowsRecipe(" .. recipeName .. ") -> FALSE (no method returned true)")
-        end
-        return false
-    end)
-
-    if ok then return result end
+    if DEBUG_RECIPE_CHECK then
+        print("[BurdJournals DEBUG] playerKnowsRecipe(" .. recipeName .. ") -> FALSE (no method returned true)")
+    end
     return false
 end
 
+local function getAllRecipesList()
+    local recipes = getAllRecipes and getAllRecipes() or nil
+    if not recipes or not recipes.size or not recipes.get then
+        return nil, 0
+    end
+    return recipes, recipes:size() or 0
+end
+
 function BurdJournals.validateRecipeName(recipeName)
-    if not recipeName then return nil end
+    if type(recipeName) ~= "string" or recipeName == "" then return nil end
 
-    local ok, result = safePcall(function()
-        local recipes = getAllRecipes()
-        if not recipes then return nil end
+    local recipes, recipeCount = getAllRecipesList()
+    if not recipes or recipeCount <= 0 then return nil end
 
-        for i = 0, recipes:size() - 1 do
-            local recipe = recipes:get(i)
-            if recipe then
-                local name = recipe:getName()
-                if name == recipeName then
-                    return name
-                end
+    for i = 0, recipeCount - 1 do
+        local recipe = recipes:get(i)
+        if recipe and recipe.getName then
+            local name = recipe:getName()
+            if name == recipeName then
+                return name
             end
         end
+    end
 
-        local recipeNameLower = string.lower(recipeName)
-        for i = 0, recipes:size() - 1 do
-            local recipe = recipes:get(i)
-            if recipe then
-                local name = recipe:getName()
-                if name and string.lower(name) == recipeNameLower then
-                    return name
-                end
+    local recipeNameLower = string.lower(recipeName)
+    for i = 0, recipeCount - 1 do
+        local recipe = recipes:get(i)
+        if recipe and recipe.getName then
+            local name = recipe:getName()
+            if name and string.lower(name) == recipeNameLower then
+                return name
             end
         end
+    end
 
-        return nil
-    end)
-
-    if ok then return result end
     return nil
 end
 
 function BurdJournals.getRecipeByName(recipeName)
-    if not recipeName then return nil end
+    if type(recipeName) ~= "string" or recipeName == "" then return nil end
 
-    local ok, result = safePcall(function()
-        local recipes = getAllRecipes()
-        if not recipes then return nil end
+    local recipes, recipeCount = getAllRecipesList()
+    if not recipes or recipeCount <= 0 then return nil end
 
-        for i = 0, recipes:size() - 1 do
-            local recipe = recipes:get(i)
-            if recipe and recipe:getName() == recipeName then
-                return recipe
-            end
+    for i = 0, recipeCount - 1 do
+        local recipe = recipes:get(i)
+        if recipe and recipe.getName and recipe:getName() == recipeName then
+            return recipe
         end
-        return nil
-    end)
-
-    if ok then return result end
+    end
     return nil
 end
 
@@ -4341,8 +7134,6 @@ function BurdJournals.learnRecipeWithVerification(player, recipeName, logPrefix)
     local validatedName = BurdJournals.validateRecipeName(recipeName)
     if not validatedName then
         print(logPrefix .. " WARNING: Recipe '" .. recipeName .. "' not found in game recipes!")
-
-        validatedName = recipeName
     elseif validatedName ~= recipeName then
         print(logPrefix .. " Recipe name corrected: '" .. recipeName .. "' -> '" .. validatedName .. "'")
         recipeName = validatedName
@@ -4350,28 +7141,12 @@ function BurdJournals.learnRecipeWithVerification(player, recipeName, logPrefix)
 
     local learned = false
 
-    local ok1, err1 = safePcall(function()
+    if validatedName and player.learnRecipe then
         player:learnRecipe(recipeName)
-    end)
-
-    if ok1 then
-
-        if player.isRecipeKnown and player:isRecipeKnown(recipeName) then
+        if BurdJournals.playerKnowsRecipe(player, recipeName) then
             print(logPrefix .. " Learned recipe via learnRecipe(): " .. recipeName)
             learned = true
-        else
-
-            local knownRecipes = player:getKnownRecipes()
-            if knownRecipes then
-                local hasIt, containsIt = safePcall(function() return knownRecipes:contains(recipeName) end)
-                if hasIt and containsIt then
-                    print(logPrefix .. " Learned recipe via learnRecipe() (verified via getKnownRecipes): " .. recipeName)
-                    learned = true
-                end
-            end
         end
-    else
-        print(logPrefix .. " learnRecipe() threw error: " .. tostring(err1))
     end
 
     if not learned then
@@ -4379,36 +7154,24 @@ function BurdJournals.learnRecipeWithVerification(player, recipeName, logPrefix)
         if magazineType then
             print(logPrefix .. " Trying magazine method for: " .. recipeName .. " (magazine: " .. magazineType .. ")")
 
-            local ok2, err2 = safePcall(function()
-                local script = getScriptManager():getItem(magazineType)
-                if script then
-                    local pageCount = 1
-                    if script.getPageToLearn then
-                        pageCount = script:getPageToLearn() or 1
-                    end
-
-                    player:setAlreadyReadPages(magazineType, pageCount)
-                    print(logPrefix .. " Set " .. pageCount .. " pages read for magazine: " .. magazineType)
+            local pageCount = 1
+            local scriptManager = getScriptManager and getScriptManager() or nil
+            if scriptManager and scriptManager.getItem then
+                local script = scriptManager:getItem(magazineType)
+                if script and script.getPageToLearn then
+                    pageCount = script:getPageToLearn() or 1
                 end
-            end)
-
-            if not ok2 then
-                print(logPrefix .. " setAlreadyReadPages error: " .. tostring(err2))
             end
 
-            local ok3, err3 = safePcall(function()
-                local readBooks = player:getAlreadyReadBook()
-                if readBooks then
-                    local hasContains, alreadyHas = safePcall(function() return readBooks:contains(magazineType) end)
-                    if not (hasContains and alreadyHas) then
-                        readBooks:add(magazineType)
-                        print(logPrefix .. " Added magazine to read books: " .. magazineType)
-                    end
-                end
-            end)
+            if player.setAlreadyReadPages then
+                player:setAlreadyReadPages(magazineType, pageCount)
+                print(logPrefix .. " Set " .. pageCount .. " pages read for magazine: " .. magazineType)
+            end
 
-            if not ok3 then
-                print(logPrefix .. " getAlreadyReadBook error: " .. tostring(err3))
+            local readBooks = player.getAlreadyReadBook and player:getAlreadyReadBook() or nil
+            if readBooks and readBooks.add and not listContainsString(readBooks, magazineType) then
+                readBooks:add(magazineType)
+                print(logPrefix .. " Added magazine to read books: " .. magazineType)
             end
 
             if BurdJournals.playerKnowsRecipe(player, recipeName) then
@@ -4442,61 +7205,35 @@ function BurdJournals.debugRecipeSystem(player)
     print("  player.getAlreadyReadBook: " .. tostring(player.getAlreadyReadBook ~= nil))
 
     print("\n[getKnownRecipes Test]")
-    local knownRecipes = nil
-    local ok1, err1 = safePcall(function()
-        knownRecipes = player:getKnownRecipes()
-    end)
-    if ok1 and knownRecipes then
-        local hasSize, recipeCount = safePcall(function() return knownRecipes:size() end)
-        if hasSize then
-            print("  Count: " .. tostring(recipeCount))
-            if recipeCount > 0 and recipeCount <= 10 then
-                print("  First few recipes:")
-                for i = 0, math.min(recipeCount - 1, 4) do
-                    local r = knownRecipes:get(i)
-                    print("    - " .. tostring(r))
-                end
-            elseif recipeCount > 10 then
-                print("  (Showing first 5 of " .. recipeCount .. " recipes)")
-                for i = 0, 4 do
-                    local r = knownRecipes:get(i)
-                    print("    - " .. tostring(r))
-                end
-            end
-        else
-            print("  Error getting size")
+    local knownRecipes = player.getKnownRecipes and player:getKnownRecipes() or nil
+    local knownRecipeArray = listToStringArray(knownRecipes) or {}
+    print("  Count: " .. tostring(#knownRecipeArray))
+    if #knownRecipeArray > 0 and #knownRecipeArray <= 10 then
+        print("  First few recipes:")
+        for i = 1, math.min(#knownRecipeArray, 5) do
+            print("    - " .. tostring(knownRecipeArray[i]))
         end
-    else
-        print("  Error: " .. tostring(err1))
+    elseif #knownRecipeArray > 10 then
+        print("  (Showing first 5 of " .. #knownRecipeArray .. " recipes)")
+        for i = 1, 5 do
+            print("    - " .. tostring(knownRecipeArray[i]))
+        end
     end
 
     print("\n[getAlreadyReadBook Test]")
-    local readBooks = nil
-    local ok2, err2 = safePcall(function()
-        readBooks = player:getAlreadyReadBook()
-    end)
-    if ok2 and readBooks then
-        local hasSize, bookCount = safePcall(function() return readBooks:size() end)
-        if hasSize then
-            print("  Count: " .. tostring(bookCount))
-            if bookCount > 0 and bookCount <= 20 then
-                print("  Read books/magazines:")
-                for i = 0, bookCount - 1 do
-                    local b = readBooks:get(i)
-                    print("    - " .. tostring(b))
-                end
-            elseif bookCount > 20 then
-                print("  (Showing first 10 of " .. bookCount .. " items)")
-                for i = 0, 9 do
-                    local b = readBooks:get(i)
-                    print("    - " .. tostring(b))
-                end
-            end
-        else
-            print("  Error getting size")
+    local readBooks = player.getAlreadyReadBook and player:getAlreadyReadBook() or nil
+    local readBookArray = listToStringArray(readBooks) or {}
+    print("  Count: " .. tostring(#readBookArray))
+    if #readBookArray > 0 and #readBookArray <= 20 then
+        print("  Read books/magazines:")
+        for i = 1, #readBookArray do
+            print("    - " .. tostring(readBookArray[i]))
         end
-    else
-        print("  Error: " .. tostring(err2))
+    elseif #readBookArray > 20 then
+        print("  (Showing first 10 of " .. #readBookArray .. " items)")
+        for i = 1, 10 do
+            print("    - " .. tostring(readBookArray[i]))
+        end
     end
 
     print("\n[Magazine Recipe Cache]")
@@ -4521,15 +7258,16 @@ function BurdJournals.debugRecipeSystem(player)
             print("  Testing: " .. testRecipe .. " (from " .. magType .. ")")
 
             if player.isRecipeKnown then
-                local ok, result = safePcall(function() return player:isRecipeKnown(testRecipe) end)
-                print("    isRecipeKnown: " .. tostring(ok and result))
+                print("    isRecipeKnown: " .. tostring(player:isRecipeKnown(testRecipe)))
             end
 
             local ourCheck = BurdJournals.playerKnowsRecipe(player, testRecipe)
             print("    playerKnowsRecipe: " .. tostring(ourCheck))
 
             local pagesRead = 0
-            safePcall(function() pagesRead = player:getAlreadyReadPages(magType) or 0 end)
+            if player.getAlreadyReadPages then
+                pagesRead = player:getAlreadyReadPages(magType) or 0
+            end
             print("    getAlreadyReadPages(" .. magType .. "): " .. pagesRead)
 
             break
@@ -4551,28 +7289,21 @@ end
 function BurdJournals.getRecipeDisplayName(recipeName)
     if not recipeName then return "Unknown Recipe" end
 
-    local ok, result = safePcall(function()
-        local recipes = getAllRecipes()
-        if recipes then
-            for i = 0, recipes:size() - 1 do
-                local recipe = recipes:get(i)
-                if recipe and recipe:getName() == recipeName then
-
-                    if recipe.getOriginalname then
-                        local origName = recipe:getOriginalname()
-                        if origName and origName ~= "" and origName ~= recipeName then
-                            return origName
-                        end
+    local recipes, recipeCount = getAllRecipesList()
+    if recipes and recipeCount > 0 then
+        for i = 0, recipeCount - 1 do
+            local recipe = recipes:get(i)
+            if recipe and recipe.getName and recipe:getName() == recipeName then
+                if recipe.getOriginalname then
+                    local origName = recipe:getOriginalname()
+                    if origName and origName ~= "" and origName ~= recipeName then
+                        return origName
                     end
-
-                    break
                 end
+                break
             end
         end
-        return nil
-    end)
-
-    if ok and result then return result end
+    end
 
     return BurdJournals.normalizeRecipeName(recipeName)
 end
@@ -4619,15 +7350,16 @@ end
 function BurdJournals.getMagazineDisplayName(magazineType)
     if not magazineType then return "Unknown Magazine" end
 
-    local ok, result = safePcall(function()
-        local script = getScriptManager():getItem(magazineType)
-        if script then
-            return script:getDisplayName()
+    local scriptManager = getScriptManager and getScriptManager() or nil
+    if scriptManager and scriptManager.getItem then
+        local script = scriptManager:getItem(magazineType)
+        if script and script.getDisplayName then
+            local displayName = script:getDisplayName()
+            if displayName and displayName ~= "" then
+                return displayName
+            end
         end
-        return nil
-    end)
-
-    if ok and result then return result end
+    end
 
     local fallback = magazineType
 
@@ -4642,11 +7374,9 @@ end
 
 function BurdJournals.getClaimedRecipes(item)
     if not item then return {} end
-    -- Guard against zombie/invalid item objects
-    local ok, modData = safePcall(function() return item:getModData() end)
-    if not ok or not modData then return {} end
-    if modData.BurdJournals and modData.BurdJournals.claimedRecipes then
-        return modData.BurdJournals.claimedRecipes
+    local data = getItemJournalModData(item)
+    if data and data.claimedRecipes then
+        return data.claimedRecipes
     end
     return {}
 end
@@ -4658,7 +7388,8 @@ end
 
 function BurdJournals.claimRecipe(item, recipeName)
     if not item then return false end
-    local modData = item:getModData()
+    local modData = getItemModData(item)
+    if not modData then return false end
     if not modData.BurdJournals then
         modData.BurdJournals = {}
     end
@@ -4843,45 +7574,44 @@ function BurdJournals.getModInfoCache()
     }
 
     -- Try to get active mods (only available in-game, not during load)
-    local ok, err = safePcall(function()
-        if getActivatedMods then
-            local activeMods = getActivatedMods()
-            if activeMods then
-                for i = 0, activeMods:size() - 1 do
-                    local modId = activeMods:get(i)
-                    if modId then
-                        table.insert(cache.modIds, modId)
-                        local modIdLower = string.lower(modId)
+    if getActivatedMods then
+        local activeMods = getActivatedMods()
+        if activeMods and activeMods.size and activeMods.get then
+            for i = 0, activeMods:size() - 1 do
+                local modId = activeMods:get(i)
+                if modId then
+                    modId = tostring(modId)
+                    table.insert(cache.modIds, modId)
+                    local modIdLower = string.lower(modId)
 
-                        -- Try to get the mod's display name
-                        local modInfo = getModInfoByID and getModInfoByID(modId)
-                        local displayName = modId
-                        if modInfo and modInfo.getName then
-                            displayName = modInfo:getName() or modId
-                        end
+                    -- Try to get the mod's display name
+                    local modInfo = getModInfoByID and getModInfoByID(modId)
+                    local displayName = modId
+                    if modInfo and modInfo.getName then
+                        displayName = modInfo:getName() or modId
+                    end
 
-                        -- Map various patterns to this mod
-                        cache.prefixToName[modIdLower] = displayName
+                    -- Map various patterns to this mod
+                    cache.prefixToName[modIdLower] = displayName
 
-                        -- Also map common abbreviations/prefixes
-                        -- e.g., "SoulFilchers_Traits" -> "SF" prefix
-                        local underscorePos = string.find(modId, "_")
-                        if underscorePos and underscorePos > 1 then
-                            local prefix = string.sub(modId, 1, underscorePos - 1)
-                            cache.prefixToName[string.lower(prefix)] = displayName
-                        end
+                    -- Also map common abbreviations/prefixes
+                    -- e.g., "SoulFilchers_Traits" -> "SF" prefix
+                    local underscorePos = string.find(modId, "_")
+                    if underscorePos and underscorePos > 1 then
+                        local prefix = string.sub(modId, 1, underscorePos - 1)
+                        cache.prefixToName[string.lower(prefix)] = displayName
+                    end
 
-                        -- Handle mod IDs with capital letters as prefixes
-                        -- e.g., "SOTOTraits" -> "SOTO"
-                        local capsPrefix = string.match(modId, "^(%u+)")
-                        if capsPrefix and #capsPrefix >= 2 then
-                            cache.prefixToName[string.lower(capsPrefix)] = displayName
-                        end
+                    -- Handle mod IDs with capital letters as prefixes
+                    -- e.g., "SOTOTraits" -> "SOTO"
+                    local capsPrefix = string.match(modId, "^(%u+)")
+                    if capsPrefix and #capsPrefix >= 2 then
+                        cache.prefixToName[string.lower(capsPrefix)] = displayName
                     end
                 end
             end
         end
-    end)
+    end
 
     -- Add some well-known mod mappings as fallbacks
     local knownMods = {
@@ -5121,8 +7851,11 @@ function BurdJournals.collectModSources(itemType, journalData, player, mode)
 
             if journalData and journalData.skills then
                 for skillName, _ in pairs(journalData.skills) do
-                    local source = BurdJournals.getSkillModSource(skillName)
-                    addSource(source)
+                    local enabledForJournal = not BurdJournals.isSkillEnabledForJournal or BurdJournals.isSkillEnabledForJournal(journalData, skillName)
+                    if enabledForJournal then
+                        local source = BurdJournals.getSkillModSource(skillName)
+                        addSource(source)
+                    end
                 end
             end
         end

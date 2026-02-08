@@ -193,6 +193,7 @@
     -- Status Labels
     UI_BurdJournals_StatusAlreadyKnown = "이미 보유",
     UI_BurdJournals_StatusAlreadyClaimed = "이미 습득됨",
+    UI_BurdJournals_StatusAlreadyAtLevel = "이미 이 레벨에 도달",
     UI_BurdJournals_StatusAlreadyRecorded = "이미 기록됨",
     UI_BurdJournals_StatusClaimed = "습득됨",
     UI_BurdJournals_RareTraitQueued = "희귀 특성 - 대기열 #%d",
@@ -397,18 +398,7 @@
     UI_BurdJournals_DissolveTitle = "Dissolve Journal",
 
     -- Baseline Management
-    UI_BurdJournals_BaselineSkillsHeader = "BASELINE SKILLS",
-    UI_BurdJournals_BaselineTraitsHeader = "BASELINE TRAITS",
-    UI_BurdJournals_YourBaseline = "Your starting baseline:",
-    UI_BurdJournals_BaselineInfo = "Starting skills/traits cannot be recorded.",
-    UI_BurdJournals_NoBaselineData = "No baseline data recorded yet.",
-    UI_BurdJournals_BaselineWaiting = "Waiting for baseline initialization...",
-    UI_BurdJournals_ClearBaselineConfirm = "Clear your baseline data?",
-    UI_BurdJournals_ClearBaselineTitle = "Clear Baseline",
-    UI_BurdJournals_BtnViewMyBaseline = "View My Baseline",
     UI_BurdJournals_BtnClearMyBaseline = "Clear My Baseline",
-    UI_BurdJournals_BaselineCleared = "Baseline data cleared!",
-    UI_BurdJournals_ViewBaselineTitle = "Your Character Baseline",
 
     -- Batching
     UI_BurdJournals_BtnBatching = "BATCH",
@@ -426,4 +416,26 @@
     UI_BurdJournals_ClearBaselineCacheTooltip = "Clears baseline data and cache.",
     UI_BurdJournals_BaselineCacheCleared = "Baseline & cache cleared!",
     UI_BurdJournals_CmdBaselineCleared = "[Journals] Baseline cleared and recaptured.",
+
+    -- Stat Claiming (missing)
+    UI_BurdJournals_ClaimingStatMP = "%s 획득 중...",
+    UI_BurdJournals_StatClaimed = "%s 획득!",
+    UI_BurdJournals_StatClaimFailed = "스탯을 적용할 수 없습니다",
+    UI_BurdJournals_StatAlreadyClaimed = "이미 획득한 스탯입니다",
+    UI_BurdJournals_StatTooLow = "현재 값이 더 높습니다",
+
+    -- New Keys (missing)
+    UI_BurdJournals_JournalDissolvedInvalid = "일지가 부서집니다... 내용물이 더 이상 유효하지 않았습니다.",
+    UI_BurdJournals_RecipeNotAvailable = "레시피를 사용할 수 없습니다: %s",
+    UI_BurdJournals_FlavorSurvivor = "Survival notes from a fellow survivor.",
+    UI_BurdJournals_BtnRefresh = "Refresh",
+    UI_BurdJournals_RefreshTooltip = "Refresh journal data",
+    UI_BurdJournals_JournalRefreshed = "Journal refreshed",
+    UI_BurdJournals_AdminOnly = "This command requires admin access.",
+    UI_BurdJournals_CantClaimSkill = "That skill cannot be claimed right now",
+    UI_BurdJournals_NeedEraser = "Need eraser",
+    UI_BurdJournals_OtherCategory = "Other",
+    UI_BurdJournals_QueuedPosition = "Queued #%d",
 }
+
+

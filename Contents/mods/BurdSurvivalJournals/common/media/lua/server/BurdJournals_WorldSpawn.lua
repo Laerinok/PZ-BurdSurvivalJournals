@@ -314,14 +314,7 @@ function BurdJournals.WorldSpawn.generateWornJournalData()
         else
             local skillXP = ZombRand(minXP, maxXP + 1)
 
-            local level = 0
-            local xpThresholds = {0, 75, 150, 300, 750, 1500, 3000, 4500, 6000, 7500, 9000}
-            for lvl = 10, 0, -1 do
-                if skillXP >= (xpThresholds[lvl + 1] or 0) then
-                    level = lvl
-                    break
-                end
-            end
+            local level = BurdJournals.getSkillLevelFromXP and BurdJournals.getSkillLevelFromXP(skillXP, skillName) or 0
 
             skills[skillName] = {
                 xp = skillXP,
@@ -401,14 +394,7 @@ function BurdJournals.WorldSpawn.generateBloodyJournalData()
         else
             local skillXP = ZombRand(minXP, maxXP + 1)
 
-            local level = 0
-            local xpThresholds = {0, 75, 150, 300, 750, 1500, 3000, 4500, 6000, 7500, 9000}
-            for lvl = 10, 0, -1 do
-                if skillXP >= (xpThresholds[lvl + 1] or 0) then
-                    level = lvl
-                    break
-                end
-            end
+            local level = BurdJournals.getSkillLevelFromXP and BurdJournals.getSkillLevelFromXP(skillXP, skillName) or 0
 
             skills[skillName] = {
                 xp = skillXP,
@@ -700,15 +686,13 @@ local function checkPlayerInventory(player)
     if not inventory then return end
 
     local allItems = nil
-    local success = pcall(function()
-        if inventory.getAllRecursive then
-            allItems = inventory:getAllRecursive()
-        elseif inventory.getItems then
-            allItems = inventory:getItems()
-        end
-    end)
-
-    if not success or not allItems then return end
+    if inventory.getAllRecursive then
+        allItems = inventory:getAllRecursive()
+    end
+    if not allItems and inventory.getItems then
+        allItems = inventory:getItems()
+    end
+    if not allItems or not allItems.size then return end
 
     for i = 0, allItems:size() - 1 do
         local item = allItems:get(i)

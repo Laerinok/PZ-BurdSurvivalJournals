@@ -1,4 +1,4 @@
-Sandbox_RU = {
+﻿Sandbox_RU = {
     Sandbox_BurdJournals_Player = "Журналы - Персонаж",
     Sandbox_BurdJournals_Loot = "Журналы - Добыча",
     Sandbox_BurdJournals_Advanced = "Журналы - Продвинуте Настройки",
@@ -8,6 +8,11 @@ Sandbox_RU = {
     Sandbox_BurdJournals_XPRecoveryMode_tooltip = "Сколько опыта восстанавливается после прочтения ЧИСТОГО журнала. Не влияет на потрёпанные/окровавленные журналы.",
     Sandbox_BurdJournals_XPRecoveryMode_option1 = "Полное Восстановление (100%)",
     Sandbox_BurdJournals_XPRecoveryMode_option2 = "Понижение Эффективности По Мере Чтения",
+    Sandbox_BurdJournals_DiminishingTrackingMode = "Diminishing Tracking Mode",
+    Sandbox_BurdJournals_DiminishingTrackingMode_tooltip = "How diminishing returns are tracked for CLEAN journal skill claims when Diminishing Returns is enabled.",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option1 = "Per Claim (Global)",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option2 = "Per Reading Session",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option3 = "Per Skill (Persistent)",
     Sandbox_BurdJournals_DiminishingFirstRead = "% Опыта Первого Прочтения",
     Sandbox_BurdJournals_DiminishingFirstRead_tooltip = "Процент опыта при первом прочтении (50-100%). Используется только при Понижении Эффективности По Мере Чтения.",
     Sandbox_BurdJournals_DiminishingDecayRate = "% Понижения За Прочтение",
@@ -44,8 +49,6 @@ Sandbox_RU = {
     Sandbox_BurdJournals_RecordHoursSurvived_tooltip = "Позволить игрокам записывать пережитое время в журналах.",
     Sandbox_BurdJournals_EnableBaselineRestriction = "Записывать Только Заработанный Прогресс",
     Sandbox_BurdJournals_EnableBaselineRestriction_tooltip = "Когда включено журналы записывают только полученый с помощью игры опыт - не стартовые бонусы профессий или черт. Это предотвращает злоупотребление игроков профессиональными навыками через создание нескольких персонажей. Рекомендуется включить для многопользовательских серверов..",
-    Sandbox_BurdJournals_EnableRecipeRecording = "Включить Запись Рецептов",
-    Sandbox_BurdJournals_EnableRecipeRecording_tooltip = "Позволить игрокам записывать рецепты изготовления, полученные из журналов. Рецепты из магазинов могут быть переданы другим игрокам.",
     Sandbox_BurdJournals_LearningTimePerRecipe = "Время Изучения За Рецепт (сек)",
     Sandbox_BurdJournals_LearningTimePerRecipe_tooltip = "Базовое время получения каждого рецепта из журнала в секунлах.",
 
@@ -128,5 +131,37 @@ Sandbox_RU = {
 
     Sandbox_BurdJournals_BatchTimeMultiplier = "Batch Time Multiplier",
     Sandbox_BurdJournals_BatchTimeMultiplier_tooltip = "Multiplier for batch action duration. Lower = faster batches. Example: 15 recipes at 0.8s each = 12s normally. With 0.25 multiplier = 3s. Only affects 'Record All' and 'Absorb All', not individual clicks. Default: 0.25 (4x faster)",
+    Sandbox_BurdJournals_AllowDebugCommands = "Разрешить Отладочные Команды",
+    Sandbox_BurdJournals_AllowDebugCommands_tooltip = "Включает отладочные команды (/bsjgive, /bsjdump, /bsjdebug и т.д.) без необходимости параметра запуска -debug. В одиночной игре доступны всем. В многопользовательской - только администраторам. Полезно для тестирования серверов и разработки.",
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes = "Включить Рецепты Окровавленных Журналов",
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes_tooltip = "Если включено, рецепты можно получить из окровавленных журналов. При отключении вкладка рецептов будет скрыта, но существующие данные сохранятся.",
+    Sandbox_BurdJournals_EnableBloodyJournalTraits = "Включить Черты Окровавленных Журналов",
+    Sandbox_BurdJournals_EnableBloodyJournalTraits_tooltip = "Если включено, черты можно получить из окровавленных журналов. При отключении вкладка черт будет скрыта, но существующие данные сохранятся.",
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer = "Включить Запись Рецептов (Игрок)",
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer_tooltip = "Позволить игрокам записывать рецепты из журналов в личных журналах. При отключении вкладка рецептов будет скрыта, но существующие данные сохранятся.",
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer = "Включить Запись Черт (Игрок)",
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer_tooltip = "Позволить игрокам записывать черты в личных журналах. При отключении вкладка черт будет скрыта, но существующие данные сохранятся.",
+    Sandbox_BurdJournals_EnableWornJournalRecipes = "Включить Рецепты Потрёпанных Журналов",
+    Sandbox_BurdJournals_EnableWornJournalRecipes_tooltip = "Если включено, рецепты можно получить из потрёпанных журналов. При отключении вкладка рецептов будет скрыта, но существующие данные сохранятся.",
+    Sandbox_BurdJournals_EnableWornJournalTraits = "Включить Черты Потрёпанных Журналов",
+    Sandbox_BurdJournals_EnableWornJournalTraits_tooltip = "Если включено, черты можно получить из потрёпанных журналов. При отключении вкладка черт будет скрыта, но существующие данные сохранятся.",
+    Sandbox_BurdJournals_WornJournalMaxTraits = "Макс. Черт В Потрёпанном Журнале",
+    Sandbox_BurdJournals_WornJournalMaxTraits_tooltip = "Максимальное количество черт в потрёпанном журнале (1-5).",
+    Sandbox_BurdJournals_WornJournalMinTraits = "Мин. Черт В Потрёпанном Журнале",
+    Sandbox_BurdJournals_WornJournalMinTraits_tooltip = "Минимальное количество черт в потрёпанном журнале (1-5).",
+    Sandbox_BurdJournals_WornJournalTraitChance = "% Шанса Черты Потрёпанного Журнала",
+    Sandbox_BurdJournals_WornJournalTraitChance_tooltip = "Шанс содержания черт в потрёпанном журнале (0-100%). Установите 0% (по умолчанию) для классического поведения, где только окровавленные журналы имеют черты.",
+    Sandbox_BurdJournals_EnablePassiveSkillsLoot = "Enable Passive Skills (Loot)",
+    Sandbox_BurdJournals_EnablePassiveSkillsLoot_tooltip = "When enabled, Fitness/Strength can appear and be claimed on worn/bloody journals. When disabled, passive skill entries are hidden but preserved.",
+    Sandbox_BurdJournals_EnablePassiveSkillsPlayer = "Enable Passive Skills (Player)",
+    Sandbox_BurdJournals_EnablePassiveSkillsPlayer_tooltip = "When enabled, Fitness/Strength can be recorded and claimed from player journals. When disabled, passive skill entries are hidden but preserved.",
+    Sandbox_BurdJournals_RequireLightForJournalUse = "Require Light for Journal Use",
+    Sandbox_BurdJournals_RequireLightForJournalUse_tooltip = "When enabled, opening journals and reading/writing journal actions require enough light, following vanilla reading darkness rules.",
 }
+
+
+
+
+
+
 

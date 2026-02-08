@@ -4,6 +4,30 @@ require "BurdJournals_Shared"
 
 BurdJournals = BurdJournals or {}
 
+local function getTooDarkMessage()
+    local message = (getText and getText("ContextMenu_TooDark")) or "Too dark to read."
+    if message == "ContextMenu_TooDark" then
+        message = "Too dark to read."
+    end
+    return message
+end
+
+local function notifyTooDark(player, reason)
+    local message = reason or getTooDarkMessage()
+    if HaloTextHelper and HaloTextHelper.addBadText and player then
+        HaloTextHelper.addBadText(player, message)
+    elseif player and player.Say then
+        player:Say(message)
+    end
+end
+
+local function isJournalLightAllowed(player)
+    if not BurdJournals.canUseJournalInCurrentLight then
+        return true, nil
+    end
+    return BurdJournals.canUseJournalInCurrentLight(player)
+end
+
 BurdJournals.ConvertToCleanAction = ISBaseTimedAction:derive("BurdJournals_ConvertToCleanAction")
 
 function BurdJournals.ConvertToCleanAction:new(character, journal)
@@ -481,6 +505,15 @@ function BurdJournals.LearnFromJournalAction:isValid()
         return false
     end
 
+    local canUseLight, lightReason = isJournalLightAllowed(player)
+    if not canUseLight then
+        if not self._lightWarned then
+            notifyTooDark(player, lightReason)
+            self._lightWarned = true
+        end
+        return false
+    end
+
     return true
 end
 
@@ -505,6 +538,7 @@ function BurdJournals.LearnFromJournalAction:start()
 
     if self.mainPanel then
         local firstReward = self.rewards[1]
+        local existingClaimSessionId = self.mainPanel.learningState and self.mainPanel.learningState.claimSessionId or nil
         self.mainPanel.learningState = {
             active = true,
             skillName = firstReward and firstReward.type == "skill" and firstReward.name or nil,
@@ -519,6 +553,7 @@ function BurdJournals.LearnFromJournalAction:start()
             currentIndex = 1,
             queue = self.queuedRewards,
             timedAction = self,
+            claimSessionId = existingClaimSessionId,
         }
     end
 end
@@ -545,7 +580,7 @@ function BurdJournals.LearnFromJournalAction:stop()
         }
 
         if self.mainPanel.refreshCurrentList then
-            pcall(function() self.mainPanel:refreshCurrentList() end)
+            self.mainPanel:refreshCurrentList()
         end
     end
 
@@ -553,12 +588,21 @@ function BurdJournals.LearnFromJournalAction:stop()
 end
 
 function BurdJournals.LearnFromJournalAction:perform()
-
-    self.character:setReading(false)
-    self.character:playSound("CloseBook")
-
     local player = self.character
     local panel = self.mainPanel
+
+    if not player then
+        BurdJournals.debugPrint("[BurdJournals] LearnFromJournalAction:perform - no player character, aborting")
+        ISBaseTimedAction.perform(self)
+        return
+    end
+
+    if player.setReading then
+        player:setReading(false)
+    end
+    if player.playSound then
+        player:playSound("CloseBook")
+    end
 
     if not panel then
         ISBaseTimedAction.perform(self)
@@ -566,33 +610,101 @@ function BurdJournals.LearnFromJournalAction:perform()
     end
 
     local isPlayerJournal = panel.isPlayerJournal or panel.mode == "view"
+    local claimSessionId = panel.learningState and panel.learningState.claimSessionId or nil
+    if not claimSessionId
+        and panel.learningState
+        and panel.learningState.active
+        and BurdJournals.getXPRecoveryMode
+        and BurdJournals.getXPRecoveryMode() == 2
+        and BurdJournals.getDiminishingTrackingMode
+        and BurdJournals.getDiminishingTrackingMode() == 2 then
+        local now = getTimestampMs and getTimestampMs() or 0
+        local rand = ZombRand and ZombRand(1000000) or math.floor(math.random() * 1000000)
+        claimSessionId = tostring(now) .. "-" .. tostring(rand)
+        panel.learningState.claimSessionId = claimSessionId
+    end
 
+    -- Collect all skill rewards for batch processing
+    local skillRewards = {}
+    local otherRewards = {}
+    
     for _, reward in ipairs(self.rewards) do
-        print("[BurdJournals] TimedAction processing reward: type=" .. tostring(reward.type) .. ", name=" .. tostring(reward.name) .. ", xp=" .. tostring(reward.xp))
         if reward.type == "skill" then
-            print("[BurdJournals] TimedAction: isPlayerJournal=" .. tostring(isPlayerJournal))
+            table.insert(skillRewards, reward)
+        else
+            table.insert(otherRewards, reward)
+        end
+    end
+    
+    BurdJournals.debugPrint("[BurdJournals] TimedAction: " .. #skillRewards .. " skill rewards, " .. #otherRewards .. " other rewards")
+    BurdJournals.debugPrint("[BurdJournals] TimedAction: isPlayerJournal=" .. tostring(isPlayerJournal))
+
+    local isMultiplayerClient = isClient and isClient() and not isServer()
+    local journalData = BurdJournals.getJournalData and BurdJournals.getJournalData(self.journal) or nil
+    local canUseBatchServerCommand = isMultiplayerClient and not (journalData and journalData.isDebugSpawned)
+
+    if canUseBatchServerCommand then
+        local batchPayload = {
+            journalId = self.journal and self.journal:getID() or nil,
+            claimSessionId = claimSessionId,
+            skills = {},
+            traits = {},
+            recipes = {},
+            stats = {},
+        }
+
+        for _, reward in ipairs(skillRewards) do
+            if reward and reward.name then
+                table.insert(batchPayload.skills, {skillName = reward.name})
+            end
+        end
+        for _, reward in ipairs(otherRewards) do
+            if reward and reward.type == "trait" and reward.name then
+                table.insert(batchPayload.traits, reward.name)
+            elseif reward and reward.type == "recipe" and reward.name then
+                table.insert(batchPayload.recipes, reward.name)
+            elseif reward and reward.type == "stat" and reward.name then
+                table.insert(batchPayload.stats, {statId = reward.name, value = reward.value})
+            end
+        end
+
+        local commandName = isPlayerJournal and "batchClaimRewards" or "batchAbsorbRewards"
+        BurdJournals.debugPrint("[BurdJournals] TimedAction using " .. commandName
+            .. " (skills=" .. tostring(#batchPayload.skills)
+            .. ", traits=" .. tostring(#batchPayload.traits)
+            .. ", recipes=" .. tostring(#batchPayload.recipes)
+            .. ", stats=" .. tostring(#batchPayload.stats) .. ")")
+        sendClientCommand(player, "BurdJournals", commandName, batchPayload)
+    else
+        -- Process skills individually so claim authority always comes from journal data on server.
+        for _, reward in ipairs(skillRewards) do
+            BurdJournals.debugPrint("[BurdJournals] TimedAction processing skill: " .. tostring(reward.name))
             if isPlayerJournal then
-                print("[BurdJournals] TimedAction: Calling sendClaimSkill")
                 panel:sendClaimSkill(reward.name, reward.xp, true)
             else
-                print("[BurdJournals] TimedAction: Calling sendAbsorbSkill for " .. tostring(reward.name))
                 panel:sendAbsorbSkill(reward.name, reward.xp, true)
             end
-        elseif reward.type == "trait" then
-            if isPlayerJournal then
-                panel:sendClaimTrait(reward.name, true)
-            else
-                panel:sendAbsorbTrait(reward.name, true)
+        end
+
+        -- Process non-skill rewards (traits, recipes, stats) individually.
+        -- Keep this path for debug-spawned journals where server cannot resolve item IDs.
+        for _, reward in ipairs(otherRewards) do
+            BurdJournals.debugPrint("[BurdJournals] TimedAction processing " .. tostring(reward.type) .. ": " .. tostring(reward.name))
+            if reward.type == "trait" then
+                if isPlayerJournal then
+                    panel:sendClaimTrait(reward.name, true)
+                else
+                    panel:sendAbsorbTrait(reward.name, true)
+                end
+            elseif reward.type == "recipe" then
+                if isPlayerJournal then
+                    panel:sendClaimRecipe(reward.name, true)
+                else
+                    panel:sendAbsorbRecipe(reward.name, true)
+                end
+            elseif reward.type == "stat" then
+                panel:sendClaimStat(reward.name, reward.value)
             end
-        elseif reward.type == "recipe" then
-            if isPlayerJournal then
-                panel:sendClaimRecipe(reward.name, true)
-            else
-                panel:sendAbsorbRecipe(reward.name, true)
-            end
-        elseif reward.type == "stat" then
-            -- Stats use sendClaimStat for both player and non-player journals
-            panel:sendClaimStat(reward.name, reward.value)
         end
     end
 
@@ -655,22 +767,25 @@ function BurdJournals.LearnFromJournalAction:perform()
                 pendingRewards = {nextReward},
                 currentIndex = 1,
                 queue = savedQueue,
+                claimSessionId = claimSessionId,
             }
 
             if panel.skillList and panel.journal then
-                pcall(function()
-                    panel:refreshPlayer()
-                    if panel.mode == "view" or panel.isPlayerJournal then
-                        panel:populateViewList()
-                    else
-                        panel:populateAbsorptionList()
-                    end
-                end)
+                panel:refreshPlayer()
+                if panel.mode == "view" or panel.isPlayerJournal then
+                    panel:populateViewList()
+                else
+                    panel:populateAbsorptionList()
+                end
             end
 
             local nextRewards = {nextReward}
             local action = BurdJournals.LearnFromJournalAction:new(player, self.journal, nextRewards, false, panel, savedQueue)
-            ISTimedActionQueue.add(action)
+            if action and action.character then
+                ISTimedActionQueue.add(action)
+            else
+                BurdJournals.debugPrint("[BurdJournals] LearnFromJournalAction:perform - failed to queue next single reward action")
+            end
 
             ISBaseTimedAction.perform(self)
             return
@@ -707,21 +822,24 @@ function BurdJournals.LearnFromJournalAction:perform()
                 pendingRewards = nextBatch,
                 currentIndex = 1,
                 queue = remaining,
+                claimSessionId = claimSessionId,
             }
 
             if panel.skillList and panel.journal then
-                pcall(function()
-                    panel:refreshPlayer()
-                    if panel.mode == "view" or panel.isPlayerJournal then
-                        panel:populateViewList()
-                    else
-                        panel:populateAbsorptionList()
-                    end
-                end)
+                panel:refreshPlayer()
+                if panel.mode == "view" or panel.isPlayerJournal then
+                    panel:populateViewList()
+                else
+                    panel:populateAbsorptionList()
+                end
             end
 
             local action = BurdJournals.LearnFromJournalAction:new(player, self.journal, nextBatch, true, panel, remaining)
-            ISTimedActionQueue.add(action)
+            if action and action.character then
+                ISTimedActionQueue.add(action)
+            else
+                BurdJournals.debugPrint("[BurdJournals] LearnFromJournalAction:perform - failed to queue next absorb-all batch")
+            end
 
             ISBaseTimedAction.perform(self)
             return
@@ -749,14 +867,12 @@ function BurdJournals.LearnFromJournalAction:perform()
     end
 
     if panel.skillList and panel.journal then
-        pcall(function()
-            panel:refreshPlayer()
-            if panel.mode == "view" or panel.isPlayerJournal then
-                panel:populateViewList()
-            else
-                panel:populateAbsorptionList()
-            end
-        end)
+        panel:refreshPlayer()
+        if panel.mode == "view" or panel.isPlayerJournal then
+            panel:populateViewList()
+        else
+            panel:populateAbsorptionList()
+        end
     end
 
     if panel.refreshJournalData then
@@ -840,7 +956,7 @@ function BurdJournals.RecordToJournalAction:isValid()
             local panelJournal = BurdJournals.findItemById(player, currentPanel.journal:getID())
             if panelJournal then
 
-                BurdJournals.debugPrint("[BurdJournals] RecordToJournalAction:isValid - Rebinding to panel journal (blank→filled conversion)")
+                BurdJournals.debugPrint("[BurdJournals] RecordToJournalAction:isValid - Rebinding to panel journal (blank-to-filled conversion)")
                 self.journal = panelJournal
                 journal = panelJournal
             end
@@ -858,6 +974,16 @@ function BurdJournals.RecordToJournalAction:isValid()
             BurdJournals.debugPrint("[BurdJournals] RecordToJournalAction:isValid FAILED - no writing tool")
             return false
         end
+    end
+
+    local canUseLight, lightReason = isJournalLightAllowed(player)
+    if not canUseLight then
+        if not self._lightWarned then
+            notifyTooDark(player, lightReason)
+            self._lightWarned = true
+        end
+        BurdJournals.debugPrint("[BurdJournals] RecordToJournalAction:isValid FAILED - too dark to read")
+        return false
     end
 
     -- Only log periodically to avoid spam (every ~30 ticks = 1 second)
@@ -932,7 +1058,7 @@ function BurdJournals.RecordToJournalAction:stop()
         }
 
         if self.mainPanel.refreshCurrentList then
-            pcall(function() self.mainPanel:refreshCurrentList() end)
+            self.mainPanel:refreshCurrentList()
         end
     end
 
@@ -999,19 +1125,9 @@ function BurdJournals.RecordToJournalAction:perform()
         recipes = recipeCount
     }
 
-    local requirePen = BurdJournals.getSandboxOption("RequirePenToWrite")
-    if requirePen ~= false then
-        local penUses = BurdJournals.getSandboxOption("PenUsesPerLog") or 1
-        local totalUses = penUses * (skillCount + traitCount + statCount + recipeCount)
-        local pen = BurdJournals.findWritingTool(player)
-        if pen and totalUses > 0 then
-            BurdJournals.consumeItemUses(pen, totalUses, player)
-        end
-    end
-
     local journalId = self.journal and self.journal:getID() or nil
     local journalType = self.journal and self.journal:getFullType() or "nil"
-    print("[BurdJournals] RecordToJournalAction:perform() - journalId=" .. tostring(journalId) .. ", type=" .. tostring(journalType) .. ", skills=" .. skillCount .. ", traits=" .. traitCount .. ", recipes=" .. recipeCount)
+    BurdJournals.debugPrint("[BurdJournals] RecordToJournalAction:perform() - journalId=" .. tostring(journalId) .. ", type=" .. tostring(journalType) .. ", skills=" .. skillCount .. ", traits=" .. traitCount .. ", recipes=" .. recipeCount)
 
     if not journalId then
         print("[BurdJournals] ERROR: Cannot send recordProgress - journal ID is nil!")
@@ -1027,7 +1143,7 @@ function BurdJournals.RecordToJournalAction:perform()
         recipes = recipesToRecord
     })
 
-    print("[BurdJournals] RecordToJournalAction:perform() - sendClientCommand completed for journalId=" .. tostring(journalId))
+    BurdJournals.debugPrint("[BurdJournals] RecordToJournalAction:perform() - sendClientCommand completed for journalId=" .. tostring(journalId))
 
     -- Get batch size for next batch (only matters for isRecordAll mode)
     local batchSize = BurdJournals.getSandboxOption("RecordBatchSize") or 15
@@ -1075,9 +1191,7 @@ function BurdJournals.RecordToJournalAction:perform()
             }
 
             if panel.skillList and panel.journal then
-                pcall(function()
-                    panel:refreshCurrentList()
-                end)
+                panel:refreshCurrentList()
             end
 
             local nextRecords = {nextRecord}
@@ -1124,9 +1238,7 @@ function BurdJournals.RecordToJournalAction:perform()
             }
 
             if panel.skillList and panel.journal then
-                pcall(function()
-                    panel:refreshCurrentList()
-                end)
+                panel:refreshCurrentList()
             end
 
             local journalForNextAction = panel.journal or self.journal
@@ -1163,6 +1275,13 @@ function BurdJournals.queueLearnAction(player, journal, rewards, isAbsorbAll, ma
     if not player or not journal then return false end
     if not rewards or #rewards == 0 then return false end
 
+    local canUseLight, lightReason = isJournalLightAllowed(player)
+    if not canUseLight then
+        notifyTooDark(player, lightReason)
+        -- Return true so callers don't show unrelated "already reading" errors.
+        return true
+    end
+
     -- Get batch size from sandbox option (default 15, min 1)
     local batchSize = BurdJournals.getSandboxOption("AbsorbBatchSize") or 15
     if batchSize < 1 then batchSize = 1 end
@@ -1184,13 +1303,23 @@ function BurdJournals.queueLearnAction(player, journal, rewards, isAbsorbAll, ma
         local action = BurdJournals.LearnFromJournalAction:new(
             player, journal, batch, true, mainPanel, remaining
         )
-        ISTimedActionQueue.add(action)
+        if action and action.character then
+            ISTimedActionQueue.add(action)
+        else
+            BurdJournals.debugPrint("[BurdJournals] queueLearnAction: FAILED - invalid learn action (missing character)")
+            return false
+        end
     else
         -- Single item absorbing (individual clicks)
         local action = BurdJournals.LearnFromJournalAction:new(
             player, journal, rewards, isAbsorbAll, mainPanel
         )
-        ISTimedActionQueue.add(action)
+        if action and action.character then
+            ISTimedActionQueue.add(action)
+        else
+            BurdJournals.debugPrint("[BurdJournals] queueLearnAction: FAILED - invalid learn action (missing character)")
+            return false
+        end
     end
     return true
 end
@@ -1204,6 +1333,13 @@ function BurdJournals.queueRecordAction(player, journal, records, isRecordAll, m
     if not records or #records == 0 then
         BurdJournals.debugPrint("[BurdJournals] queueRecordAction: FAILED - no records to queue")
         return false
+    end
+
+    local canUseLight, lightReason = isJournalLightAllowed(player)
+    if not canUseLight then
+        notifyTooDark(player, lightReason)
+        -- Return true so callers don't show unrelated "cannot record" errors.
+        return true
     end
 
     -- Get batch size from sandbox option (default 15, min 1)
@@ -1227,7 +1363,12 @@ function BurdJournals.queueRecordAction(player, journal, records, isRecordAll, m
         local action = BurdJournals.RecordToJournalAction:new(
             player, journal, batch, true, mainPanel, remaining
         )
-        ISTimedActionQueue.add(action)
+        if action and action.character then
+            ISTimedActionQueue.add(action)
+        else
+            BurdJournals.debugPrint("[BurdJournals] queueRecordAction: FAILED - invalid record action (missing character)")
+            return false
+        end
         BurdJournals.debugPrint("[BurdJournals] queueRecordAction: Batch action added to queue")
     else
         -- Single item recording (individual clicks)
@@ -1235,7 +1376,12 @@ function BurdJournals.queueRecordAction(player, journal, records, isRecordAll, m
         local action = BurdJournals.RecordToJournalAction:new(
             player, journal, records, isRecordAll, mainPanel
         )
-        ISTimedActionQueue.add(action)
+        if action and action.character then
+            ISTimedActionQueue.add(action)
+        else
+            BurdJournals.debugPrint("[BurdJournals] queueRecordAction: FAILED - invalid record action (missing character)")
+            return false
+        end
         BurdJournals.debugPrint("[BurdJournals] queueRecordAction: Action added to queue")
     end
     return true
@@ -1346,14 +1492,29 @@ function BurdJournals.EraseEntryAction:perform()
         }
     end
 
-    if isClient() and not isServer() then
-        sendClientCommand(player, "BurdJournals", "eraseEntry", {
-            journalId = self.journal:getID(),
-            entryType = self.entryType,
-            entryName = self.entryName
-        })
-    else
+    -- Check if this is a debug-spawned journal
+    -- Debug-spawned journals created on the client can't be found by the server,
+    -- so we handle the erase locally (same pattern as claim/absorb operations)
+    local journalData = BurdJournals.getJournalData and BurdJournals.getJournalData(self.journal)
+    local isDebugSpawned = journalData and journalData.isDebugSpawned
 
+    if isClient() and not isServer() then
+        if isDebugSpawned then
+            -- Debug-spawned journals: erase locally since server can't find them
+            BurdJournals.debugPrint("[BurdJournals] Debug-spawned journal - erasing locally")
+            if panel and panel.eraseEntryDirectly then
+                panel:eraseEntryDirectly(self.entryType, self.entryName)
+            end
+        else
+            -- Normal journals: send to server for authoritative erase
+            sendClientCommand(player, "BurdJournals", "eraseEntry", {
+                journalId = self.journal:getID(),
+                entryType = self.entryType,
+                entryName = self.entryName
+            })
+        end
+    else
+        -- Single-player/host: erase directly
         if panel and panel.eraseEntryDirectly then
             panel:eraseEntryDirectly(self.entryType, self.entryName)
         end

@@ -186,18 +186,10 @@ function BurdJournals.ZombieLoot.generateBloodyJournalData()
 
     -- Build skills table with better XP values
     local skills = {}
-    local xpThresholds = {0, 75, 150, 300, 750, 1500, 3000, 4500, 6000, 7500, 9000}
     for i = 1, math.min(numSkills, #availableSkills) do
         local skillName = availableSkills[i]
         local skillXP = ZombRand(minXP, maxXP + 1)
-
-        local level = 0
-        for lvl = 10, 0, -1 do
-            if skillXP >= (xpThresholds[lvl + 1] or 0) then
-                level = lvl
-                break
-            end
-        end
+        local level = BurdJournals.getSkillLevelFromXP and BurdJournals.getSkillLevelFromXP(skillXP, skillName) or 0
 
         skills[skillName] = {
             xp = skillXP,

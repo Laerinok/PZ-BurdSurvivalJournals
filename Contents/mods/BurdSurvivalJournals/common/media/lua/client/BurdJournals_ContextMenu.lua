@@ -46,20 +46,33 @@ function BurdJournals.ContextMenu.isInPlayerContainers(player, item)
     return false
 end
 
+function BurdJournals.ContextMenu.getExternalReturnContainer(player, sourceContainer)
+    if not player or not sourceContainer then return nil end
+    if sourceContainer.getType and sourceContainer:getType() == "floor" then
+        return nil
+    end
+    if sourceContainer.isInCharacterInventory and sourceContainer:isInCharacterInventory(player) then
+        return nil
+    end
+    return sourceContainer
+end
+
 function BurdJournals.ContextMenu.pickUpThenDo(player, item, callback)
     if not player or not item or not callback then return end
 
     -- Already in main inventory - just call callback immediately
     if BurdJournals.ContextMenu.isInPlayerMainInventory(player, item) then
-        callback(player, item)
+        callback(player, item, nil)
         return
     end
 
     local sourceContainer = item:getContainer()
     if not sourceContainer then
-        callback(player, item)
+        callback(player, item, nil)
         return
     end
+
+    local returnContainer = BurdJournals.ContextMenu.getExternalReturnContainer(player, sourceContainer)
 
     -- Store item ID for lookup after transfer (item reference may become stale)
     local itemId = item:getID()
@@ -79,7 +92,7 @@ function BurdJournals.ContextMenu.pickUpThenDo(player, item, callback)
         local foundItem = BurdJournals.findItemById(player, itemId)
         if foundItem and BurdJournals.ContextMenu.isInPlayerMainInventory(player, foundItem) then
             Events.OnTick.Remove(checkTransfer)
-            callback(player, foundItem)  -- Use found item, not original reference
+            callback(player, foundItem, returnContainer)  -- Use found item, not original reference
             return
         end
 
@@ -90,6 +103,66 @@ function BurdJournals.ContextMenu.pickUpThenDo(player, item, callback)
         end
     end
     Events.OnTick.Add(checkTransfer)
+end
+
+function BurdJournals.ContextMenu.getTooDarkMessage()
+    local msg = (getText and getText("ContextMenu_TooDark")) or "Too dark to read."
+    if msg == "ContextMenu_TooDark" then
+        msg = "Too dark to read."
+    end
+    return msg
+end
+
+function BurdJournals.ContextMenu.requireLightOrNotify(player)
+    if not BurdJournals.canUseJournalInCurrentLight then
+        return true
+    end
+
+    local canUse, reason = BurdJournals.canUseJournalInCurrentLight(player)
+    if canUse then
+        return true
+    end
+
+    local message = reason or BurdJournals.ContextMenu.getTooDarkMessage()
+    if HaloTextHelper and HaloTextHelper.addBadText and player then
+        HaloTextHelper.addBadText(player, message)
+    elseif player and player.Say then
+        player:Say(message)
+    end
+    return false
+end
+
+function BurdJournals.ContextMenu.applyLightRequirement(option, player)
+    if not option then return end
+    if not BurdJournals.requiresLightForJournalUse or not BurdJournals.requiresLightForJournalUse() then
+        return
+    end
+
+    local canUse, reason = BurdJournals.canUseJournalInCurrentLight(player)
+    if canUse then
+        return
+    end
+
+    local message = reason or BurdJournals.ContextMenu.getTooDarkMessage()
+    option.notAvailable = true
+
+    local tooltip = option.toolTip
+    if not tooltip then
+        tooltip = ISToolTip:new()
+        tooltip:initialise()
+        tooltip:setVisible(false)
+        tooltip:setName(getText("ContextMenu_TooDark") or "Too dark")
+    end
+
+    if tooltip.description and tooltip.description ~= "" then
+        if not string.find(tooltip.description, message, 1, true) then
+            tooltip.description = tooltip.description .. "\n\n" .. message
+        end
+    else
+        tooltip.description = message
+    end
+
+    option.toolTip = tooltip
 end
 
 function BurdJournals.ContextMenu.onFillInventoryObjectContextMenu(playerNum, context, items)
@@ -171,50 +244,45 @@ end
 
 function BurdJournals.ContextMenu.addJournalOptions(context, player, journal)
 
-    local ok, err = pcall(function()
+    if not context or not player or not journal then return end
 
-        BurdJournals.ContextMenu.removeVanillaReadOptions(context)
+    BurdJournals.ContextMenu.removeVanillaReadOptions(context)
 
-        if BurdJournals.isPlayerIlliterate(player) then
-            local illiterateOption = context:addOption(
-                getText("ContextMenu_BurdJournals_CannotRead") or "Cannot Read (Illiterate)",
-                nil, nil
-            )
-            illiterateOption.notAvailable = true
-            local tooltip = ISToolTip:new()
-            tooltip:initialise()
-            tooltip:setVisible(false)
-            tooltip:setName(getText("Tooltip_BurdJournals_IlliterateName") or "Illiterate")
-            tooltip.description = getText("Tooltip_BurdJournals_IlliterateDesc") or "You cannot read or write. Journals are useless to you."
-            illiterateOption.toolTip = tooltip
-            return
-        end
+    if BurdJournals.isPlayerIlliterate(player) then
+        local illiterateOption = context:addOption(
+            getText("ContextMenu_BurdJournals_CannotRead") or "Cannot Read (Illiterate)",
+            nil, nil
+        )
+        illiterateOption.notAvailable = true
+        local tooltip = ISToolTip:new()
+        tooltip:initialise()
+        tooltip:setVisible(false)
+        tooltip:setName(getText("Tooltip_BurdJournals_IlliterateName") or "Illiterate")
+        tooltip.description = getText("Tooltip_BurdJournals_IlliterateDesc") or "You cannot read or write. Journals are useless to you."
+        illiterateOption.toolTip = tooltip
+        return
+    end
 
-        local isBloody = BurdJournals.isBloody(journal)
-        local isWorn = BurdJournals.isWorn(journal)
-        local isClean = BurdJournals.isClean(journal)
-        local isBlank = BurdJournals.isBlankJournal(journal)
-        local isFilled = BurdJournals.isFilledJournal(journal)
+    local isBloody = BurdJournals.isBloody(journal)
+    local isWorn = BurdJournals.isWorn(journal)
+    local isClean = BurdJournals.isClean(journal)
+    local isBlank = BurdJournals.isBlankJournal(journal)
+    local isFilled = BurdJournals.isFilledJournal(journal)
 
-        if isBloody then
+    if isBloody then
 
-            BurdJournals.ContextMenu.addBloodyJournalOptions(context, player, journal, isBlank)
-        elseif isWorn then
+        BurdJournals.ContextMenu.addBloodyJournalOptions(context, player, journal, isBlank)
+    elseif isWorn then
 
-            BurdJournals.ContextMenu.addWornJournalOptions(context, player, journal, isBlank)
-        elseif isClean then
+        BurdJournals.ContextMenu.addWornJournalOptions(context, player, journal, isBlank)
+    elseif isClean then
 
-            if isFilled then
-                BurdJournals.ContextMenu.addCleanFilledJournalOptions(context, player, journal)
-            else
-                BurdJournals.ContextMenu.addCleanBlankJournalOptions(context, player, journal)
-            end
+        if isFilled then
+            BurdJournals.ContextMenu.addCleanFilledJournalOptions(context, player, journal)
         else
+            BurdJournals.ContextMenu.addCleanBlankJournalOptions(context, player, journal)
         end
-    end)
-
-    if not ok then
-        print("[BurdJournals] ERROR in addJournalOptions: " .. tostring(err))
+    else
     end
 end
 
@@ -285,6 +353,7 @@ function BurdJournals.ContextMenu.addBloodyJournalOptions(context, player, journ
         tooltipDesc = tooltipDesc .. "\n" .. (getText("Tooltip_BurdJournals_BloodyDesc") or "Rare find! May contain valuable traits.")
         tooltip.description = tooltipDesc
         openOption.toolTip = tooltip
+        BurdJournals.ContextMenu.applyLightRequirement(openOption, player)
 
         if remaining > 0 then
 
@@ -322,6 +391,7 @@ function BurdJournals.ContextMenu.addBloodyJournalOptions(context, player, journ
             tooltip2:setName(getText("Tooltip_BurdJournals_AbsorbAllRewards") or "Absorb All Rewards")
             tooltip2.description = getText("Tooltip_BurdJournals_AbsorbAllDesc") or "Opens the journal and begins reading all rewards.\nRequires time to absorb each skill, trait, and recipe.\nMaxed skills and known items will be skipped."
             absorbAllOption.toolTip = tooltip2
+            BurdJournals.ContextMenu.applyLightRequirement(absorbAllOption, player)
         end
     else
 
@@ -349,7 +419,8 @@ end
 
 function BurdJournals.ContextMenu.addWornJournalOptions(context, player, journal, isBlank)
 
-    local ok, err = pcall(function()
+    if not context or not player or not journal then return end
+
         local journalData = BurdJournals.getJournalData(journal)
         local isFilled = BurdJournals.isFilledJournal(journal)
 
@@ -414,6 +485,7 @@ function BurdJournals.ContextMenu.addWornJournalOptions(context, player, journal
         end
         tooltip.description = tooltipDesc
         openOption.toolTip = tooltip
+        BurdJournals.ContextMenu.applyLightRequirement(openOption, player)
 
         if remaining > 0 then
 
@@ -451,6 +523,7 @@ function BurdJournals.ContextMenu.addWornJournalOptions(context, player, journal
             tooltip2:setName(getText("Tooltip_BurdJournals_AbsorbAllRewards") or "Absorb All Rewards")
             tooltip2.description = getText("Tooltip_BurdJournals_AbsorbAllDesc") or "Opens the journal and begins reading all rewards.\nRequires time to absorb each skill, trait, and recipe.\nMaxed skills and known items will be skipped."
             absorbAllOption.toolTip = tooltip2
+            BurdJournals.ContextMenu.applyLightRequirement(absorbAllOption, player)
         end
     else
 
@@ -487,11 +560,6 @@ function BurdJournals.ContextMenu.addWornJournalOptions(context, player, journal
         end
     end
 
-    end)
-
-    if not ok then
-        print("[BurdJournals] ERROR in addWornJournalOptions: " .. tostring(err))
-    end
 end
 
 function BurdJournals.ContextMenu.addCleanFilledJournalOptions(context, player, journal)
@@ -574,6 +642,7 @@ function BurdJournals.ContextMenu.addCleanFilledJournalOptions(context, player, 
         tooltip.description = desc
         openOption.toolTip = tooltip
     end
+    BurdJournals.ContextMenu.applyLightRequirement(openOption, player)
 
     if hasPen and isOwner then
         local recordOption = context:addOption(
@@ -588,6 +657,7 @@ function BurdJournals.ContextMenu.addCleanFilledJournalOptions(context, player, 
         tooltip:setName(getText("Tooltip_BurdJournals_UpdateRecords") or "Update Journal Records")
         tooltip.description = getText("Tooltip_BurdJournals_UpdateRecordsDesc") or "Opens journal to update your recorded skills.\nRecorded values are only updated if your current level is higher."
         recordOption.toolTip = tooltip
+        BurdJournals.ContextMenu.applyLightRequirement(recordOption, player)
     end
 
     if totalClaimable > 0 and canOpen then
@@ -621,6 +691,7 @@ function BurdJournals.ContextMenu.addCleanFilledJournalOptions(context, player, 
             tooltip.description = desc
             claimAllOption.toolTip = tooltip
         end
+        BurdJournals.ContextMenu.applyLightRequirement(claimAllOption, player)
     end
 
     if isOwner then
@@ -663,6 +734,7 @@ function BurdJournals.ContextMenu.addCleanBlankJournalOptions(context, player, j
     tooltip:setName(getText("Tooltip_BurdJournals_BlankJournal") or "Blank Survival Journal")
     tooltip.description = getText("Tooltip_BurdJournals_BlankJournalDesc") or "Opens the journal to record your survival progress.\nRequires a writing tool."
     openOption.toolTip = tooltip
+    BurdJournals.ContextMenu.applyLightRequirement(openOption, player)
     if not hasPen then
         openOption.notAvailable = true
     end
@@ -689,6 +761,10 @@ function BurdJournals.ContextMenu.addCleanBlankJournalOptions(context, player, j
 end
 
 function BurdJournals.ContextMenu.onAbsorbAllConfirm(player, journal)
+    if not BurdJournals.ContextMenu.requireLightOrNotify(player) then
+        return
+    end
+
     local journalData = BurdJournals.getJournalData(journal)
 
     local skillCount = 0
@@ -748,15 +824,21 @@ end
 
 function BurdJournals.ContextMenu.onConfirmAbsorbAll(target, button, journal)
     if button.internal == "YES" then
+        if not BurdJournals.ContextMenu.requireLightOrNotify(target) then
+            return
+        end
 
-        BurdJournals.ContextMenu.pickUpThenDo(target, journal, function(player, j)
+        BurdJournals.ContextMenu.pickUpThenDo(target, journal, function(player, j, returnContainer)
+            if not BurdJournals.ContextMenu.requireLightOrNotify(player) then
+                return
+            end
             if not BurdJournals.UI.MainPanel then
                 require "UI/BurdJournals_MainPanel"
             end
 
             if BurdJournals.UI and BurdJournals.UI.MainPanel then
 
-                BurdJournals.UI.MainPanel.show(player, j, "absorb")
+                BurdJournals.UI.MainPanel.show(player, j, "absorb", returnContainer)
 
                 local ticksWaited = 0
                 local startLearning
@@ -776,27 +858,39 @@ function BurdJournals.ContextMenu.onConfirmAbsorbAll(target, button, journal)
 end
 
 function BurdJournals.ContextMenu.onOpenWornJournal(player, journal)
+    if not BurdJournals.ContextMenu.requireLightOrNotify(player) then
+        return
+    end
 
-    BurdJournals.ContextMenu.pickUpThenDo(player, journal, function(p, j)
+    BurdJournals.ContextMenu.pickUpThenDo(player, journal, function(p, j, returnContainer)
+        if not BurdJournals.ContextMenu.requireLightOrNotify(p) then
+            return
+        end
         if not BurdJournals.UI or not BurdJournals.UI.MainPanel then
             require "UI/BurdJournals_MainPanel"
         end
 
         if BurdJournals.UI and BurdJournals.UI.MainPanel then
-            BurdJournals.UI.MainPanel.show(p, j, "absorb")
+            BurdJournals.UI.MainPanel.show(p, j, "absorb", returnContainer)
         end
     end)
 end
 
 function BurdJournals.ContextMenu.onOpenBloodyJournal(player, journal)
+    if not BurdJournals.ContextMenu.requireLightOrNotify(player) then
+        return
+    end
 
-    BurdJournals.ContextMenu.pickUpThenDo(player, journal, function(p, j)
+    BurdJournals.ContextMenu.pickUpThenDo(player, journal, function(p, j, returnContainer)
+        if not BurdJournals.ContextMenu.requireLightOrNotify(p) then
+            return
+        end
         if not BurdJournals.UI or not BurdJournals.UI.MainPanel then
             require "UI/BurdJournals_MainPanel"
         end
 
         if BurdJournals.UI and BurdJournals.UI.MainPanel then
-            BurdJournals.UI.MainPanel.show(p, j, "absorb")
+            BurdJournals.UI.MainPanel.show(p, j, "absorb", returnContainer)
         end
     end)
 end
@@ -903,17 +997,21 @@ function BurdJournals.ContextMenu.onAbsorbAllFromJournal(player, journal)
                 local xpObj = player:getXp()
                 local beforeXP = xpObj:getXP(perk)
 
-                local xpToApply = xp * journalMultiplier
+                -- Apply skill book multiplier for Worn/Bloody journals
+                local skillBookMultiplier = BurdJournals.getSkillBookMultiplier(player, skillName)
+                local xpToApply = xp * journalMultiplier * skillBookMultiplier
 
                 local isPassiveSkill = (skillName == "Fitness" or skillName == "Strength")
                 if isPassiveSkill then
                     xpToApply = xpToApply * 5
                 end
 
+                -- Use AddXP with useMultipliers=false since we already applied journal/skillbook multipliers
+                -- Signature: AddXP(perk, amount, addToKnownRecipes, useMultipliers, isPassive, checkLevelUp)
                 if sendAddXp then
-                    sendAddXp(player, perk, xpToApply, true)
+                    sendAddXp(player, perk, xpToApply, false)
                 else
-                    xpObj:AddXP(perk, xpToApply, true, true)
+                    xpObj:AddXP(perk, xpToApply, true, false, false, false)
                 end
 
                 local afterXP = xpObj:getXP(perk)
@@ -1017,7 +1115,7 @@ function BurdJournals.ContextMenu.onAbsorbAllFromJournal(player, journal)
             end
             if recipesSkipped > 0 then
                 if skipMsg ~= "" then skipMsg = skipMsg .. ", " end
-                local recipeText = recipesSkipped > 1 and (getText("UI_BurdJournals_RecipesAlreadyKnown") or "%d recipes already known") or (getText("UI_BurdJournals_RecipeAlreadyKnown") or "%d recipe already known")
+                local recipeText = recipesSkipped > 1 and (getText("UI_BurdJournals_RecipesAlreadyKnownCount") or "%d recipes already known") or (getText("UI_BurdJournals_RecipeAlreadyKnown") or "%d recipe already known")
                 skipMsg = skipMsg .. string.format(recipeText, recipesSkipped)
             end
             if skipMsg ~= "" then
@@ -1029,14 +1127,19 @@ function BurdJournals.ContextMenu.onAbsorbAllFromJournal(player, journal)
             player:getInventory():Remove(journal)
             local dissolveMsg = BurdJournals.getRandomDissolutionMessage()
             player:Say(dissolveMsg)
-            pcall(function() player:getEmitter():playSound("PaperRip") end)
+            if player and player.getEmitter then
+                local emitter = player:getEmitter()
+                if emitter and emitter.playSound then
+                    emitter:playSound("PaperRip")
+                end
+            end
         end
     end
 end
 
 function BurdJournals.ContextMenu.onConvertToClean(player, journal)
 
-    BurdJournals.ContextMenu.pickUpThenDo(player, journal, function(p, j)
+    BurdJournals.ContextMenu.pickUpThenDo(player, journal, function(p, j, returnContainer)
         local isFilled = BurdJournals.isFilledJournal(j)
         local remaining = BurdJournals.getRemainingRewards(j)
 
@@ -1071,21 +1174,27 @@ function BurdJournals.ContextMenu.onConfirmConvert(target, button, journal)
 end
 
 function BurdJournals.ContextMenu.onOpenCleanJournal(player, journal)
+    if not BurdJournals.ContextMenu.requireLightOrNotify(player) then
+        return
+    end
 
     BurdJournals.ContextMenu.pickUpThenDo(player, journal, function(p, j)
+        if not BurdJournals.ContextMenu.requireLightOrNotify(p) then
+            return
+        end
         if not BurdJournals.UI or not BurdJournals.UI.MainPanel then
             require "UI/BurdJournals_MainPanel"
         end
 
         if BurdJournals.UI and BurdJournals.UI.MainPanel then
-            BurdJournals.UI.MainPanel.show(p, j, "view")
+            BurdJournals.UI.MainPanel.show(p, j, "view", returnContainer)
         end
     end)
 end
 
 function BurdJournals.ContextMenu.onReadCleanJournal(player, journal)
 
-    BurdJournals.ContextMenu.pickUpThenDo(player, journal, function(p, j)
+    BurdJournals.ContextMenu.pickUpThenDo(player, journal, function(p, j, returnContainer)
         sendClientCommand(
             p,
             "BurdJournals",
@@ -1096,15 +1205,21 @@ function BurdJournals.ContextMenu.onReadCleanJournal(player, journal)
 end
 
 function BurdJournals.ContextMenu.onClaimAllConfirm(player, journal)
+    if not BurdJournals.ContextMenu.requireLightOrNotify(player) then
+        return
+    end
 
     BurdJournals.ContextMenu.pickUpThenDo(player, journal, function(p, j)
+        if not BurdJournals.ContextMenu.requireLightOrNotify(p) then
+            return
+        end
         if not BurdJournals.UI or not BurdJournals.UI.MainPanel then
             require "UI/BurdJournals_MainPanel"
         end
 
         if BurdJournals.UI and BurdJournals.UI.MainPanel then
 
-            BurdJournals.UI.MainPanel.show(p, j, "view")
+            BurdJournals.UI.MainPanel.show(p, j, "view", returnContainer)
 
             local panel = BurdJournals.UI.MainPanel.instance
             if panel and panel.startLearningAll then
@@ -1127,7 +1242,7 @@ end
 
 function BurdJournals.ContextMenu.onRenameJournal(player, journal)
 
-    BurdJournals.ContextMenu.pickUpThenDo(player, journal, function(p, j)
+    BurdJournals.ContextMenu.pickUpThenDo(player, journal, function(p, j, returnContainer)
         local currentName = j:getName() or ""
         local modal = ISTextBox:new(
             getCore():getScreenWidth() / 2 - 150,
@@ -1218,14 +1333,20 @@ function BurdJournals.ContextMenu.onConfirmErase(target, button, journal)
 end
 
 function BurdJournals.ContextMenu.onRecordProgress(player, journal)
+    if not BurdJournals.ContextMenu.requireLightOrNotify(player) then
+        return
+    end
 
     BurdJournals.ContextMenu.pickUpThenDo(player, journal, function(p, j)
+        if not BurdJournals.ContextMenu.requireLightOrNotify(p) then
+            return
+        end
         if not BurdJournals.UI or not BurdJournals.UI.MainPanel then
             require "UI/BurdJournals_MainPanel"
         end
 
         if BurdJournals.UI and BurdJournals.UI.MainPanel then
-            BurdJournals.UI.MainPanel.show(p, j, "log")
+            BurdJournals.UI.MainPanel.show(p, j, "log", returnContainer)
         end
     end)
 end
@@ -1251,6 +1372,9 @@ end
 
 function BurdJournals.ContextMenu.onConfirmOverwrite(target, button, journal)
     if button.internal == "YES" then
+        if not BurdJournals.ContextMenu.requireLightOrNotify(target) then
+            return
+        end
         if not BurdJournals.UI or not BurdJournals.UI.MainPanel then
             require "UI/BurdJournals_MainPanel"
         end

@@ -166,6 +166,7 @@
     UI_BurdJournals_TraitAlreadyKnownFeedback = "У вас уже есть эта черта",
     UI_BurdJournals_StatusAlreadyKnown = "Уже известно",
     UI_BurdJournals_StatusAlreadyClaimed = "Уже изучено",
+    UI_BurdJournals_StatusAlreadyAtLevel = "Уже на этом уровне",
     UI_BurdJournals_StatusAlreadyRecorded = "Уже записано",
     UI_BurdJournals_StatusClaimed = "Изучено",
     UI_BurdJournals_RareTraitQueued = "Черта - #%d в очереди",
@@ -305,18 +306,7 @@
     UI_BurdJournals_DissolveTitle = "Dissolve Journal",
 
     -- Baseline Management
-    UI_BurdJournals_BaselineSkillsHeader = "BASELINE SKILLS",
-    UI_BurdJournals_BaselineTraitsHeader = "BASELINE TRAITS",
-    UI_BurdJournals_YourBaseline = "Your starting baseline:",
-    UI_BurdJournals_BaselineInfo = "These values represent your character's starting skills/traits and cannot be recorded in journals.",
-    UI_BurdJournals_NoBaselineData = "No baseline data recorded yet.",
-    UI_BurdJournals_BaselineWaiting = "Waiting for baseline initialization...",
-    UI_BurdJournals_ClearBaselineConfirm = "Clear your baseline data? This cannot be undone.",
-    UI_BurdJournals_ClearBaselineTitle = "Clear Baseline",
-    UI_BurdJournals_BtnViewMyBaseline = "View My Baseline",
     UI_BurdJournals_BtnClearMyBaseline = "Clear My Baseline",
-    UI_BurdJournals_BaselineCleared = "Baseline data cleared!",
-    UI_BurdJournals_ViewBaselineTitle = "Your Character Baseline",
 
     -- Batching
     UI_BurdJournals_BtnBatching = "BATCH",
@@ -334,5 +324,56 @@
     UI_BurdJournals_ClearBaselineCacheTooltip = "Clears your baseline data and server cache. Use to fix baseline issues or start fresh.",
     UI_BurdJournals_BaselineCacheCleared = "Baseline & cache cleared! Fresh baseline captured.",
     UI_BurdJournals_CmdBaselineCleared = "[Journals] Your baseline has been cleared and recaptured.",
+
+    -- Stat Claiming
+    UI_BurdJournals_ClaimingStatMP = "Получение %s...",
+    UI_BurdJournals_StatClaimed = "%s получено!",
+    UI_BurdJournals_StatClaimFailed = "Не удалось применить статистику",
+    UI_BurdJournals_StatAlreadyClaimed = "Уже получено",
+    UI_BurdJournals_StatTooLow = "Ваше текущее значение выше",
+
+    -- New Keys
+    UI_BurdJournals_JournalDissolvedInvalid = "Журнал рассыпается... его содержимое больше не действительно.",
+    UI_BurdJournals_RecipeNotAvailable = "Рецепт недоступен: %s",
+
+    -- Flavor Text (WorldSpawn)
+    UI_BurdJournals_FlavorFireOfficer = "Записи экстренного реагирования от того, кто бежал навстречу опасности.",
+    UI_BurdJournals_FlavorPoliceOfficer = "Полевые записи патрульного полицейского.",
+    UI_BurdJournals_FlavorParkRanger = "Наблюдения того, кто хорошо знал дикую природу.",
+    UI_BurdJournals_FlavorConstructionWorker = "Грубые записи о строительстве и ремонте.",
+    UI_BurdJournals_FlavorSecurityGuard = "Записи журнала долгих ночных смен.",
+    UI_BurdJournals_FlavorCarpenter = "Советы по столярному делу от мастера своего дела.",
+    UI_BurdJournals_FlavorBurglar = "Загадочные записи о незаметном передвижении...",
+    UI_BurdJournals_FlavorChef = "Рецепты и кулинарные советы из профессиональной кухни.",
+    UI_BurdJournals_FlavorMechanic = "Замасленные страницы рабочих записей механика.",
+    UI_BurdJournals_FlavorFarmer = "Записи фермера до начала эпидемии.",
+    UI_BurdJournals_FlavorFisherman = "Промокшие страницы с рыболовными секретами.",
+    UI_BurdJournals_FlavorDoctor = "Медицинские записи аккуратным почерком.",
+    UI_BurdJournals_FlavorNurse = "Записи об уходе за пациентами и медицинские наблюдения.",
+    UI_BurdJournals_FlavorLumberjack = "Грубые записи того, кто привык к тяжёлому труду.",
+    UI_BurdJournals_FlavorFitnessInstructor = "Тренировочные записи того, кто превосходил пределы.",
+    UI_BurdJournals_FlavorBurgerFlipper = "Засаленные записи из-за прилавка.",
+    UI_BurdJournals_FlavorElectrician = "Схемы проводки и советы по электробезопасности.",
+    UI_BurdJournals_FlavorEngineer = "Подробные технические записи.",
+    UI_BurdJournals_FlavorMetalworker = "Записи о сварке и работе с металлом.",
+    UI_BurdJournals_FlavorVeteran = "Военные полевые записи, дисциплина в каждой строке.",
+    UI_BurdJournals_FlavorUnemployed = "Личные записи того, у кого было свободное время.",
+    -- Flavor Text (ZombieLoot)
+    UI_BurdJournals_FlavorSurvivor = "Записи о выживании от товарища-выжившего.",
+    UI_BurdJournals_FlavorHunter = "Журнал охотника, изношенный в дикой природе.",
+    UI_BurdJournals_FlavorSoldier = "Военные полевые записи, дисциплина в каждой строке.",
+    UI_BurdJournals_FlavorAthlete = "Тренировочные записи того, кто превосходил пределы.",
+    UI_BurdJournals_FlavorTailor = "Аккуратные выкройки и записи о тканях.",
+    UI_BurdJournals_FlavorSurvivalist = "Подробные стратегии выживания от подготовленного ума.",
+    UI_BurdJournals_FlavorFighter = "Боевые техники в потрёпанной записной книжке.",
+    UI_BurdJournals_BtnRefresh = "Refresh",
+    UI_BurdJournals_RefreshTooltip = "Refresh journal data",
+    UI_BurdJournals_JournalRefreshed = "Journal refreshed",
+    UI_BurdJournals_AdminOnly = "This command requires admin access.",
+    UI_BurdJournals_CantClaimSkill = "That skill cannot be claimed right now",
+    UI_BurdJournals_NeedEraser = "Need eraser",
+    UI_BurdJournals_OtherCategory = "Other",
+    UI_BurdJournals_QueuedPosition = "Queued #%d",
 }
+
 

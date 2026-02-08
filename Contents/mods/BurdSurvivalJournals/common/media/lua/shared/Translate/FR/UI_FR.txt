@@ -1,4 +1,4 @@
-UI_FR = {
+﻿UI_FR = {
     -- Journal Types
     UI_BurdJournals_BlankJournal = "Journal de survie vierge",
     UI_BurdJournals_FilledJournal = "Journal de survie rempli",
@@ -163,6 +163,7 @@ UI_FR = {
     -- Status Labels
     UI_BurdJournals_StatusAlreadyKnown = "Déjà connu",
     UI_BurdJournals_StatusAlreadyClaimed = "Déjà récupéré",
+    UI_BurdJournals_StatusAlreadyAtLevel = "Déjà à ce niveau",
     UI_BurdJournals_StatusAlreadyRecorded = "Déjà consigné",
     UI_BurdJournals_StatusClaimed = "Récupéré",
     UI_BurdJournals_RareTraitQueued = "Trait rare - En file #%d",
@@ -383,4 +384,49 @@ UI_FR = {
 
     -- Batching
     UI_BurdJournals_BtnBatching = "LOT",
+    UI_BurdJournals_ClaimingStatMP = "Réclamation de %s...",
+    UI_BurdJournals_StatAlreadyClaimed = "Statistique déjà réclamée",
+    UI_BurdJournals_StatClaimed = "%s réclamé !",
+    UI_BurdJournals_StatClaimFailed = "Impossible d'appliquer la statistique",
+    UI_BurdJournals_StatTooLow = "Ta valeur actuelle est plus élevée",
+    UI_BurdJournals_FlavorAthlete = "Notes d'entraînement de quelqu'un qui repoussait ses limites.",
+    UI_BurdJournals_FlavorBurgerFlipper = "Notes graisseuses de derrière le comptoir.",
+    UI_BurdJournals_FlavorBurglar = "Notes cryptiques sur comment se déplacer sans être vu...",
+    UI_BurdJournals_FlavorCarpenter = "Conseils de menuiserie de quelqu'un qui connaissait son métier.",
+    UI_BurdJournals_FlavorChef = "Recettes et conseils culinaires d'une cuisine professionnelle.",
+    UI_BurdJournals_FlavorConstructionWorker = "Notes brutes sur la construction et les réparations.",
+    UI_BurdJournals_FlavorDoctor = "Notes médicales écrites d'une écriture précise.",
+    UI_BurdJournals_FlavorElectrician = "Schémas de câblage et conseils de sécurité électrique.",
+    UI_BurdJournals_FlavorEngineer = "Notes techniques détaillées.",
+    UI_BurdJournals_FlavorFarmer = "Notes d'un fermier avant l'épidémie.",
+    UI_BurdJournals_FlavorFighter = "Techniques de combat dans un carnet usé.",
+    UI_BurdJournals_FlavorFireOfficer = "Notes d'intervention d'urgence de quelqu'un qui courait vers le danger.",
+    UI_BurdJournals_FlavorFisherman = "Pages abîmées par l'eau contenant des secrets de pêche.",
+    UI_BurdJournals_FlavorFitnessInstructor = "Notes d'entraînement de quelqu'un qui repoussait ses limites.",
+    UI_BurdJournals_FlavorHunter = "Le journal d'un chasseur, usé par la nature.",
+    UI_BurdJournals_FlavorLumberjack = "Enregistrements bruts de quelqu'un habitué au travail dur.",
+    UI_BurdJournals_FlavorMechanic = "Pages tachées de graisse des notes de travail d'un mécanicien.",
+    UI_BurdJournals_FlavorMetalworker = "Notes sur le soudage et le travail du métal.",
+    UI_BurdJournals_FlavorNurse = "Notes de soins aux patients et observations médicales.",
+    UI_BurdJournals_FlavorParkRanger = "Observations de quelqu'un qui connaissait bien la nature sauvage.",
+    UI_BurdJournals_FlavorPoliceOfficer = "Notes de terrain d'un policier en patrouille.",
+    UI_BurdJournals_FlavorSecurityGuard = "Entrées de journal de longues nuits de garde.",
+    UI_BurdJournals_FlavorSoldier = "Notes de terrain militaires, la discipline à chaque ligne.",
+    UI_BurdJournals_FlavorSurvivalist = "Stratégies de survie détaillées d'un esprit préparé.",
+    UI_BurdJournals_FlavorSurvivor = "Notes de survie d'un compagnon survivant.",
+    UI_BurdJournals_FlavorTailor = "Patrons de couture soignés et notes sur les tissus.",
+    UI_BurdJournals_FlavorUnemployed = "Notes personnelles de quelqu'un avec du temps libre.",
+    UI_BurdJournals_FlavorVeteran = "Notes de terrain militaires, la discipline à chaque ligne.",
+    UI_BurdJournals_JournalDissolvedInvalid = "Le journal s'effrite... son contenu n'était plus valide.",
+    UI_BurdJournals_RecipeNotAvailable = "Recette non disponible : %s",
+    UI_BurdJournals_BtnRefresh = "Refresh",
+    UI_BurdJournals_RefreshTooltip = "Refresh journal data",
+    UI_BurdJournals_JournalRefreshed = "Journal refreshed",
+    UI_BurdJournals_AdminOnly = "This command requires admin access.",
+    UI_BurdJournals_CantClaimSkill = "That skill cannot be claimed right now",
+    UI_BurdJournals_NeedEraser = "Need eraser",
+    UI_BurdJournals_OtherCategory = "Other",
+    UI_BurdJournals_QueuedPosition = "Queued #%d",
 }
+
+

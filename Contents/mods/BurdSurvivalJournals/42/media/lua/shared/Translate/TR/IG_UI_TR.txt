@@ -1,0 +1,87 @@
+IG_UI_TR = {
+    -- Context Menu - Main Options
+    ContextMenu_BurdJournals_OpenJournal = "Günlüğü Aç...",
+    ContextMenu_BurdJournals_Read = "Oku",
+    ContextMenu_BurdJournals_Rename = "Yeniden Adlandır",
+    ContextMenu_BurdJournals_EraseJournal = "Günlüğü Sil",
+    ContextMenu_BurdJournals_RecordProgress = "İlerlemeyi Kaydet",
+    
+    -- Context Menu - Clean/Repair
+    ContextMenu_BurdJournals_CleanRepair = "Temizle/Onar",
+    ContextMenu_BurdJournals_CleanSoap = "Sabun ve Bezle Temizle",
+    ContextMenu_BurdJournals_RepairTape = "Bantla Yapıştır",
+    ContextMenu_BurdJournals_RepairLeather = "Deriyle Yeniden Cilt",
+    ContextMenu_BurdJournals_RepairGlue = "Sayfaları Yapıştır",
+    
+    -- UI Panel Titles
+    UI_BurdJournals_BlankJournal = "Boş Hayatta Kalma Günlüğü",
+    UI_BurdJournals_FilledJournal = "Dolu Hayatta Kalma Günlüğü",
+    UI_BurdJournals_WornJournal = "Yıpranmış Hayatta Kalma Günlüğü",
+    
+    -- Data Category Headers
+    UI_BurdJournals_CategoryCharacter = "Karakter Bilgisi",
+    UI_BurdJournals_CategorySurvival = "Hayatta Kalma Kaydı",
+    UI_BurdJournals_CategoryKills = "Öldürme Sayısı",
+    UI_BurdJournals_CategoryTraits = "Kişilik Özellikleri",
+    UI_BurdJournals_CategorySkills = "Öğrenilen Beceriler",
+    
+    -- UI Panel Labels
+    UI_BurdJournals_Author = "Yazar",
+    UI_BurdJournals_Written = "Yazıldı",
+    UI_BurdJournals_TimesRead = "Okunma Sayısı",
+    UI_BurdJournals_Condition = "Durum",
+    UI_BurdJournals_NeedsCleaning = "Temizlik Gerekli",
+    
+    -- UI Buttons
+    UI_BurdJournals_SelectAll = "Tümünü Seç",
+    UI_BurdJournals_DeselectAll = "Seçimi Kaldır",
+    UI_BurdJournals_Log = "Becerileri Kaydet",
+    UI_BurdJournals_Learn = "Öğren",
+    UI_BurdJournals_Update = "Güncelle",
+    UI_BurdJournals_Erase = "Sil",
+    UI_BurdJournals_Close = "Kapat",
+    
+    -- Confirmation Dialogs
+    UI_BurdJournals_ConfirmErase = "Bu günlüğü silmek istediğinizden emin misiniz? Kaydedilen tüm beceriler sonsuza kadar kaybolacak.",
+    UI_BurdJournals_ConfirmOverwrite = "Bu, günlük içeriğinin üzerine mevcut becerilerinizi yazacak. Emin misiniz?",
+    UI_BurdJournals_RenamePrompt = "Bu günlük için yeni bir ad girin:",
+    UI_BurdJournals_NoSkillsSelected = "Önce en az bir beceri seçin.",
+    UI_BurdJournals_NoSkillsInJournal = "Bu günlükte öğrenilecek beceri yok.",
+    
+    -- Condition States
+    UI_BurdJournals_ConditionPristine = "Mükemmel",
+    UI_BurdJournals_ConditionGood = "İyi",
+    UI_BurdJournals_ConditionWorn = "Yıpranmış",
+    UI_BurdJournals_ConditionDamaged = "Hasarlı",
+    UI_BurdJournals_ConditionCritical = "Kritik",
+    
+    -- Inspect Messages
+    UI_BurdJournals_InspectBlank = "%1 durumunda boş bir günlük.",
+    UI_BurdJournals_InspectFilled = "%1 tarafından yazılmış bir günlük. Durum: %2",
+    
+    -- Tooltips - Journal Info
+    Tooltip_BlankSurvivalJournal = "Hayatta kalma bilgilerinizi kaydetmeye hazır boş bir günlük.",
+    Tooltip_FilledSurvivalJournal = "Kaydedilmiş hayatta kalma becerilerini içeren bir günlük. Okumak için sağ tıklayın.",
+    Tooltip_BurdJournals_ContainsSkills = "%1 kayıtlı beceri içeriyor",
+    
+    -- Tooltips - Requirements
+    Tooltip_BurdJournals_NeedPen = "Yazmak için kalem gerekli.",
+    Tooltip_BurdJournals_NeedEraser = "İçeriği silmek için silgi gerekli.",
+    Tooltip_BurdJournals_NeedsCleaning = "Bu günlük okumak için çok yıpranmış.",
+    Tooltip_BurdJournals_NeedsCleaningDesc = "Temizlemek için sabun ve bez kullanın, yamamak için bant kullanın veya yeniden ciltlemek için deri şeritleri kullanın.",
+    
+    -- Tooltips - Cleaning Materials
+    Tooltip_BurdJournals_MissingMaterials = "Eksik Malzemeler",
+    Tooltip_BurdJournals_NeedsSoapCloth = "Gerekli: Sabun + Yırtık Çarşaf veya Bulaşık Bezi",
+    Tooltip_BurdJournals_NeedsTape = "Gerekli: Koli Bandı",
+    Tooltip_BurdJournals_NeedsLeatherBinding = "Gerekli: Deri Şerit + İplik + İğne",
+    Tooltip_BurdJournals_NeedsGluePaper = "Gerekli: Yapıştırıcı + Kağıt Yaprağı",
+    
+    -- Feedback Messages
+    UI_BurdJournals_SkillsLogged = "Beceriler günlüğe kaydedildi.",
+    UI_BurdJournals_SkillsLearned = "Günlükten bilgi emildi!",
+    UI_BurdJournals_JournalErased = "Günlük içeriği silindi.",
+    UI_BurdJournals_JournalCleaned = "Günlük temizlendi ve artık okunabilir.",
+    UI_BurdJournals_JournalUpdated = "Günlük becerileri güncellendi.",
+    UI_BurdJournals_JournalRenamed = "Günlük yeniden adlandırıldı.",
+}

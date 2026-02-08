@@ -163,6 +163,7 @@
     -- Status Labels
     UI_BurdJournals_StatusAlreadyKnown = "Já conhecido",
     UI_BurdJournals_StatusAlreadyClaimed = "Já reivindicado",
+    UI_BurdJournals_StatusAlreadyAtLevel = "Já neste nível",
     UI_BurdJournals_StatusAlreadyRecorded = "Já registrado",
     UI_BurdJournals_StatusClaimed = "Reivindicado",
     UI_BurdJournals_RareTraitQueued = "Traço raro - Na fila #%d",
@@ -367,18 +368,7 @@
     UI_BurdJournals_DissolveTitle = "Dissolve Journal",
 
     -- Baseline Management
-    UI_BurdJournals_BaselineSkillsHeader = "BASELINE SKILLS",
-    UI_BurdJournals_BaselineTraitsHeader = "BASELINE TRAITS",
-    UI_BurdJournals_YourBaseline = "Your starting baseline:",
-    UI_BurdJournals_BaselineInfo = "These values represent your character's starting skills/traits and cannot be recorded in journals.",
-    UI_BurdJournals_NoBaselineData = "No baseline data recorded yet.",
-    UI_BurdJournals_BaselineWaiting = "Waiting for baseline initialization...",
-    UI_BurdJournals_ClearBaselineConfirm = "Clear your baseline data? This cannot be undone.",
-    UI_BurdJournals_ClearBaselineTitle = "Clear Baseline",
-    UI_BurdJournals_BtnViewMyBaseline = "View My Baseline",
     UI_BurdJournals_BtnClearMyBaseline = "Clear My Baseline",
-    UI_BurdJournals_BaselineCleared = "Baseline data cleared!",
-    UI_BurdJournals_ViewBaselineTitle = "Your Character Baseline",
 
     -- Batching
     UI_BurdJournals_BtnBatching = "BATCH",
@@ -396,5 +386,56 @@
     UI_BurdJournals_ClearBaselineCacheTooltip = "Clears your baseline data and server cache. Use to fix baseline issues or start fresh.",
     UI_BurdJournals_BaselineCacheCleared = "Baseline & cache cleared! Fresh baseline captured.",
     UI_BurdJournals_CmdBaselineCleared = "[Journals] Your baseline has been cleared and recaptured.",
+
+    -- Stat Claiming
+    UI_BurdJournals_ClaimingStatMP = "Reivindicando %s...",
+    UI_BurdJournals_StatClaimed = "%s reivindicado!",
+    UI_BurdJournals_StatClaimFailed = "Não foi possível aplicar a estatística",
+    UI_BurdJournals_StatAlreadyClaimed = "Já reivindicou esta estatística",
+    UI_BurdJournals_StatTooLow = "Seu valor atual é maior",
+
+    -- New Keys
+    UI_BurdJournals_JournalDissolvedInvalid = "O diário se desfaz... seu conteúdo não era mais válido.",
+    UI_BurdJournals_RecipeNotAvailable = "Receita não disponível: %s",
+
+    -- Flavor Text (WorldSpawn)
+    UI_BurdJournals_FlavorFireOfficer = "Notas de resposta de emergência de alguém que corria em direção ao perigo.",
+    UI_BurdJournals_FlavorPoliceOfficer = "Anotações de campo de um policial em patrulha.",
+    UI_BurdJournals_FlavorParkRanger = "Observações de alguém que conhecia bem a natureza.",
+    UI_BurdJournals_FlavorConstructionWorker = "Anotações brutas sobre construção e reparo.",
+    UI_BurdJournals_FlavorSecurityGuard = "Registros de longos turnos noturnos.",
+    UI_BurdJournals_FlavorCarpenter = "Dicas de carpintaria de alguém que conhecia seu ofício.",
+    UI_BurdJournals_FlavorBurglar = "Notas enigmáticas sobre mover-se sem ser visto...",
+    UI_BurdJournals_FlavorChef = "Receitas e dicas de cozinha de uma cozinha profissional.",
+    UI_BurdJournals_FlavorMechanic = "Páginas manchadas de graxa das anotações de trabalho de um mecânico.",
+    UI_BurdJournals_FlavorFarmer = "Anotações de um fazendeiro antes do surto.",
+    UI_BurdJournals_FlavorFisherman = "Páginas danificadas pela água com segredos de pesca.",
+    UI_BurdJournals_FlavorDoctor = "Notas médicas escritas com letra precisa.",
+    UI_BurdJournals_FlavorNurse = "Anotações de cuidados com pacientes e observações médicas.",
+    UI_BurdJournals_FlavorLumberjack = "Registros brutos de alguém acostumado com trabalho pesado.",
+    UI_BurdJournals_FlavorFitnessInstructor = "Notas de treino de alguém que superava limites.",
+    UI_BurdJournals_FlavorBurgerFlipper = "Anotações gordurosas de trás do balcão.",
+    UI_BurdJournals_FlavorElectrician = "Diagramas de fiação e dicas de segurança elétrica.",
+    UI_BurdJournals_FlavorEngineer = "Notas técnicas detalhadas.",
+    UI_BurdJournals_FlavorMetalworker = "Anotações sobre soldagem e trabalho em metal.",
+    UI_BurdJournals_FlavorVeteran = "Notas de campo militares, disciplina em cada linha.",
+    UI_BurdJournals_FlavorUnemployed = "Anotações pessoais de alguém com tempo livre.",
+    -- Flavor Text (ZombieLoot)
+    UI_BurdJournals_FlavorSurvivor = "Notas de sobrevivência de um companheiro sobrevivente.",
+    UI_BurdJournals_FlavorHunter = "O diário de um caçador, desgastado pela natureza.",
+    UI_BurdJournals_FlavorSoldier = "Notas de campo militares, disciplina em cada linha.",
+    UI_BurdJournals_FlavorAthlete = "Notas de treino de alguém que superava limites.",
+    UI_BurdJournals_FlavorTailor = "Moldes de costura organizados e notas sobre tecidos.",
+    UI_BurdJournals_FlavorSurvivalist = "Estratégias de sobrevivência detalhadas de uma mente preparada.",
+    UI_BurdJournals_FlavorFighter = "Técnicas de combate em um caderno desgastado.",
+    UI_BurdJournals_BtnRefresh = "Refresh",
+    UI_BurdJournals_RefreshTooltip = "Refresh journal data",
+    UI_BurdJournals_JournalRefreshed = "Journal refreshed",
+    UI_BurdJournals_AdminOnly = "This command requires admin access.",
+    UI_BurdJournals_CantClaimSkill = "That skill cannot be claimed right now",
+    UI_BurdJournals_NeedEraser = "Need eraser",
+    UI_BurdJournals_OtherCategory = "Other",
+    UI_BurdJournals_QueuedPosition = "Queued #%d",
 }
+
 

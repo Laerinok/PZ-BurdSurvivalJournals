@@ -1,0 +1,87 @@
+IG_UI_RU = {
+    -- Context Menu - Main Options
+    ContextMenu_BurdJournals_OpenJournal = "Открыть дневник...",
+    ContextMenu_BurdJournals_Read = "Читать",
+    ContextMenu_BurdJournals_Rename = "Переименовать",
+    ContextMenu_BurdJournals_EraseJournal = "Стереть дневник",
+    ContextMenu_BurdJournals_RecordProgress = "Записать прогресс",
+    
+    -- Context Menu - Clean/Repair
+    ContextMenu_BurdJournals_CleanRepair = "Очистить/Починить",
+    ContextMenu_BurdJournals_CleanSoap = "Очистить мылом и тканью",
+    ContextMenu_BurdJournals_RepairTape = "Заклеить скотчем",
+    ContextMenu_BurdJournals_RepairLeather = "Переплести кожей",
+    ContextMenu_BurdJournals_RepairGlue = "Склеить страницы",
+    
+    -- UI Panel Titles
+    UI_BurdJournals_BlankJournal = "Чистый дневник выживания",
+    UI_BurdJournals_FilledJournal = "Заполненный дневник выживания",
+    UI_BurdJournals_WornJournal = "Потрёпанный дневник выживания",
+    
+    -- Data Category Headers
+    UI_BurdJournals_CategoryCharacter = "Информация о персонаже",
+    UI_BurdJournals_CategorySurvival = "Запись о выживании",
+    UI_BurdJournals_CategoryKills = "Счётчик убийств",
+    UI_BurdJournals_CategoryTraits = "Черты характера",
+    UI_BurdJournals_CategorySkills = "Изученные навыки",
+    
+    -- UI Panel Labels
+    UI_BurdJournals_Author = "Автор",
+    UI_BurdJournals_Written = "Записано",
+    UI_BurdJournals_TimesRead = "Раз прочитано",
+    UI_BurdJournals_Condition = "Состояние",
+    UI_BurdJournals_NeedsCleaning = "Требует очистки",
+    
+    -- UI Buttons
+    UI_BurdJournals_SelectAll = "Выбрать всё",
+    UI_BurdJournals_DeselectAll = "Снять выбор",
+    UI_BurdJournals_Log = "Записать навыки",
+    UI_BurdJournals_Learn = "Изучить",
+    UI_BurdJournals_Update = "Обновить",
+    UI_BurdJournals_Erase = "Стереть",
+    UI_BurdJournals_Close = "Закрыть",
+    
+    -- Confirmation Dialogs
+    UI_BurdJournals_ConfirmErase = "Вы уверены, что хотите стереть этот дневник? Все записанные навыки будут потеряны навсегда.",
+    UI_BurdJournals_ConfirmOverwrite = "Это перезапишет содержимое дневника вашими текущими навыками. Вы уверены?",
+    UI_BurdJournals_RenamePrompt = "Введите новое название для этого дневника:",
+    UI_BurdJournals_NoSkillsSelected = "Сначала выберите хотя бы один навык.",
+    UI_BurdJournals_NoSkillsInJournal = "В этом дневнике нет навыков для изучения.",
+    
+    -- Condition States
+    UI_BurdJournals_ConditionPristine = "Идеальное",
+    UI_BurdJournals_ConditionGood = "Хорошее",
+    UI_BurdJournals_ConditionWorn = "Поношенное",
+    UI_BurdJournals_ConditionDamaged = "Повреждённое",
+    UI_BurdJournals_ConditionCritical = "Критическое",
+    
+    -- Inspect Messages
+    UI_BurdJournals_InspectBlank = "Чистый дневник в %1 состоянии.",
+    UI_BurdJournals_InspectFilled = "Дневник, написанный %1. Состояние: %2",
+    
+    -- Tooltips - Journal Info
+    Tooltip_BlankSurvivalJournal = "Чистый дневник, готовый для записи знаний о выживании.",
+    Tooltip_FilledSurvivalJournal = "Дневник с записанными навыками выживания. Щёлкните правой кнопкой, чтобы прочитать.",
+    Tooltip_BurdJournals_ContainsSkills = "Содержит %1 записанных навыков",
+    
+    -- Tooltips - Requirements
+    Tooltip_BurdJournals_NeedPen = "Требуется ручка или карандаш для записи.",
+    Tooltip_BurdJournals_NeedEraser = "Требуется ластик для стирания содержимого.",
+    Tooltip_BurdJournals_NeedsCleaning = "Этот дневник слишком изношен для чтения.",
+    Tooltip_BurdJournals_NeedsCleaningDesc = "Используйте мыло и ткань для очистки, скотч для заклеивания или кожаные полоски для переплёта.",
+    
+    -- Tooltips - Cleaning Materials
+    Tooltip_BurdJournals_MissingMaterials = "Недостающие материалы",
+    Tooltip_BurdJournals_NeedsSoapCloth = "Требуется: Мыло + Рваные простыни или Тряпка для посуды",
+    Tooltip_BurdJournals_NeedsTape = "Требуется: Скотч",
+    Tooltip_BurdJournals_NeedsLeatherBinding = "Требуется: Кожаные полоски + Нить + Игла",
+    Tooltip_BurdJournals_NeedsGluePaper = "Требуется: Клей + Лист бумаги",
+    
+    -- Feedback Messages
+    UI_BurdJournals_SkillsLogged = "Навыки записаны в дневник.",
+    UI_BurdJournals_SkillsLearned = "Знания усвоены из дневника!",
+    UI_BurdJournals_JournalErased = "Содержимое дневника стёрто.",
+    UI_BurdJournals_JournalCleaned = "Дневник очищен и теперь читаем.",
+    UI_BurdJournals_JournalUpdated = "Навыки в дневнике обновлены.",
+    UI_BurdJournals_JournalRenamed = "Дневник переименован.",
+}

@@ -16,7 +16,11 @@
     Sandbox_BurdJournals_XPRecoveryMode_tooltip = "Quantité d'XP récupérée en lisant un journal PROPRE (mode FIXE). N'affecte pas les journaux usés ou ensanglantés.",
     Sandbox_BurdJournals_XPRecoveryMode_option1 = "Récupération totale (100 %)",
     Sandbox_BurdJournals_XPRecoveryMode_option2 = "Rendement décroissant",
-    
+    Sandbox_BurdJournals_DiminishingTrackingMode = "Diminishing Tracking Mode",
+    Sandbox_BurdJournals_DiminishingTrackingMode_tooltip = "How diminishing returns are tracked for CLEAN journal skill claims when Diminishing Returns is enabled.",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option1 = "Per Claim (Global)",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option2 = "Per Reading Session",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option3 = "Per Skill (Persistent)",
     Sandbox_BurdJournals_DiminishingFirstRead = "XP à la première lecture (%)",
     Sandbox_BurdJournals_DiminishingFirstRead_tooltip = "Pourcentage d'XP à la première lecture (50-100 %). S'applique uniquement avec le rendement décroissant.",
     
@@ -71,9 +75,15 @@
     Sandbox_BurdJournals_EnableBaselineRestriction = "Enregistrer uniquement la progression gagnée",
     Sandbox_BurdJournals_EnableBaselineRestriction_tooltip = "Si activé, les journaux n'enregistrent que l'XP gagnée en jeu - pas les bonus de départ de profession ou de traits. Cela empêche l'exploitation du système où les joueurs accumulent des compétences de profession en créant plusieurs personnages. Recommandé sur les serveurs multijoueurs.",
 
+    -- Trait Recording (Player Journals)
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer = "Activer l'enregistrement des traits (Joueur)",
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer_tooltip = "Autorise les joueurs à enregistrer des traits dans leurs journaux personnels. Si désactivé, l'onglet traits sera caché mais les données existantes seront préservées.",
+
+    -- Recipe Recording (Player Journals)
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer = "Activer l'enregistrement des recettes (Joueur)",
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer_tooltip = "Autorise les joueurs à enregistrer les recettes de magazines dans leurs journaux personnels. Si désactivé, l'onglet recettes sera caché mais les données existantes seront préservées.",
+
     -- Recipe Recording
-    Sandbox_BurdJournals_EnableRecipeRecording = "Activer l'enregistrement des recettes",
-    Sandbox_BurdJournals_EnableRecipeRecording_tooltip = "Autorise les joueurs à enregistrer les recettes apprises dans des magazines dans les journaux. Ces recettes peuvent ensuite être partagées avec d'autres.",
 
     Sandbox_BurdJournals_LearningTimePerRecipe = "Temps d'apprentissage par recette (sec)",
     Sandbox_BurdJournals_LearningTimePerRecipe_tooltip = "Temps de base en secondes pour apprendre chaque recette d'un journal.",
@@ -117,6 +127,21 @@
     Sandbox_BurdJournals_WornJournalMaxRecipes = "Max. de recettes par journal usé",
     Sandbox_BurdJournals_WornJournalMaxRecipes_tooltip = "Nombre maximum de recettes de magazine pouvant apparaître dans un journal usé (1-5).",
 
+    Sandbox_BurdJournals_EnableWornJournalRecipes = "Activer les recettes des journaux usés",
+    Sandbox_BurdJournals_EnableWornJournalRecipes_tooltip = "Si activé, les recettes peuvent être réclamées dans les journaux usés. Si désactivé, l'onglet recettes sera caché mais les données existantes seront préservées.",
+
+    Sandbox_BurdJournals_WornJournalTraitChance = "% Chance de trait (Usés)",
+    Sandbox_BurdJournals_WornJournalTraitChance_tooltip = "Chance que les journaux usés contiennent des traits (0-100%). Mettre à 0% (défaut) pour le comportement classique où seuls les journaux ensanglantés ont des traits.",
+
+    Sandbox_BurdJournals_WornJournalMinTraits = "Min. traits par journal usé",
+    Sandbox_BurdJournals_WornJournalMinTraits_tooltip = "Nombre minimum de traits pouvant apparaître sur un journal usé (1-5).",
+
+    Sandbox_BurdJournals_WornJournalMaxTraits = "Max. traits par journal usé",
+    Sandbox_BurdJournals_WornJournalMaxTraits_tooltip = "Nombre maximum de traits pouvant apparaître sur un journal usé (1-5).",
+
+    Sandbox_BurdJournals_EnableWornJournalTraits = "Activer les traits des journaux usés",
+    Sandbox_BurdJournals_EnableWornJournalTraits_tooltip = "Si activé, les traits peuvent être réclamés dans les journaux usés. Si désactivé, l'onglet traits sera caché mais les données existantes seront préservées.",
+
     -- Bloody Journals (Zombie Corpses)
     Sandbox_BurdJournals_EnableBloodyJournalSpawns = "Activer l'apparition de journaux ensanglantés",
     Sandbox_BurdJournals_EnableBloodyJournalSpawns_tooltip = "Autorise les zombies à laisser tomber des journaux ensanglantés. Ils offrent de meilleures récompenses et des traits rares.",
@@ -142,11 +167,17 @@
     Sandbox_BurdJournals_BloodyJournalMaxTraits = "Max. de traits par journal ensanglanté",
     Sandbox_BurdJournals_BloodyJournalMaxTraits_tooltip = "Nombre maximum de traits pouvant apparaître sur un seul journal ensanglanté (0-5).",
 
+    Sandbox_BurdJournals_EnableBloodyJournalTraits = "Activer les traits des journaux ensanglantés",
+    Sandbox_BurdJournals_EnableBloodyJournalTraits_tooltip = "Si activé, les traits peuvent être réclamés dans les journaux ensanglantés. Si désactivé, l'onglet traits sera caché mais les données existantes seront préservées.",
+
     Sandbox_BurdJournals_BloodyJournalRecipeChance = "% de chance de recette dans journal ensanglanté",
     Sandbox_BurdJournals_BloodyJournalRecipeChance_tooltip = "Chance qu'un journal ensanglanté contienne des recettes de magazine (0-100%). Les journaux ensanglantés ont plus de chance que les usés.",
 
     Sandbox_BurdJournals_BloodyJournalMaxRecipes = "Max. de recettes par journal ensanglanté",
     Sandbox_BurdJournals_BloodyJournalMaxRecipes_tooltip = "Nombre maximum de recettes de magazine pouvant apparaître dans un journal ensanglanté (1-5).",
+
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes = "Activer les recettes des journaux ensanglantés",
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes_tooltip = "Si activé, les recettes peuvent être réclamées dans les journaux ensanglantés. Si désactivé, l'onglet recettes sera caché mais les données existantes seront préservées.",
 
     -- ============================================================
     -- TAB 3: ADVANCED SETTINGS
@@ -199,4 +230,21 @@
 
     Sandbox_BurdJournals_BatchTimeMultiplier = "Multiplicateur de temps par lot",
     Sandbox_BurdJournals_BatchTimeMultiplier_tooltip = "Multiplicateur de durée pour les actions par lot. Plus bas = lots plus rapides. Exemple : 15 recettes à 0,8s chacune = 12s normalement. Avec un multiplicateur de 0,25 = 3s. N'affecte que 'Tout enregistrer' et 'Tout assimiler', pas les clics individuels. Par défaut : 0,25 (4x plus rapide)",
+
+    -- ============================================================
+    -- DEBUG & DEVELOPMENT SETTINGS
+    -- ============================================================
+
+    Sandbox_BurdJournals_AllowDebugCommands = "Autoriser les commandes de débogage",
+    Sandbox_BurdJournals_AllowDebugCommands_tooltip = "Active les commandes de débogage (/bsjgive, /bsjdump, /bsjdebug, etc.) sans nécessiter le paramètre de lancement -debug. En solo, tous les joueurs peuvent les utiliser. En multijoueur, seuls les administrateurs le peuvent. Utile pour les tests de serveur et le développement.",
+    Sandbox_BurdJournals_EnablePassiveSkillsLoot = "Enable Passive Skills (Loot)",
+    Sandbox_BurdJournals_EnablePassiveSkillsLoot_tooltip = "When enabled, Fitness/Strength can appear and be claimed on worn/bloody journals. When disabled, passive skill entries are hidden but preserved.",
+    Sandbox_BurdJournals_EnablePassiveSkillsPlayer = "Enable Passive Skills (Player)",
+    Sandbox_BurdJournals_EnablePassiveSkillsPlayer_tooltip = "When enabled, Fitness/Strength can be recorded and claimed from player journals. When disabled, passive skill entries are hidden but preserved.",
+    Sandbox_BurdJournals_RequireLightForJournalUse = "Require Light for Journal Use",
+    Sandbox_BurdJournals_RequireLightForJournalUse_tooltip = "When enabled, opening journals and reading/writing journal actions require enough light, following vanilla reading darkness rules.",
 }
+
+
+
+

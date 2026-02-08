@@ -1,0 +1,11 @@
+Items_TR = {
+    /* Blank Journals */
+    DisplayName_BlankSurvivalJournal = "Boş Hayatta Kalma Günlüğü",
+    DisplayName_BlankSurvivalJournal_Worn = "Yıpranmış Boş Günlük",
+    DisplayName_BlankSurvivalJournal_Bloody = "Kanlı Boş Günlük",
+    
+    /* Filled Journals */
+    DisplayName_FilledSurvivalJournal = "Dolu Hayatta Kalma Günlüğü",
+    DisplayName_FilledSurvivalJournal_Worn = "Yıpranmış Hayatta Kalma Günlüğü",
+    DisplayName_FilledSurvivalJournal_Bloody = "Kanlı Hayatta Kalma Günlüğü",
+}

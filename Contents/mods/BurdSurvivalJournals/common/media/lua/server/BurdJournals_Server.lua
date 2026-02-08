@@ -1,8 +1,7 @@
-print("[BurdJournals] SERVER FILE START - BEFORE REQUIRE")
 
 require "BurdJournals_Shared"
 
-print("[BurdJournals] SERVER MODULE LOADING... (require completed)")
+BurdJournals.debugPrint("[BurdJournals] SERVER MODULE LOADING... (require completed)")
 
 BurdJournals = BurdJournals or {}
 BurdJournals.Server = BurdJournals.Server or {}
@@ -116,6 +115,7 @@ function BurdJournals.Server.validateSkillPayload(skills, player)
     local allowedSkills = BurdJournals.getAllowedSkills and BurdJournals.getAllowedSkills() or {}
     local allowedSet = {}
     for _, name in ipairs(allowedSkills) do allowedSet[name] = true end
+    local playerJournalContext = {isPlayerCreated = true}
 
     -- Get baseline using the correct accessor
     local useBaseline = BurdJournals.shouldEnforceBaseline and BurdJournals.shouldEnforceBaseline(player) or false
@@ -143,7 +143,7 @@ function BurdJournals.Server.validateSkillPayload(skills, player)
     -- This could cause skills to be rejected incorrectly
     if useBaseline and not hasCachedBaseline and not hasModDataBaseline then
         print("[BurdJournals] WARNING: Baseline restriction enabled but NO baseline data found for player " .. tostring(player:getUsername()) .. "! This may cause skills to be rejected incorrectly.")
-        print("[BurdJournals] The player's baseline may not have been captured. Consider asking them to close and reopen the journal, or disable 'Only Record Earned Progress' sandbox option.")
+        BurdJournals.debugPrint("[BurdJournals] The player's baseline may not have been captured. Consider asking them to close and reopen the journal, or disable 'Only Record Earned Progress' sandbox option.")
     end
 
     for skillName, skillData in pairs(skills) do
@@ -153,6 +153,9 @@ function BurdJournals.Server.validateSkillPayload(skills, player)
 
         elseif not allowedSet[skillName] then
             print("[BurdJournals] WARNING: Unknown skill name: " .. skillName)
+
+        elseif BurdJournals.isSkillEnabledForJournal and not BurdJournals.isSkillEnabledForJournal(playerJournalContext, skillName) then
+            BurdJournals.debugPrint("[BurdJournals] validateSkillPayload: Skipping disabled skill for player journals: " .. tostring(skillName))
 
         elseif type(skillData) ~= "table" then
             print("[BurdJournals] WARNING: Invalid skill data type for " .. skillName .. ": " .. type(skillData))
@@ -255,9 +258,16 @@ function BurdJournals.Server.validateStatsPayload(stats, player)
             print("[BurdJournals] WARNING: Invalid stat data type for " .. statId .. ": " .. type(statData))
         else
 
-            local value = statData.value
-            if type(value) ~= "number" and type(value) ~= "string" then
-                value = tostring(value)
+            -- Server-authoritative stat value (do not trust client)
+            local value = nil
+            if BurdJournals.getStatValue then
+                value = BurdJournals.getStatValue(player, statId)
+            end
+            if value == nil then
+                value = statData.value
+                if type(value) ~= "number" and type(value) ~= "string" then
+                    value = tostring(value)
+                end
             end
             validStats[statId] = { value = value }
         end
@@ -310,6 +320,22 @@ function BurdJournals.Server.validateRecipePayload(recipes, player)
 end
 
 function BurdJournals.Server.sendToClient(player, command, args)
+    -- Validate player before sending command (prevents crashes with mods that wrap sendServerCommand)
+    if not player then
+        print("[BurdJournals] WARNING: sendToClient called with nil player for command: " .. tostring(command))
+        return
+    end
+
+    -- Check if player is fully initialized (Username can be null during connection)
+    if player.getUsername and player:getUsername() == nil then
+        print("[BurdJournals] WARNING: sendToClient called with uninitialized player for command: " .. tostring(command))
+        return
+    end
+
+    if not sendServerCommand then
+        print("[BurdJournals] ERROR: sendServerCommand is not available for command '" .. tostring(command) .. "'")
+        return
+    end
 
     sendServerCommand(player, "BurdJournals", command, args)
 
@@ -317,7 +343,6 @@ function BurdJournals.Server.sendToClient(player, command, args)
     local isTrueSinglePlayer = localPlayer ~= nil and not isClient()
 
     if isTrueSinglePlayer then
-
         local ticksToWait = 1
         local ticksWaited = 0
         local invokeClient
@@ -335,6 +360,56 @@ function BurdJournals.Server.sendToClient(player, command, args)
 end
 
 function BurdJournals.Server.init()
+    -- Server started - verify baseline cache is properly loaded
+    BurdJournals.debugPrint("[BurdJournals] Server.init() called - checking baseline cache...")
+    
+    -- Reset the logged flag so we report cache state on next access
+    BurdJournals.Server._baselineCacheLogged = false
+    
+    -- Trigger a cache access to log current state
+    local cache = BurdJournals.Server.getBaselineCache()
+    local playerCount = 0
+    for _ in pairs(cache.players or {}) do playerCount = playerCount + 1 end
+    BurdJournals.debugPrint("[BurdJournals] Server init complete. Baseline cache has " .. playerCount .. " player baseline(s)")
+end
+
+-- Called when global ModData is initialized/loaded from disk
+function BurdJournals.Server.onInitGlobalModData(isNewGame)
+    BurdJournals.debugPrint("[BurdJournals] OnInitGlobalModData called (isNewGame=" .. tostring(isNewGame) .. ")")
+    
+    -- CRITICAL: Invalidate cached instance so we re-fetch from ModData
+    -- This ensures we get the properly loaded data from disk
+    BurdJournals.Server._baselineCacheInstance = nil
+    
+    -- Mark that ModData has been initialized - this is critical for knowing when it's safe to trust cache state
+    BurdJournals.Server._modDataInitialized = true
+    
+    -- Reset flag to ensure we log the loaded cache state
+    BurdJournals.Server._baselineCacheLogged = false
+    
+    -- Access the cache to ensure it's properly loaded and logged
+    local cache = BurdJournals.Server.getBaselineCache()
+    local playerCount = 0
+    local debugModifiedCount = 0
+    for id, data in pairs(cache.players or {}) do 
+        playerCount = playerCount + 1
+        if data and data.debugModified then
+            debugModifiedCount = debugModifiedCount + 1
+            BurdJournals.debugPrint("[BurdJournals]   - Player " .. tostring(id) .. " has debug-modified baseline")
+        end
+    end
+    
+    if isNewGame then
+        BurdJournals.debugPrint("[BurdJournals] New game detected - baseline cache is fresh")
+    else
+        BurdJournals.debugPrint("[BurdJournals] Existing game loaded - baseline cache has " .. playerCount .. " player(s), " .. debugModifiedCount .. " debug-modified")
+        
+        -- Ensure data persists by triggering a transmit (belt and suspenders approach)
+        if playerCount > 0 and ModData.transmit then
+            ModData.transmit("BurdJournals_PlayerBaselines")
+            BurdJournals.debugPrint("[BurdJournals] Triggered ModData.transmit to ensure persistence")
+        end
+    end
 end
 
 function BurdJournals.Server.onClientCommand(module, command, player, args)
@@ -363,6 +438,11 @@ function BurdJournals.Server.onClientCommand(module, command, player, args)
     -- These commands can be sent in rapid batches from LearnFromJournalAction and RecordToJournalAction
     local rateLimitExempt = {
         recordProgress = true,
+        sanitizeJournal = true,
+        requestXpSync = true,
+        batchClaimSkills = true,
+        batchClaimRewards = true,
+        batchAbsorbRewards = true,
         claimSkill = true,
         claimTrait = true,
         claimRecipe = true,
@@ -370,6 +450,10 @@ function BurdJournals.Server.onClientCommand(module, command, player, args)
         absorbSkill = true,
         absorbTrait = true,
         absorbRecipe = true,
+        saveDebugJournalBackup = true,
+        requestDebugJournalBackup = true,
+        debugApplyJournalEdits = true,
+        debugMigrateOnlineJournals = true,
     }
     if getTimestampMs and not rateLimitExempt[command] then
         local now = getTimestampMs()
@@ -388,14 +472,14 @@ function BurdJournals.Server.onClientCommand(module, command, player, args)
     end
 
     local isEnabled = BurdJournals.isEnabled()
-    print("[BurdJournals] onClientCommand: isEnabled=" .. tostring(isEnabled))
+    BurdJournals.debugPrint("[BurdJournals] onClientCommand: isEnabled=" .. tostring(isEnabled))
     if not isEnabled then
         print("[BurdJournals] onClientCommand ERROR: Journals disabled!")
         BurdJournals.Server.sendToClient(player, "error", {message = "Journals are disabled on this server."})
         return
     end
 
-    print("[BurdJournals] onClientCommand: Routing command '" .. tostring(command) .. "'")
+    BurdJournals.debugPrint("[BurdJournals] onClientCommand: Routing command '" .. tostring(command) .. "'")
     if command == "logSkills" then
         BurdJournals.Server.handleLogSkills(player, args)
     elseif command == "learnSkills" then
@@ -417,7 +501,7 @@ function BurdJournals.Server.onClientCommand(module, command, player, args)
     elseif command == "initializeJournal" then
         BurdJournals.Server.handleInitializeJournal(player, args)
     elseif command == "recordProgress" then
-        print("[BurdJournals] ROUTING recordProgress to handler NOW")
+        BurdJournals.debugPrint("[BurdJournals] ROUTING recordProgress to handler NOW")
         BurdJournals.Server.handleRecordProgress(player, args)
     elseif command == "syncJournalData" then
         BurdJournals.Server.handleSyncJournalData(player, args)
@@ -443,7 +527,320 @@ function BurdJournals.Server.onClientCommand(module, command, player, args)
         BurdJournals.Server.handleClearAllBaselines(player, args)
     elseif command == "renameJournal" then
         BurdJournals.Server.handleRenameJournal(player, args)
+    -- Debug commands (require debug permission)
+    elseif command == "debugSetSkill" then
+        BurdJournals.Server.handleDebugSetSkill(player, args)
+    elseif command == "debugSetAllSkills" then
+        BurdJournals.Server.handleDebugSetAllSkills(player, args)
+    elseif command == "debugAddXP" then
+        BurdJournals.Server.handleDebugAddXP(player, args)
+    elseif command == "debugSetSkillToLevel" then
+        BurdJournals.Server.handleDebugSetSkillToLevel(player, args)
+    elseif command == "debugSetSkillXP" then
+        BurdJournals.Server.handleDebugSetSkillXP(player, args)
+    elseif command == "debugAddTrait" then
+        BurdJournals.Server.handleDebugAddTrait(player, args)
+    elseif command == "debugRemoveTrait" then
+        BurdJournals.Server.handleDebugRemoveTrait(player, args)
+    elseif command == "debugRemoveAllTraits" then
+        BurdJournals.Server.handleDebugRemoveAllTraits(player, args)
+    elseif command == "debugClearBaseline" then
+        BurdJournals.Server.handleDebugClearBaseline(player, args)
+    elseif command == "debugRecalcBaseline" then
+        BurdJournals.Server.handleDebugRecalcBaseline(player, args)
+    elseif command == "debugUpdateSkillBaseline" then
+        BurdJournals.Server.handleDebugUpdateSkillBaseline(player, args)
+    elseif command == "debugUpdateTraitBaseline" then
+        BurdJournals.Server.handleDebugUpdateTraitBaseline(player, args)
+    elseif command == "debugSpawnJournal" then
+        BurdJournals.Server.handleDebugSpawnJournal(player, args)
+    elseif command == "debugDissolveJournal" then
+        BurdJournals.Server.handleDebugDissolveJournal(player, args)
+    elseif command == "debugJournalCreated" then
+        -- Client notifying server about a debug-spawned journal (for tracking)
+        BurdJournals.debugPrint("[BurdJournals] DEBUG: Client created debug journal ID=" .. tostring(args.journalId) .. " type=" .. tostring(args.journalType))
+    elseif command == "requestXpSync" then
+        -- Client requesting XP sync after batch operations
+        BurdJournals.Server.handleRequestXpSync(player, args)
+    elseif command == "batchClaimSkills" then
+        -- Process multiple skill claims in one server-side call
+        BurdJournals.Server.handleBatchClaimSkills(player, args)
+    elseif command == "batchClaimRewards" then
+        -- Process mixed claim rewards (skills/traits/recipes/stats) in one server-side call
+        BurdJournals.Server.handleBatchClaimRewards(player, args)
+    elseif command == "batchAbsorbRewards" then
+        -- Process mixed absorb rewards (skills/traits/recipes/stats) in one server-side call
+        BurdJournals.Server.handleBatchAbsorbRewards(player, args)
+    elseif command == "saveDebugJournalBackup" then
+        -- Save debug journal data to server-side global ModData for persistence
+        BurdJournals.Server.handleSaveDebugJournalBackup(player, args)
+    elseif command == "requestDebugJournalBackup" then
+        -- Client requesting backup data for a debug journal
+        BurdJournals.Server.handleRequestDebugJournalBackup(player, args)
+    elseif command == "debugApplyJournalEdits" then
+        -- Apply debug-edited journal data directly to server-side item ModData
+        BurdJournals.Server.handleDebugApplyJournalEdits(player, args)
+    elseif command == "debugMigrateOnlineJournals" then
+        -- Admin one-shot migration for online players' journal data
+        BurdJournals.Server.handleDebugMigrateOnlineJournals(player, args)
     end
+end
+
+-- Handle client request to sync XP (called at end of batch claiming)
+function BurdJournals.Server.handleRequestXpSync(player, args)
+    BurdJournals.debugPrint("[BurdJournals] Server: XP sync requested by " .. tostring(player:getUsername()))
+    -- Try both sync methods - SyncXp (global) and player:syncXp (method)
+    if SyncXp then
+        SyncXp(player)
+        BurdJournals.debugPrint("[BurdJournals] Server: XP synced via SyncXp global function")
+    elseif player.syncXp then
+        player:syncXp()
+        BurdJournals.debugPrint("[BurdJournals] Server: XP synced via player:syncXp method")
+    else
+        print("[BurdJournals] Server: WARNING - No sync method available!")
+    end
+    BurdJournals.Server.sendToClient(player, "xpSyncComplete", {})
+end
+
+-- Handle batch skill claims in ONE server call.
+-- Security note: client-provided XP targets are ignored; server derives claimable XP from journal data.
+function BurdJournals.Server.handleBatchClaimSkills(player, args)
+    local skills = args and (BurdJournals.normalizeTable and BurdJournals.normalizeTable(args.skills) or args.skills) or nil
+    local skillsTotal = 0
+    if type(skills) == "table" then
+        for _, _ in pairs(skills) do
+            skillsTotal = skillsTotal + 1
+        end
+    end
+    if not args or not args.journalId or type(skills) ~= "table" or skillsTotal == 0 then
+        BurdJournals.Server.sendToClient(player, "error", {message = "Invalid batch claim request."})
+        BurdJournals.Server.sendToClient(player, "batchClaimComplete", {count = 0, total = 0})
+        return
+    end
+
+    local journal = BurdJournals.findItemById(player, args.journalId)
+    if not journal then
+        BurdJournals.Server.sendToClient(player, "error", {message = "Journal not found."})
+        BurdJournals.Server.sendToClient(player, "batchClaimComplete", {count = 0, total = skillsTotal})
+        return
+    end
+
+    local canClaim, reason = BurdJournals.canPlayerClaimFromJournal(player, journal)
+    if not canClaim then
+        BurdJournals.Server.sendToClient(player, "error", {message = reason or "Permission denied."})
+        BurdJournals.Server.sendToClient(player, "batchClaimComplete", {count = 0, total = skillsTotal})
+        return
+    end
+
+    if not BurdJournals.canSetXP(journal) then
+        BurdJournals.Server.sendToClient(player, "error", {message = "Batch claim only supports clean player journals."})
+        BurdJournals.Server.sendToClient(player, "batchClaimComplete", {count = 0, total = skillsTotal})
+        return
+    end
+
+    local processed = 0
+    local batchClaimSessionId = args and args.claimSessionId
+    local total = 0
+    for _, skillData in ipairs(skills) do
+        local skillName = skillData and skillData.skillName
+        if type(skillName) == "string" and skillName ~= "" then
+            total = total + 1
+            BurdJournals.Server.handleClaimSkill(player, {
+                journalId = args.journalId,
+                skillName = skillName,
+                claimSessionId = batchClaimSessionId
+            })
+            processed = processed + 1
+        end
+    end
+
+    if SyncXp then
+        SyncXp(player)
+    elseif player.syncXp then
+        player:syncXp()
+    end
+
+    BurdJournals.Server.sendToClient(player, "batchClaimComplete", {
+        count = processed,
+        total = total
+    })
+end
+
+local function countBatchEntries(entries)
+    if type(entries) ~= "table" then
+        return 0
+    end
+    local count = 0
+    for _, _ in pairs(entries) do
+        count = count + 1
+    end
+    return count
+end
+
+function BurdJournals.Server.handleBatchClaimRewards(player, args)
+    if not args or not args.journalId then
+        BurdJournals.Server.sendToClient(player, "error", {message = "Invalid batch claim request."})
+        BurdJournals.Server.sendToClient(player, "batchClaimComplete", {count = 0, total = 0, mode = "claim"})
+        return
+    end
+
+    local skills = BurdJournals.normalizeTable and BurdJournals.normalizeTable(args.skills) or (args.skills or {})
+    local traits = BurdJournals.normalizeTable and BurdJournals.normalizeTable(args.traits) or (args.traits or {})
+    local recipes = BurdJournals.normalizeTable and BurdJournals.normalizeTable(args.recipes) or (args.recipes or {})
+    local stats = BurdJournals.normalizeTable and BurdJournals.normalizeTable(args.stats) or (args.stats or {})
+    local total = countBatchEntries(skills) + countBatchEntries(traits) + countBatchEntries(recipes) + countBatchEntries(stats)
+    if total == 0 then
+        BurdJournals.Server.sendToClient(player, "batchClaimComplete", {count = 0, total = 0, mode = "claim"})
+        return
+    end
+
+    local processedSkills = 0
+    local processedTraits = 0
+    local processedRecipes = 0
+    local processedStats = 0
+    local claimSessionId = args.claimSessionId
+
+    for _, skillData in ipairs(skills) do
+        local skillName = skillData and skillData.skillName
+        if type(skillName) == "string" and skillName ~= "" then
+            BurdJournals.Server.handleClaimSkill(player, {
+                journalId = args.journalId,
+                skillName = skillName,
+                claimSessionId = claimSessionId,
+            })
+            processedSkills = processedSkills + 1
+        end
+    end
+
+    for _, traitId in ipairs(traits) do
+        if type(traitId) == "string" and traitId ~= "" then
+            BurdJournals.Server.handleClaimTrait(player, {
+                journalId = args.journalId,
+                traitId = traitId,
+            })
+            processedTraits = processedTraits + 1
+        end
+    end
+
+    for _, recipeName in ipairs(recipes) do
+        if type(recipeName) == "string" and recipeName ~= "" then
+            BurdJournals.Server.handleClaimRecipe(player, {
+                journalId = args.journalId,
+                recipeName = recipeName,
+            })
+            processedRecipes = processedRecipes + 1
+        end
+    end
+
+    for _, statEntry in ipairs(stats) do
+        local statId = statEntry and statEntry.statId
+        if type(statId) == "string" and statId ~= "" then
+            BurdJournals.Server.handleClaimStat(player, {
+                journalId = args.journalId,
+                statId = statId,
+                value = statEntry.value,
+            })
+            processedStats = processedStats + 1
+        end
+    end
+
+    if SyncXp then
+        SyncXp(player)
+    elseif player.syncXp then
+        player:syncXp()
+    end
+
+    BurdJournals.Server.sendToClient(player, "batchClaimComplete", {
+        mode = "claim",
+        count = processedSkills + processedTraits + processedRecipes + processedStats,
+        total = total,
+        skillsProcessed = processedSkills,
+        traitsProcessed = processedTraits,
+        recipesProcessed = processedRecipes,
+        statsProcessed = processedStats,
+    })
+end
+
+function BurdJournals.Server.handleBatchAbsorbRewards(player, args)
+    if not args or not args.journalId then
+        BurdJournals.Server.sendToClient(player, "error", {message = "Invalid batch absorb request."})
+        BurdJournals.Server.sendToClient(player, "batchClaimComplete", {count = 0, total = 0, mode = "absorb"})
+        return
+    end
+
+    local skills = BurdJournals.normalizeTable and BurdJournals.normalizeTable(args.skills) or (args.skills or {})
+    local traits = BurdJournals.normalizeTable and BurdJournals.normalizeTable(args.traits) or (args.traits or {})
+    local recipes = BurdJournals.normalizeTable and BurdJournals.normalizeTable(args.recipes) or (args.recipes or {})
+    local stats = BurdJournals.normalizeTable and BurdJournals.normalizeTable(args.stats) or (args.stats or {})
+    local total = countBatchEntries(skills) + countBatchEntries(traits) + countBatchEntries(recipes) + countBatchEntries(stats)
+    if total == 0 then
+        BurdJournals.Server.sendToClient(player, "batchClaimComplete", {count = 0, total = 0, mode = "absorb"})
+        return
+    end
+
+    local processedSkills = 0
+    local processedTraits = 0
+    local processedRecipes = 0
+    local processedStats = 0
+
+    for _, skillData in ipairs(skills) do
+        local skillName = skillData and skillData.skillName
+        if type(skillName) == "string" and skillName ~= "" then
+            BurdJournals.Server.handleAbsorbSkill(player, {
+                journalId = args.journalId,
+                skillName = skillName,
+            })
+            processedSkills = processedSkills + 1
+        end
+    end
+
+    for _, traitId in ipairs(traits) do
+        if type(traitId) == "string" and traitId ~= "" then
+            BurdJournals.Server.handleAbsorbTrait(player, {
+                journalId = args.journalId,
+                traitId = traitId,
+            })
+            processedTraits = processedTraits + 1
+        end
+    end
+
+    for _, recipeName in ipairs(recipes) do
+        if type(recipeName) == "string" and recipeName ~= "" then
+            BurdJournals.Server.handleAbsorbRecipe(player, {
+                journalId = args.journalId,
+                recipeName = recipeName,
+            })
+            processedRecipes = processedRecipes + 1
+        end
+    end
+
+    for _, statEntry in ipairs(stats) do
+        local statId = statEntry and statEntry.statId
+        if type(statId) == "string" and statId ~= "" then
+            BurdJournals.Server.handleClaimStat(player, {
+                journalId = args.journalId,
+                statId = statId,
+                value = statEntry.value,
+            })
+            processedStats = processedStats + 1
+        end
+    end
+
+    if SyncXp then
+        SyncXp(player)
+    elseif player.syncXp then
+        player:syncXp()
+    end
+
+    BurdJournals.Server.sendToClient(player, "batchClaimComplete", {
+        mode = "absorb",
+        count = processedSkills + processedTraits + processedRecipes + processedStats,
+        total = total,
+        skillsProcessed = processedSkills,
+        traitsProcessed = processedTraits,
+        recipesProcessed = processedRecipes,
+        statsProcessed = processedStats,
+    })
 end
 
 -- Server-side sanitization handler (called when client opens journal in MP)
@@ -487,6 +884,32 @@ function BurdJournals.Server.handleSanitizeJournal(player, args)
             journal:transmitModData()
         end
     end
+
+    -- Patch/update safety: if DR counters were dropped from item ModData, restore from cache.
+    if BurdJournals.restoreJournalDRStateIfMissing then
+        BurdJournals.restoreJournalDRStateIfMissing(journal, "sanitizeJournal", player)
+    end
+    if BurdJournals.captureJournalDRState then
+        BurdJournals.captureJournalDRState(journal, "sanitizeJournalSeed", player)
+    end
+    
+    -- Compact journal data to reduce ModData size (helps prevent 64KB player data limit issues)
+    if BurdJournals.compactJournalData then
+        BurdJournals.compactJournalData(journal)
+        if journal.transmitModData then
+            journal:transmitModData()
+        end
+    end
+    
+    -- Always check dissolution when journal is opened (handles bugged journals from previous versions)
+    local freshJournal = BurdJournals.findItemById(player, args.journalId)
+    if freshJournal and BurdJournals.isValidItem(freshJournal) and BurdJournals.shouldDissolve and BurdJournals.shouldDissolve(freshJournal, player) then
+        BurdJournals.Server.dissolveJournal(player, freshJournal)
+        BurdJournals.Server.sendToClient(player, "journalDissolved", {
+            journalId = args.journalId,
+            reason = "fully_claimed"
+        })
+    end
 end
 
 -- Dissolution handler - manual dissolve from UI button (no shouldDissolve check - user confirmed action)
@@ -496,8 +919,28 @@ function BurdJournals.Server.handleDissolveJournal(player, args)
         return
     end
 
+    BurdJournals.debugPrint("[BurdJournals] Server: Dissolve requested for journal ID " .. tostring(args.journalId))
+
     local journal = BurdJournals.findItemById(player, args.journalId)
     if not journal then
+        -- Try searching more broadly for debug-spawned journals
+        BurdJournals.debugPrint("[BurdJournals] Server: Journal not found via findItemById, searching inventory directly...")
+        local inv = player:getInventory()
+        if inv then
+            local items = inv:getItems()
+            for i = 0, items:size() - 1 do
+                local item = items:get(i)
+                if item and item:getID() == args.journalId then
+                    journal = item
+                    BurdJournals.debugPrint("[BurdJournals] Server: Found journal in main inventory")
+                    break
+                end
+            end
+        end
+    end
+    
+    if not journal then
+        BurdJournals.debugPrint("[BurdJournals] Server: Journal " .. tostring(args.journalId) .. " not found anywhere")
         BurdJournals.Server.sendToClient(player, "error", {message = "Journal not found."})
         return
     end
@@ -508,8 +951,7 @@ function BurdJournals.Server.handleDissolveJournal(player, args)
         return
     end
 
-    -- Only require that it's a worn/bloody journal (or has worn/bloody origin)
-    -- The manual Dissolve button should work regardless of claim status
+    -- Check journal data for debug-spawned or worn/bloody status
     local modData = journal:getModData()
     local data = modData and modData.BurdJournals
     local fullType = journal:getFullType()
@@ -518,13 +960,15 @@ function BurdJournals.Server.handleDissolveJournal(player, args)
     local isWorn = (data and data.isWorn) or isWornFromType
     local isBloody = (data and data.isBloody) or isBloodyFromType
     local hasWornBloodyOrigin = data and (data.wasFromWorn or data.wasFromBloody)
+    local isDebugSpawned = data and data.isDebugSpawned
 
-    if not isWorn and not isBloody and not hasWornBloodyOrigin then
+    -- Allow debug-spawned journals to always be dissolved
+    if not isDebugSpawned and not isWorn and not isBloody and not hasWornBloodyOrigin then
         BurdJournals.Server.sendToClient(player, "error", {message = "Only worn or bloody journals can be manually dissolved."})
         return
     end
 
-    print("[BurdJournals] Server: Manual dissolve requested for journal " .. tostring(args.journalId))
+    BurdJournals.debugPrint("[BurdJournals] Server: Manual dissolve requested for journal " .. tostring(args.journalId) .. " (debug=" .. tostring(isDebugSpawned) .. ")")
 
     -- Remove the journal using the complete removal path
     BurdJournals.Server.dissolveJournal(player, journal)
@@ -852,16 +1296,24 @@ function BurdJournals.Server.handleLogSkills(player, args)
     end
 
     local journalContent = BurdJournals.collectAllPlayerData(player)
+    local playerJournalContext = {isPlayerCreated = true}
 
     local selectedSkills = args.skills
     if selectedSkills and next(selectedSkills) then
         local filteredSkills = {}
         for skillName, _ in pairs(selectedSkills) do
-            if journalContent.skills[skillName] then
+            local enabledForJournal = not BurdJournals.isSkillEnabledForJournal or BurdJournals.isSkillEnabledForJournal(playerJournalContext, skillName)
+            if enabledForJournal and journalContent.skills[skillName] then
                 filteredSkills[skillName] = journalContent.skills[skillName]
             end
         end
         journalContent.skills = filteredSkills
+    elseif journalContent.skills and BurdJournals.isSkillEnabledForJournal then
+        for skillName, _ in pairs(journalContent.skills) do
+            if not BurdJournals.isSkillEnabledForJournal(playerJournalContext, skillName) then
+                journalContent.skills[skillName] = nil
+            end
+        end
     end
 
     local inventory = player:getInventory()
@@ -881,7 +1333,13 @@ function BurdJournals.Server.handleLogSkills(player, args)
             ownerSteamId = BurdJournals.getPlayerSteamId(player),
             ownerCharacterName = player:getDescriptor():getForename() .. " " .. player:getDescriptor():getSurname(),
             timestamp = getGameTime():getWorldAgeHours(),
+            uuid = (BurdJournals.generateUUID and BurdJournals.generateUUID())
+                or ("journal-" .. tostring(getTimestampMs and getTimestampMs() or os.time()) .. "-" .. tostring(filledJournal:getID())),
             readCount = 0,
+            readSessionCount = 0,
+            currentSessionReadCount = 0,
+            skillReadCounts = {},
+            migrationSchemaVersion = tonumber(BurdJournals.MIGRATION_SCHEMA_VERSION) or 0,
 
             isWorn = false,
             isBloody = false,
@@ -913,7 +1371,7 @@ function BurdJournals.Server.handleLogSkills(player, args)
 end
 
 function BurdJournals.Server.handleRecordProgress(player, args)
-    print("[BurdJournals] SERVER handleRecordProgress ENTRY")
+    BurdJournals.debugPrint("[BurdJournals] SERVER handleRecordProgress ENTRY")
     BurdJournals.debugPrint("[BurdJournals] Server: handleRecordProgress CALLED, player=" .. tostring(player and player:getUsername() or "nil"))
 
     if not args or not args.journalId then
@@ -923,7 +1381,7 @@ function BurdJournals.Server.handleRecordProgress(player, args)
         return
     end
 
-    print("[BurdJournals] SERVER handleRecordProgress: journalId=" .. tostring(args.journalId))
+    BurdJournals.debugPrint("[BurdJournals] SERVER handleRecordProgress: journalId=" .. tostring(args.journalId))
     BurdJournals.debugPrint("[BurdJournals] Server: handleRecordProgress - journalId=" .. tostring(args.journalId))
 
     local journal = BurdJournals.findItemById(player, args.journalId)
@@ -934,22 +1392,10 @@ function BurdJournals.Server.handleRecordProgress(player, args)
         return
     end
 
-    print("[BurdJournals] SERVER handleRecordProgress: Journal found OK")
+    BurdJournals.debugPrint("[BurdJournals] SERVER handleRecordProgress: Journal found OK")
     BurdJournals.debugPrint("[BurdJournals] Server: handleRecordProgress - Journal found: " .. tostring(journal:getFullType()))
 
-    if BurdJournals.getSandboxOption("RequirePenToWrite") then
-        print("[BurdJournals] SERVER handleRecordProgress: Pen required, checking...")
-        local pen = BurdJournals.findWritingTool(player)
-        if not pen then
-            print("[BurdJournals] SERVER handleRecordProgress ERROR: No pen found!")
-            BurdJournals.Server.sendToClient(player, "error", {message = "You need a pen or pencil to write."})
-            return
-        end
-        print("[BurdJournals] SERVER handleRecordProgress: Pen found OK")
-        local usesPerLog = BurdJournals.getSandboxOption("PenUsesPerLog") or 1
-        BurdJournals.consumeItemUses(pen, usesPerLog, player)
-    end
-    print("[BurdJournals] SERVER handleRecordProgress: Past pen check, processing data...")
+    BurdJournals.debugPrint("[BurdJournals] SERVER handleRecordProgress: Processing payload...")
 
     local modData = journal:getModData()
     if not modData.BurdJournals then
@@ -967,6 +1413,10 @@ function BurdJournals.Server.handleRecordProgress(player, args)
     if not modData.BurdJournals.recipes then
         modData.BurdJournals.recipes = {}
     end
+    if type(modData.BurdJournals.uuid) ~= "string" or modData.BurdJournals.uuid == "" then
+        modData.BurdJournals.uuid = (BurdJournals.generateUUID and BurdJournals.generateUUID())
+            or ("journal-" .. tostring(getTimestampMs and getTimestampMs() or os.time()) .. "-" .. tostring(journal:getID()))
+    end
 
     local skillsRecorded = 0
     local traitsRecorded = 0
@@ -982,6 +1432,17 @@ function BurdJournals.Server.handleRecordProgress(player, args)
     local isBaselineBypassed = BurdJournals.isBaselineBypassed and BurdJournals.isBaselineBypassed(player) or false
     BurdJournals.debugPrint("[BurdJournals] handleRecordProgress: useBaseline=" .. tostring(useBaseline) .. ", hasBaselineCaptured=" .. tostring(hasBaselineCaptured) .. ", isBaselineBypassed=" .. tostring(isBaselineBypassed))
 
+    -- Persist recording mode for correct future claim semantics.
+    -- If this is the first write (or the journal is still empty), bind mode to current baseline policy.
+    if modData.BurdJournals.recordedWithBaseline == nil then
+        modData.BurdJournals.recordedWithBaseline = useBaseline
+    else
+        local hasExistingSkills = BurdJournals.countTable(modData.BurdJournals.skills or {}) > 0
+        if not hasExistingSkills then
+            modData.BurdJournals.recordedWithBaseline = useBaseline
+        end
+    end
+
     -- Count incoming items (before validation)
     local debugInSkills = args.skills and BurdJournals.countTable(args.skills) or 0
     local debugInTraits = args.traits and BurdJournals.countTable(args.traits) or 0
@@ -996,8 +1457,25 @@ function BurdJournals.Server.handleRecordProgress(player, args)
     -- Debug: Log validated counts
     local validSkillCount = validatedSkills and BurdJournals.countTable(validatedSkills) or 0
     local validTraitCount = validatedTraits and BurdJournals.countTable(validatedTraits) or 0
+    local validStatCount = validatedStats and BurdJournals.countTable(validatedStats) or 0
     local validRecipeCount = validatedRecipes and BurdJournals.countTable(validatedRecipes) or 0
-    BurdJournals.debugPrint("[BurdJournals] handleRecordProgress: Validated skills=" .. validSkillCount .. ", traits=" .. validTraitCount .. ", recipes=" .. validRecipeCount)
+    BurdJournals.debugPrint("[BurdJournals] handleRecordProgress: Validated skills=" .. validSkillCount .. ", traits=" .. validTraitCount .. ", stats=" .. validStatCount .. ", recipes=" .. validRecipeCount)
+
+    if BurdJournals.getSandboxOption("RequirePenToWrite") then
+        local totalEntries = validSkillCount + validTraitCount + validStatCount + validRecipeCount
+        if totalEntries > 0 then
+            BurdJournals.debugPrint("[BurdJournals] SERVER handleRecordProgress: Pen required for " .. tostring(totalEntries) .. " entries")
+            local pen = BurdJournals.findWritingTool(player)
+            if not pen then
+                print("[BurdJournals] SERVER handleRecordProgress ERROR: No pen found!")
+                BurdJournals.Server.sendToClient(player, "error", {message = "You need a pen or pencil to write."})
+                return
+            end
+            local usesPerLog = BurdJournals.getSandboxOption("PenUsesPerLog") or 1
+            if usesPerLog < 1 then usesPerLog = 1 end
+            BurdJournals.consumeItemUses(pen, usesPerLog * totalEntries, player)
+        end
+    end
 
     local limits = BurdJournals.Limits or {}
     local existingSkillCount = 0
@@ -1033,7 +1511,7 @@ function BurdJournals.Server.handleRecordProgress(player, args)
         BurdJournals.Server.sendToClient(player, "error", {message = "Journal recipe limit reached (" .. maxRecipes .. " max)."})
         return
     end
-    print("[BurdJournals] SERVER handleRecordProgress: Limits OK, recording data...")
+    BurdJournals.debugPrint("[BurdJournals] SERVER handleRecordProgress: Limits OK, recording data...")
 
     if validatedSkills then
         for skillName, skillData in pairs(validatedSkills) do
@@ -1167,6 +1645,11 @@ function BurdJournals.Server.handleRecordProgress(player, args)
                 BurdJournals.updateJournalName(filledJournal)
                 BurdJournals.updateJournalIcon(filledJournal)
 
+                -- Compact journal data to reduce ModData size
+                if BurdJournals.compactJournalData then
+                    BurdJournals.compactJournalData(filledJournal)
+                end
+
                 if filledJournal.transmitModData then
                     filledJournal:transmitModData()
                     BurdJournals.debugPrint("[BurdJournals] transmitModData called on filled journal")
@@ -1188,6 +1671,11 @@ function BurdJournals.Server.handleRecordProgress(player, args)
 
         BurdJournals.updateJournalName(journal)
         BurdJournals.updateJournalIcon(journal)
+
+        -- Compact journal data to reduce ModData size
+        if BurdJournals.compactJournalData then
+            BurdJournals.compactJournalData(journal)
+        end
 
         if journal.transmitModData then
             journal:transmitModData()
@@ -1236,9 +1724,21 @@ function BurdJournals.Server.handleSyncJournalData(player, args)
         return
     end
 
+    BurdJournals.debugPrint("[BurdJournals] handleSyncJournalData: Syncing journal " .. tostring(args.journalId))
+
     if journal.transmitModData then
         journal:transmitModData()
         BurdJournals.debugPrint("[BurdJournals] handleSyncJournalData: transmitModData called for journal " .. tostring(args.journalId))
+    end
+
+    -- Send back the journal data so client can update UI
+    local modData = journal:getModData()
+    if modData and modData.BurdJournals then
+        local journalData = BurdJournals.Server.deepCopy(modData.BurdJournals)
+        BurdJournals.Server.sendToClient(player, "syncSuccess", {
+            journalId = args.journalId,
+            journalData = journalData
+        })
     end
 end
 
@@ -1265,35 +1765,43 @@ function BurdJournals.Server.handleLearnSkills(player, args)
         return
     end
 
-    local multiplier = 1.0
-    local recoveryMode = BurdJournals.getSandboxOption("XPRecoveryMode") or 1
-
-    if recoveryMode == 2 then
-        local readCount = modData.BurdJournals.readCount or 0
-        local firstRead = (BurdJournals.getSandboxOption("DiminishingFirstRead") or 100) / 100
-        local decayRate = (BurdJournals.getSandboxOption("DiminishingDecayRate") or 10) / 100
-        local minimum = (BurdJournals.getSandboxOption("DiminishingMinimum") or 10) / 100
-
-        if readCount == 0 then
-            multiplier = firstRead
-        else
-            multiplier = math.max(minimum, firstRead - (decayRate * readCount))
-        end
-        modData.BurdJournals.readCount = readCount + 1
-    end
-
     local selectedSkills = args.skills
     local journalSkills = modData.BurdJournals.skills
 
     local skillsToSet = {}
     local skillsApplied = 0
+    local normalizedAny = false
+    local consumedAny = false
+    local claimSessionId = args and args.claimSessionId
     for skillName, storedData in pairs(journalSkills) do
 
         if not selectedSkills or not next(selectedSkills) or selectedSkills[skillName] then
-            local targetXP = math.floor(storedData.xp * multiplier)
+            local normalizedXP = tonumber(storedData.xp) or 0
+            local normalizedLevel = tonumber(storedData.level) or 0
+            local normalized = false
+            if BurdJournals.normalizeLegacySkillEntry then
+                normalizedXP, normalizedLevel, normalized = BurdJournals.normalizeLegacySkillEntry(skillName, storedData, modData.BurdJournals.recordedWithBaseline)
+                if normalized then
+                    storedData.xp = normalizedXP
+                    storedData.level = normalizedLevel
+                    normalizedAny = true
+                end
+            end
+
+            local multiplier = 1.0
+            if BurdJournals.consumeJournalClaimRead then
+                multiplier = BurdJournals.consumeJournalClaimRead(modData.BurdJournals, skillName, claimSessionId, player)
+                consumedAny = true
+            end
+            local targetXP = math.floor(normalizedXP * multiplier)
+            -- Compute level from XP instead of reading stored level (for backward compatibility)
+            -- Pass skillName for proper Fitness/Strength XP thresholds
+            local computedLevel = normalizedLevel > 0 and normalizedLevel
+                or (BurdJournals.getSkillLevelFromXP and BurdJournals.getSkillLevelFromXP(targetXP, skillName))
+                or math.floor(targetXP / 75)
             skillsToSet[skillName] = {
                 xp = targetXP,
-                level = storedData.level,
+                level = computedLevel,
                 mode = "set"
             }
 
@@ -1304,17 +1812,31 @@ function BurdJournals.Server.handleLearnSkills(player, args)
                 local currentXP = player:getXp():getXP(perk)
                 if targetXP > currentXP then
                     local xpToAdd = targetXP - currentXP
-                    print("[BurdJournals] Server: LearnSkills - Applying " .. tostring(xpToAdd) .. " XP to " .. skillName .. " via addXp()")
+                    -- Fitness and Strength use different XP scaling in PZ
+                    -- AddXP() for passive skills only adds ~1/5th of the amount as displayed XP
+                    -- Apply 5x multiplier to compensate for passive skill internal scaling
+                    local isPassiveSkill = (skillName == "Fitness" or skillName == "Strength")
+                    if isPassiveSkill then
+                        xpToAdd = xpToAdd * 5
+                        BurdJournals.debugPrint("[BurdJournals] Server: Applied 5x passive skill multiplier for " .. skillName .. ", xpToAdd: " .. tostring(xpToAdd))
+                    end
+                    BurdJournals.debugPrint("[BurdJournals] Server: LearnSkills - Applying " .. tostring(xpToAdd) .. " XP to " .. skillName .. " via addXp()")
                     addXp(player, perk, xpToAdd)
                     skillsApplied = skillsApplied + 1
                 end
             end
         end
     end
+    if (normalizedAny or consumedAny) and journal.transmitModData then
+        journal:transmitModData()
+    end
+    if consumedAny and BurdJournals.captureJournalDRState then
+        BurdJournals.captureJournalDRState(journal, "learnSkills", player)
+    end
 
     -- Fallback: send to client if addXp not available (SP mode)
     if not addXp then
-        print("[BurdJournals] Server: LearnSkills fallback - sending applyXP to client")
+        BurdJournals.debugPrint("[BurdJournals] Server: LearnSkills fallback - sending applyXP to client")
         BurdJournals.Server.sendToClient(player, "applyXP", {skills = skillsToSet, mode = "set"})
     else
         -- Notify client of success (for UI update)
@@ -1323,6 +1845,7 @@ function BurdJournals.Server.handleLearnSkills(player, args)
 end
 
 function BurdJournals.Server.handleClaimSkill(player, args)
+    BurdJournals.debugPrint("[BurdJournals] Server: handleClaimSkill called - skillName=" .. tostring(args and args.skillName) .. ", journalId=" .. tostring(args and args.journalId))
 
     if not args or not args.skillName then
 
@@ -1340,6 +1863,11 @@ function BurdJournals.Server.handleClaimSkill(player, args)
         return
     end
 
+    if not BurdJournals.canSetXP(journal) then
+        BurdJournals.Server.sendToClient(player, "error", {message = "Cannot claim set XP from this journal type."})
+        return
+    end
+
     local canClaim, reason = BurdJournals.canPlayerClaimFromJournal(player, journal)
     if not canClaim then
         BurdJournals.Server.sendToClient(player, "error", {message = reason or "Permission denied."})
@@ -1354,15 +1882,87 @@ function BurdJournals.Server.handleClaimSkill(player, args)
         return
     end
 
+    -- Patch/update safety: restore DR counters if item ModData lost them.
+    if BurdJournals.restoreJournalDRStateIfMissing then
+        BurdJournals.restoreJournalDRStateIfMissing(journal, "handleClaimSkill", player)
+        journalData = modData.BurdJournals
+    end
+
+    if BurdJournals.isSkillEnabledForJournal and not BurdJournals.isSkillEnabledForJournal(journalData, skillName) then
+        BurdJournals.Server.sendToClient(player, "error", {message = "That skill is disabled by sandbox settings for this journal."})
+        return
+    end
+
     if not journalData.skills[skillName] then
         print("[BurdJournals] Server ERROR: Skill '" .. skillName .. "' not found in journal")
         BurdJournals.Server.sendToClient(player, "error", {message = "Skill not found in journal."})
         return
     end
 
+    -- Check if already claimed by this character (only for non-player journals)
+    -- Player journals allow unlimited claims unless restricted by sandbox options
+    local isPlayerJournal = journalData.isPlayerCreated == true
+    if not isPlayerJournal and BurdJournals.hasCharacterClaimedSkill(journalData, player, skillName) then
+        BurdJournals.debugPrint("[BurdJournals] Server: Skill '" .. skillName .. "' already claimed by this character from found journal, skipping")
+        BurdJournals.Server.sendToClient(player, "claimSuccess", {
+            skillName = skillName,
+            xpAdded = 0,
+            journalId = journalId,
+            journalData = journalData,
+            alreadyClaimed = true
+        })
+        return
+    end
+
     local skillData = journalData.skills[skillName]
-    local recordedXP = skillData.xp or 0
-    local recordedLevel = skillData.level or 0
+    local recordedXP = tonumber(skillData.xp) or 0
+    local recordedLevel = tonumber(skillData.level) or 0
+    local normalizedLegacy = false
+    if BurdJournals.normalizeLegacySkillEntry then
+        recordedXP, recordedLevel, normalizedLegacy = BurdJournals.normalizeLegacySkillEntry(skillName, skillData, journalData.recordedWithBaseline)
+        if normalizedLegacy then
+            skillData.xp = recordedXP
+            skillData.level = recordedLevel
+            journalData.skills[skillName] = skillData
+            BurdJournals.debugPrint("[BurdJournals] Normalized legacy journal XP entry for " .. tostring(skillName) .. ": xp=" .. tostring(recordedXP) .. ", level=" .. tostring(recordedLevel))
+        end
+    end
+    -- Compute level from XP instead of reading stored level (for backward compatibility)
+    -- Pass skillName for proper Fitness/Strength XP thresholds
+    if recordedLevel <= 0 then
+        recordedLevel = (BurdJournals.getSkillLevelFromXP and BurdJournals.getSkillLevelFromXP(recordedXP, skillName)) or math.floor(recordedXP / 75)
+    end
+
+    -- Diminishing returns are consumed on each claim read.
+    local claimMultiplier, claimReadCount = 1.0, tonumber(journalData.readCount) or 0
+    if BurdJournals.consumeJournalClaimRead then
+        claimMultiplier, claimReadCount = BurdJournals.consumeJournalClaimRead(journalData, skillName, args and args.claimSessionId, player)
+    else
+        local recoveryMode = tonumber(BurdJournals.getSandboxOption("XPRecoveryMode")) or 1
+        if recoveryMode == 2 then
+            local firstRead = (tonumber(BurdJournals.getSandboxOption("DiminishingFirstRead")) or 100) / 100
+            local decayRate = (tonumber(BurdJournals.getSandboxOption("DiminishingDecayRate")) or 10) / 100
+            local minimum = (tonumber(BurdJournals.getSandboxOption("DiminishingMinimum")) or 10) / 100
+            if claimReadCount == 0 then
+                claimMultiplier = firstRead
+            else
+                claimMultiplier = math.max(minimum, firstRead - (decayRate * claimReadCount))
+            end
+            journalData.readCount = claimReadCount + 1
+        end
+    end
+    local effectiveRecordedXP = math.max(0, math.floor(recordedXP * claimMultiplier))
+    local effectiveRecordedLevel = recordedLevel
+    if effectiveRecordedXP > 0 then
+        effectiveRecordedLevel = (BurdJournals.getSkillLevelFromXP and BurdJournals.getSkillLevelFromXP(effectiveRecordedXP, skillName)) or effectiveRecordedLevel
+    end
+
+    if journal.transmitModData then
+        journal:transmitModData()
+    end
+    if BurdJournals.captureJournalDRState then
+        BurdJournals.captureJournalDRState(journal, "claimSkill", player)
+    end
 
     local perk = BurdJournals.getPerkByName(skillName)
     if not perk then
@@ -1377,68 +1977,85 @@ function BurdJournals.Server.handleClaimSkill(player, args)
     -- Player journals use SET mode to restore exact XP state
     -- Found journals (Worn/Bloody) without baseline also use SET mode
     local useAddMode = journalData.recordedWithBaseline == true
-    local isPlayerJournal = journalData.isPlayerCreated == true
+    -- isPlayerJournal already declared above
 
     -- Debug logging
-    print("[BurdJournals] Server ClaimSkill DEBUG:")
-    print("  - skillName: " .. tostring(skillName))
-    print("  - recordedXP: " .. tostring(recordedXP))
-    print("  - recordedLevel: " .. tostring(recordedLevel))
-    print("  - isPlayerCreated: " .. tostring(isPlayerJournal))
-    print("  - recordedWithBaseline: " .. tostring(journalData.recordedWithBaseline))
-    print("  - useAddMode: " .. tostring(useAddMode))
+    BurdJournals.debugPrint("[BurdJournals] Server ClaimSkill DEBUG:")
+    BurdJournals.debugPrint("  - skillName: " .. tostring(skillName))
+    BurdJournals.debugPrint("  - recordedXP: " .. tostring(recordedXP))
+    BurdJournals.debugPrint("  - recordedLevel: " .. tostring(recordedLevel))
+    BurdJournals.debugPrint("  - effectiveRecordedXP: " .. tostring(effectiveRecordedXP))
+    BurdJournals.debugPrint("  - effectiveRecordedLevel: " .. tostring(effectiveRecordedLevel))
+    BurdJournals.debugPrint("  - claimMultiplier: " .. tostring(claimMultiplier))
+    BurdJournals.debugPrint("  - claimReadCount: " .. tostring(claimReadCount))
+    BurdJournals.debugPrint("  - claimSessionId: " .. tostring(args and args.claimSessionId))
+    BurdJournals.debugPrint("  - isPlayerCreated: " .. tostring(isPlayerJournal))
+    BurdJournals.debugPrint("  - recordedWithBaseline: " .. tostring(journalData.recordedWithBaseline))
+    BurdJournals.debugPrint("  - useAddMode: " .. tostring(useAddMode))
 
-    if recordedXP > 0 then
-        local xpToApply = recordedXP
+    if effectiveRecordedXP > 0 then
+        local xpToApply = effectiveRecordedXP
 
         -- For "set" mode (absolute XP), cap at recorded value to prevent over-grant
         -- Player should end up with AT MOST the recorded XP, not more
         if not useAddMode then
             local currentXP = player:getXp():getXP(perk)
             local currentLevel = player:getPerkLevel(perk)
-            print("  - currentXP: " .. tostring(currentXP))
-            print("  - currentLevel: " .. tostring(currentLevel))
-            if currentXP >= recordedXP then
+            BurdJournals.debugPrint("  - currentXP: " .. tostring(currentXP))
+            BurdJournals.debugPrint("  - currentLevel: " .. tostring(currentLevel))
+            if currentXP >= effectiveRecordedXP then
                 -- Player already has equal or more XP than recorded - nothing to grant
-                BurdJournals.markSkillClaimedByCharacter(journalData, player, skillName)
+                -- Only mark as claimed for non-player journals (player journals allow unlimited claims)
+                if not isPlayerJournal then
+                    BurdJournals.markSkillClaimedByCharacter(journalData, player, skillName)
+                end
                 if journal.transmitModData then
                     journal:transmitModData()
                 end
                 BurdJournals.Server.sendToClient(player, "skillMaxed", {
                     skillName = skillName,
                     journalId = journalId,
+                    journalData = journalData,
+                    alreadyAtLevel = true,
                     message = "You already have this much XP in " .. skillName .. "."
                 })
                 -- Re-fetch journal by ID before calling shouldDissolve to avoid zombie object errors
-                local freshJournal = BurdJournals.findItemById(player, journalId)
-                if freshJournal and BurdJournals.isValidItem(freshJournal) and BurdJournals.shouldDissolve and BurdJournals.shouldDissolve(freshJournal, player) then
-                    BurdJournals.Server.dissolveJournal(player, freshJournal)
+                -- Only dissolve non-player journals
+                if not isPlayerJournal then
+                    local freshJournal = BurdJournals.findItemById(player, journalId)
+                    if freshJournal and BurdJournals.isValidItem(freshJournal) and BurdJournals.shouldDissolve and BurdJournals.shouldDissolve(freshJournal, player) then
+                        BurdJournals.Server.dissolveJournal(player, freshJournal)
+                    end
                 end
                 return
             end
             -- Only grant the difference to reach recorded XP
-            xpToApply = recordedXP - currentXP
-            print("  - xpToApply (after SET calc): " .. tostring(xpToApply))
+            xpToApply = effectiveRecordedXP - currentXP
+            BurdJournals.debugPrint("  - xpToApply (after SET calc): " .. tostring(xpToApply))
         end
 
-        print("  - FINAL xpToApply: " .. tostring(xpToApply))
+        BurdJournals.debugPrint("  - FINAL xpToApply: " .. tostring(xpToApply))
 
         -- Apply XP directly using player:getXp():AddXP() with useMultipliers=false
         -- This bypasses sandbox XP multiplier settings to give exact recorded XP
-        -- Signature: AddXP(perk, amount, ?, useMultipliers, ?, ?)
-        local success = pcall(function()
-            player:getXp():AddXP(perk, xpToApply, false, false, false, false)
-        end)
+        -- (Same approach as production version - no setXPToLevel, no passive multiplier)
+        -- Signature: AddXP(perk, amount, addToKnownRecipes, useMultipliers, isPassive, checkLevelUp)
+        local xpObj = player:getXp()
+        local success = false
+        if xpObj and xpObj.AddXP then
+            xpObj:AddXP(perk, xpToApply, false, false, false, true)  -- checkLevelUp = true!
+            success = true
+        end
         if success then
-            print("[BurdJournals] Server: Applied " .. tostring(xpToApply) .. " XP to " .. skillName .. " via AddXP (no multipliers)")
+            BurdJournals.debugPrint("[BurdJournals] Server: Applied " .. tostring(xpToApply) .. " XP to " .. skillName .. " via AddXP (no multipliers)")
         else
             -- Fallback to addXp if AddXP fails
             if addXp then
-                print("[BurdJournals] Server: Fallback to addXp() for " .. skillName)
+                BurdJournals.debugPrint("[BurdJournals] Server: Fallback to addXp() for " .. skillName)
                 addXp(player, perk, xpToApply)
             else
                 -- Last resort - send to client
-                print("[BurdJournals] Server: Fallback - sending applyXP to client for " .. skillName)
+                BurdJournals.debugPrint("[BurdJournals] Server: Fallback - sending applyXP to client for " .. skillName)
                 BurdJournals.Server.sendToClient(player, "applyXP", {
                     skills = {
                         [skillName] = {
@@ -1451,6 +2068,24 @@ function BurdJournals.Server.handleClaimSkill(player, args)
             end
         end
 
+        -- Get player state AFTER XP application for debug comparison
+        local levelAfter = player:getPerkLevel(perk)
+        local xpAfter = xpObj:getXP(perk)
+        
+        BurdJournals.debugPrint("================================================================================")
+        BurdJournals.debugPrint("[BurdJournals CLAIM RESULT] Skill: " .. tostring(skillName))
+        BurdJournals.debugPrint("[BurdJournals CLAIM RESULT]   JOURNAL EXPECTED: Level " .. tostring(effectiveRecordedLevel) .. ", XP " .. tostring(effectiveRecordedXP))
+        BurdJournals.debugPrint("[BurdJournals CLAIM RESULT]   PLAYER AFTER:     Level " .. tostring(levelAfter) .. ", XP " .. tostring(xpAfter))
+        BurdJournals.debugPrint("[BurdJournals CLAIM RESULT]   XP Applied: " .. tostring(xpToApply))
+        if levelAfter < effectiveRecordedLevel then
+            print("[BurdJournals CLAIM RESULT]   WARNING: Player level (" .. levelAfter .. ") is LESS than recorded level (" .. effectiveRecordedLevel .. ")!")
+        elseif levelAfter > effectiveRecordedLevel then
+            BurdJournals.debugPrint("[BurdJournals CLAIM RESULT]   NOTE: Player level (" .. levelAfter .. ") exceeds recorded level (" .. effectiveRecordedLevel .. ")")
+        else
+            BurdJournals.debugPrint("[BurdJournals CLAIM RESULT]   SUCCESS: Player reached recorded level " .. effectiveRecordedLevel)
+        end
+        BurdJournals.debugPrint("================================================================================")
+
         BurdJournals.markSkillClaimedByCharacter(journalData, player, skillName)
 
         if journal.transmitModData then
@@ -1462,17 +2097,26 @@ function BurdJournals.Server.handleClaimSkill(player, args)
             xpAdded = xpToApply,  -- Send actual XP added for client-side instant feedback
             journalId = journalId,
             journalData = journalData,
+            -- Include debug info for client
+            debug_recordedLevel = recordedLevel,
+            debug_recordedXP = recordedXP,
+            debug_effectiveRecordedLevel = effectiveRecordedLevel,
+            debug_effectiveRecordedXP = effectiveRecordedXP,
+            debug_claimMultiplier = claimMultiplier,
+            debug_claimReadCount = claimReadCount,
+            debug_levelAfter = levelAfter,
+            debug_xpAfter = xpAfter,
         })
         -- Re-fetch journal by ID before calling shouldDissolve to avoid zombie object errors
         local freshJournal = BurdJournals.findItemById(player, journalId)
-        print("[BurdJournals] Server: Post-claim skill check - freshJournal=" .. tostring(freshJournal ~= nil) .. ", journalId=" .. tostring(journalId))
+        BurdJournals.debugPrint("[BurdJournals] Server: Post-claim skill check - freshJournal=" .. tostring(freshJournal ~= nil) .. ", journalId=" .. tostring(journalId))
         if freshJournal then
             local isValid = BurdJournals.isValidItem(freshJournal)
             local hasShouldDissolve = BurdJournals.shouldDissolve ~= nil
             local shouldDis = hasShouldDissolve and BurdJournals.shouldDissolve(freshJournal, player)
-            print("[BurdJournals] Server: isValid=" .. tostring(isValid) .. ", hasShouldDissolve=" .. tostring(hasShouldDissolve) .. ", shouldDis=" .. tostring(shouldDis))
+            BurdJournals.debugPrint("[BurdJournals] Server: isValid=" .. tostring(isValid) .. ", hasShouldDissolve=" .. tostring(hasShouldDissolve) .. ", shouldDis=" .. tostring(shouldDis))
             if isValid and shouldDis then
-                print("[BurdJournals] Server: DISSOLVING JOURNAL after skill claim!")
+                BurdJournals.debugPrint("[BurdJournals] Server: DISSOLVING JOURNAL after skill claim!")
                 BurdJournals.Server.dissolveJournal(player, freshJournal)
             end
         end
@@ -1490,14 +2134,14 @@ function BurdJournals.Server.handleClaimSkill(player, args)
         })
         -- Re-fetch journal by ID before calling shouldDissolve to avoid zombie object errors
         local freshJournal = BurdJournals.findItemById(player, journalId)
-        print("[BurdJournals] Server: Post-skillMaxed check - freshJournal=" .. tostring(freshJournal ~= nil) .. ", journalId=" .. tostring(journalId))
+        BurdJournals.debugPrint("[BurdJournals] Server: Post-skillMaxed check - freshJournal=" .. tostring(freshJournal ~= nil) .. ", journalId=" .. tostring(journalId))
         if freshJournal then
             local isValid = BurdJournals.isValidItem(freshJournal)
             local hasShouldDissolve = BurdJournals.shouldDissolve ~= nil
             local shouldDis = hasShouldDissolve and BurdJournals.shouldDissolve(freshJournal, player)
-            print("[BurdJournals] Server: isValid=" .. tostring(isValid) .. ", hasShouldDissolve=" .. tostring(hasShouldDissolve) .. ", shouldDis=" .. tostring(shouldDis))
+            BurdJournals.debugPrint("[BurdJournals] Server: isValid=" .. tostring(isValid) .. ", hasShouldDissolve=" .. tostring(hasShouldDissolve) .. ", shouldDis=" .. tostring(shouldDis))
             if isValid and shouldDis then
-                print("[BurdJournals] Server: DISSOLVING JOURNAL after skillMaxed!")
+                BurdJournals.debugPrint("[BurdJournals] Server: DISSOLVING JOURNAL after skillMaxed!")
                 BurdJournals.Server.dissolveJournal(player, freshJournal)
             end
         end
@@ -1513,7 +2157,6 @@ function BurdJournals.Server.handleClaimTrait(player, args)
 
     local journalId = args.journalId
     local traitId = args.traitId
-
     local journal = BurdJournals.findItemById(player, journalId)
     if not journal then
         print("[BurdJournals] Server ERROR: Journal not found by ID " .. tostring(journalId))
@@ -1582,14 +2225,14 @@ function BurdJournals.Server.handleClaimTrait(player, args)
         })
         -- Re-fetch journal by ID before calling shouldDissolve to avoid zombie object errors
         local freshJournal = BurdJournals.findItemById(player, journalId)
-        print("[BurdJournals] Server: Post-trait claim check - freshJournal=" .. tostring(freshJournal ~= nil) .. ", journalId=" .. tostring(journalId))
+        BurdJournals.debugPrint("[BurdJournals] Server: Post-trait claim check - freshJournal=" .. tostring(freshJournal ~= nil) .. ", journalId=" .. tostring(journalId))
         if freshJournal then
             local isValid = BurdJournals.isValidItem(freshJournal)
             local hasShouldDissolve = BurdJournals.shouldDissolve ~= nil
             local shouldDis = hasShouldDissolve and BurdJournals.shouldDissolve(freshJournal, player)
-            print("[BurdJournals] Server: isValid=" .. tostring(isValid) .. ", hasShouldDissolve=" .. tostring(hasShouldDissolve) .. ", shouldDis=" .. tostring(shouldDis))
+            BurdJournals.debugPrint("[BurdJournals] Server: isValid=" .. tostring(isValid) .. ", hasShouldDissolve=" .. tostring(hasShouldDissolve) .. ", shouldDis=" .. tostring(shouldDis))
             if isValid and shouldDis then
-                print("[BurdJournals] Server: DISSOLVING JOURNAL after trait claim!")
+                BurdJournals.debugPrint("[BurdJournals] Server: DISSOLVING JOURNAL after trait claim!")
                 BurdJournals.Server.dissolveJournal(player, freshJournal)
             end
         end
@@ -1607,8 +2250,6 @@ function BurdJournals.Server.handleClaimStat(player, args)
 
     local journalId = args.journalId
     local statId = args.statId
-    local value = args.value
-
     local journal = BurdJournals.findItemById(player, journalId)
     if not journal then
         print("[BurdJournals] Server ERROR: Journal not found by ID " .. tostring(journalId))
@@ -1636,7 +2277,7 @@ function BurdJournals.Server.handleClaimStat(player, args)
         return
     end
 
-    local canAbsorb, _, _, absorbReason = BurdJournals.canAbsorbStat(journalData, player, statId)
+    local canAbsorb, recordedValue, _, absorbReason = BurdJournals.canAbsorbStat(journalData, player, statId)
     if not canAbsorb then
         -- Convert reason codes to user-friendly messages
         local message = "Cannot absorb this stat."
@@ -1651,8 +2292,9 @@ function BurdJournals.Server.handleClaimStat(player, args)
         return
     end
 
-    -- Apply the stat absorption on the server
-    local statApplied = BurdJournals.applyStatAbsorption(player, statId, value)
+    -- Server-authoritative value: always apply the recorded journal value.
+    -- Never trust client-provided args.value for stat application.
+    local statApplied = BurdJournals.applyStatAbsorption(player, statId, recordedValue)
 
     if statApplied then
         -- Mark the stat as claimed
@@ -1665,20 +2307,20 @@ function BurdJournals.Server.handleClaimStat(player, args)
         BurdJournals.Server.sendToClient(player, "claimSuccess", {
             statId = statId,
             journalId = journalId,
-            value = value,
+            value = recordedValue,
             journalData = journalData,
         })
 
         -- Check for dissolution after claiming
         local freshJournal = BurdJournals.findItemById(player, journalId)
-        print("[BurdJournals] Server: Post-stat claim check - freshJournal=" .. tostring(freshJournal ~= nil) .. ", journalId=" .. tostring(journalId))
+        BurdJournals.debugPrint("[BurdJournals] Server: Post-stat claim check - freshJournal=" .. tostring(freshJournal ~= nil) .. ", journalId=" .. tostring(journalId))
         if freshJournal then
             local isValid = BurdJournals.isValidItem(freshJournal)
             local hasShouldDissolve = BurdJournals.shouldDissolve ~= nil
             local shouldDis = hasShouldDissolve and BurdJournals.shouldDissolve(freshJournal, player)
-            print("[BurdJournals] Server: isValid=" .. tostring(isValid) .. ", hasShouldDissolve=" .. tostring(hasShouldDissolve) .. ", shouldDis=" .. tostring(shouldDis))
+            BurdJournals.debugPrint("[BurdJournals] Server: isValid=" .. tostring(isValid) .. ", hasShouldDissolve=" .. tostring(hasShouldDissolve) .. ", shouldDis=" .. tostring(shouldDis))
             if isValid and shouldDis then
-                print("[BurdJournals] Server: DISSOLVING JOURNAL after stat claim!")
+                BurdJournals.debugPrint("[BurdJournals] Server: DISSOLVING JOURNAL after stat claim!")
                 BurdJournals.Server.dissolveJournal(player, freshJournal)
             end
         end
@@ -1714,7 +2356,7 @@ function BurdJournals.Server.handleAbsorbSkill(player, args)
 
     if modData and BurdJournals.isDebug() then
         for k, v in pairs(modData) do
-            print("  - " .. tostring(k) .. " = " .. type(v))
+            BurdJournals.debugPrint("  - " .. tostring(k) .. " = " .. type(v))
         end
     end
 
@@ -1731,7 +2373,7 @@ function BurdJournals.Server.handleAbsorbSkill(player, args)
             if type(v) == "table" then
                 valueStr = "table with " .. BurdJournals.countTable(v) .. " entries"
             end
-            print("  - " .. tostring(k) .. " = " .. valueStr)
+            BurdJournals.debugPrint("  - " .. tostring(k) .. " = " .. valueStr)
         end
     end
 
@@ -1740,14 +2382,19 @@ function BurdJournals.Server.handleAbsorbSkill(player, args)
         return
     end
 
+    if BurdJournals.isSkillEnabledForJournal and not BurdJournals.isSkillEnabledForJournal(journalData, skillName) then
+        BurdJournals.Server.sendToClient(player, "error", {message = "That skill is disabled by sandbox settings for this journal."})
+        return
+    end
+
     local skillCount = BurdJournals.countTable(journalData.skills)
 
     if BurdJournals.isDebug() then
         for skillKey, skillVal in pairs(journalData.skills) do
             if type(skillVal) == "table" then
-                print("  - '" .. tostring(skillKey) .. "': xp=" .. tostring(skillVal.xp) .. ", level=" .. tostring(skillVal.level))
+                BurdJournals.debugPrint("  - '" .. tostring(skillKey) .. "': xp=" .. tostring(skillVal.xp) .. ", level=" .. tostring(skillVal.level))
             else
-                print("  - '" .. tostring(skillKey) .. "': INVALID (not a table, is " .. type(skillVal) .. ")")
+                BurdJournals.debugPrint("  - '" .. tostring(skillKey) .. "': INVALID (not a table, is " .. type(skillVal) .. ")")
             end
         end
     end
@@ -1757,7 +2404,7 @@ function BurdJournals.Server.handleAbsorbSkill(player, args)
 
         if BurdJournals.isDebug() then
             for k, _ in pairs(journalData.skills) do
-                print("  - '" .. tostring(k) .. "'")
+                BurdJournals.debugPrint("  - '" .. tostring(k) .. "'")
             end
         end
         BurdJournals.Server.sendToClient(player, "error", {message = "Skill not found in journal."})
@@ -1782,7 +2429,7 @@ function BurdJournals.Server.handleAbsorbSkill(player, args)
     if baseXP == nil then
         if BurdJournals.isDebug() then
             for k, v in pairs(skillData) do
-                print("  - " .. tostring(k) .. " = " .. tostring(v))
+                BurdJournals.debugPrint("  - " .. tostring(k) .. " = " .. tostring(v))
             end
         end
         baseXP = 0
@@ -1793,24 +2440,44 @@ function BurdJournals.Server.handleAbsorbSkill(player, args)
         baseXP = tonumber(baseXP) or 0
     end
 
-    local journalMultiplier = BurdJournals.getSandboxOption("JournalXPMultiplier") or 1.0
-    
-    -- Use client-provided skill book multiplier (client has the XP multiplier state)
-    -- Server validates it against the sandbox cap for security
-    local skillBookMultiplier = 1.0
-    print("[BurdJournals] Server: args.skillBookMultiplier = " .. tostring(args.skillBookMultiplier) .. " (type: " .. type(args.skillBookMultiplier) .. ")")
-    if args.skillBookMultiplier and type(args.skillBookMultiplier) == "number" then
-        local cap = BurdJournals.getSandboxOption("SkillBookMultiplierCap") or 2.0
-        print("[BurdJournals] Server: SkillBookMultiplierCap = " .. tostring(cap))
-        -- Clamp to valid range: 1.0 to cap (prevents cheating with impossibly high values)
-        skillBookMultiplier = math.max(1.0, math.min(args.skillBookMultiplier, cap))
-        print("[BurdJournals] Server: Final skillBookMultiplier = " .. tostring(skillBookMultiplier))
-    else
-        print("[BurdJournals] Server: skillBookMultiplier not provided or invalid, using 1.0")
+    local journalMultiplier = tonumber(BurdJournals.getSandboxOption("JournalXPMultiplier")) or 1.0
+    if journalMultiplier < 0 then
+        journalMultiplier = 0
     end
+
+    -- Resolve skill-book multiplier server-side for correctness/security.
+    -- Keep a client multiplier fallback only if server cannot detect a boost.
+    local skillBookMultiplier = 1.0
+    local cap = tonumber(BurdJournals.getSandboxOption("SkillBookMultiplierCap")) or 2.0
+    if cap < 1.0 then cap = 1.0 end
+    local featureEnabled = BurdJournals.getSandboxOption("SkillBookMultiplierForJournals")
+    local clientReportedMultiplier = tonumber(args and args.skillBookMultiplier)
+
+    if featureEnabled and BurdJournals.getSkillBookMultiplier then
+        local serverMultiplier, serverHasBoost = BurdJournals.getSkillBookMultiplier(player, skillName)
+        serverMultiplier = tonumber(serverMultiplier) or 1.0
+        serverMultiplier = math.max(1.0, math.min(serverMultiplier, cap))
+
+        if serverHasBoost and serverMultiplier > 1.0 then
+            skillBookMultiplier = serverMultiplier
+        elseif clientReportedMultiplier and clientReportedMultiplier > 1.0 then
+            -- Fallback for edge cases where server-side multiplier is unavailable.
+            skillBookMultiplier = math.max(1.0, math.min(clientReportedMultiplier, cap))
+        end
+    end
+    BurdJournals.debugPrint("[BurdJournals] Server: absorb skill multipliers - journal=" .. tostring(journalMultiplier) .. ", book=" .. tostring(skillBookMultiplier) .. ", clientReported=" .. tostring(clientReportedMultiplier))
     
     local xpToAdd = baseXP * journalMultiplier * skillBookMultiplier
-    print("[BurdJournals] Server: baseXP=" .. tostring(baseXP) .. ", journalMult=" .. tostring(journalMultiplier) .. ", bookMult=" .. tostring(skillBookMultiplier) .. ", xpToAdd=" .. tostring(xpToAdd))
+    BurdJournals.debugPrint("[BurdJournals] Server: baseXP=" .. tostring(baseXP) .. ", journalMult=" .. tostring(journalMultiplier) .. ", bookMult=" .. tostring(skillBookMultiplier) .. ", xpToAdd=" .. tostring(xpToAdd))
+
+    -- Fitness and Strength use different XP scaling in PZ
+    -- AddXP() for passive skills only adds ~1/5th of the amount as displayed XP
+    -- Apply 5x multiplier to compensate for passive skill internal scaling
+    local isPassiveSkill = (skillName == "Fitness" or skillName == "Strength")
+    if isPassiveSkill then
+        xpToAdd = xpToAdd * 5
+        BurdJournals.debugPrint("[BurdJournals] Server: Applied 5x passive skill multiplier for " .. skillName .. ", new xpToAdd: " .. tostring(xpToAdd))
+    end
 
     local perk = BurdJournals.getPerkByName(skillName)
 
@@ -1844,17 +2511,18 @@ function BurdJournals.Server.handleAbsorbSkill(player, args)
 
         -- Apply XP directly on server - use AddXP with useMultipliers=false since we already applied our own
         if perk then
-            print("[BurdJournals] Server: Absorb - Applying " .. tostring(xpToAdd) .. " XP to " .. skillName .. " via AddXP (no game multipliers)")
-            -- AddXP signature: (perk, amount, ?, useMultipliers, ?, ?)
+            BurdJournals.debugPrint("[BurdJournals] Server: Absorb - Applying " .. tostring(xpToAdd) .. " XP to " .. skillName .. " via AddXP (no game multipliers)")
+            -- AddXP signature: (perk, amount, addToKnownRecipes, useMultipliers, isPassive, checkLevelUp)
             -- Set useMultipliers to false since we've already calculated with our skill book multiplier
-            player:getXp():AddXP(perk, xpToAdd, true, false, false, false)
+            -- checkLevelUp = true to recalculate level!
+            player:getXp():AddXP(perk, xpToAdd, true, false, false, true)
         elseif addXp then
             -- Fallback to vanilla addXp if AddXP not available
-            print("[BurdJournals] Server: Absorb - Fallback using addXp() for " .. skillName)
+            BurdJournals.debugPrint("[BurdJournals] Server: Absorb - Fallback using addXp() for " .. skillName)
             addXp(player, perk, xpToAdd)
         else
             -- Fallback for SP or if addXp unavailable
-            print("[BurdJournals] Server: Absorb fallback - sending applyXP to client for " .. skillName)
+            BurdJournals.debugPrint("[BurdJournals] Server: Absorb fallback - sending applyXP to client for " .. skillName)
             BurdJournals.Server.sendToClient(player, "applyXP", {
                 skills = {
                     [skillName] = {
@@ -1888,7 +2556,7 @@ function BurdJournals.Server.handleAbsorbSkill(player, args)
                 debug_baseXP = baseXP,
                 debug_journalMult = journalMultiplier,
                 debug_bookMult = skillBookMultiplier,
-                debug_receivedMult = args.skillBookMultiplier,
+                debug_receivedMult = clientReportedMultiplier,
             })
         else
 
@@ -1917,7 +2585,7 @@ function BurdJournals.Server.handleAbsorbSkill(player, args)
                 debug_baseXP = baseXP,
                 debug_journalMult = journalMultiplier,
                 debug_bookMult = skillBookMultiplier,
-                debug_receivedMult = args.skillBookMultiplier,
+                debug_receivedMult = clientReportedMultiplier,
                 })
         end
     else
@@ -1952,7 +2620,6 @@ function BurdJournals.Server.handleAbsorbTrait(player, args)
     local traitId = args.traitId
 
     local journal = BurdJournals.findItemById(player, journalId)
-
     if not journal then
         print("[BurdJournals] Server ERROR: Journal not found by ID " .. tostring(journalId))
         BurdJournals.Server.sendToClient(player, "error", {message = "Journal not found."})
@@ -1966,13 +2633,11 @@ function BurdJournals.Server.handleAbsorbTrait(player, args)
 
     local modData = journal:getModData()
     local journalData = modData.BurdJournals
-
     if not journalData or not journalData.traits then
         BurdJournals.Server.sendToClient(player, "error", {message = "This journal has no trait data."})
         return
     end
 
-    -- Check if traits are enabled for this journal type
     if not BurdJournals.areTraitsEnabledForJournal(journalData) then
         BurdJournals.Server.sendToClient(player, "error", {message = "Trait absorbing is disabled for this journal type."})
         return
@@ -1989,196 +2654,135 @@ function BurdJournals.Server.handleAbsorbTrait(player, args)
     end
 
     if BurdJournals.playerHasTrait(player, traitId) then
-        -- Mark as claimed even though player already has this trait (allows journal dissolution)
         BurdJournals.markTraitClaimedByCharacter(journalData, player, traitId)
 
-        -- Re-fetch journal to avoid zombie object errors
         local freshJournal = BurdJournals.findItemById(player, journalId)
         if freshJournal and freshJournal.transmitModData then
             freshJournal:transmitModData()
         end
+
         BurdJournals.Server.sendToClient(player, "traitAlreadyKnown", {
             traitId = traitId,
             journalId = journalId,
         })
-        -- Check if journal should dissolve after marking this claim (use safe wrapper)
+
         if BurdJournals.Server.safeShouldDissolve(player, journalId) then
             local jnl = BurdJournals.findItemById(player, journalId)
-            if jnl then BurdJournals.Server.dissolveJournal(player, jnl) end
+            if jnl then
+                BurdJournals.Server.dissolveJournal(player, jnl)
+                BurdJournals.Server.sendToClient(player, "journalDissolved", {
+                    message = BurdJournals.getRandomDissolutionMessage(),
+                    journalId = journalId,
+                })
+            end
         end
         return
     end
 
-    local traitWasAdded = false
-    local success, err = BurdJournals.safePcall(function()
-        local characterTrait = nil
-
-        if CharacterTrait and CharacterTrait.get and ResourceLocation and ResourceLocation.of then
-
-            local resourceLoc = "base:" .. string.lower(traitId)
-
-            local ok, result = BurdJournals.safePcall(function()
-                return CharacterTrait.get(ResourceLocation.of(resourceLoc))
-            end)
-            if ok and result then
-                characterTrait = result
-            end
-
-            if not characterTrait then
-                local withSpaces = string.lower(traitId:gsub("(%u)", " %1"):sub(2))
-                local resourceLocSpaces = "base:" .. withSpaces
-                if resourceLocSpaces ~= resourceLoc then
-                    ok, result = BurdJournals.safePcall(function()
-                        return CharacterTrait.get(ResourceLocation.of(resourceLocSpaces))
-                    end)
-                    if ok and result then
-                        characterTrait = result
-                    end
-                end
-            end
+    local characterTrait, resolvedSource, traitIdsToTry = BurdJournals.Server.resolveCharacterTrait(traitId, player)
+    if not characterTrait then
+        print("[BurdJournals] Server: ERROR - Could not resolve CharacterTrait for '" .. tostring(traitId) .. "'")
+        if traitIdsToTry and #traitIdsToTry > 0 then
+            BurdJournals.debugPrint("[BurdJournals] Server: Tried IDs: " .. table.concat(traitIdsToTry, ", "))
         end
-
-        if not characterTrait and CharacterTrait then
-            local underscored = traitId:gsub("(%u)", "_%1"):sub(2):upper()
-
-            local ct = CharacterTrait[underscored]
-            if ct then
-                if type(ct) == "string" and CharacterTrait.get and ResourceLocation and ResourceLocation.of then
-                    local ok, result = BurdJournals.safePcall(function()
-                        return CharacterTrait.get(ResourceLocation.of(ct))
-                    end)
-                    if ok and result then
-                        characterTrait = result
-                    end
-                else
-                    characterTrait = ct
-                end
-            end
-        end
-
-        if not characterTrait and CharacterTraitDefinition and CharacterTraitDefinition.getTraits then
-            local allTraits = CharacterTraitDefinition.getTraits()
-
-            for i = 0, allTraits:size() - 1 do
-                local def = allTraits:get(i)
-                local defType = def:getType()
-                local defLabel = def:getLabel()
-                local defName = "?"
-                if defType then
-                    BurdJournals.safePcall(function() defName = defType:getName() or tostring(defType) end)
-                end
-
-                if defLabel == traitId or defName == traitId or string.upper(defName) == string.upper(traitId) then
-                    characterTrait = defType
-                    break
-                end
-            end
-        end
-
-        if characterTrait then
-            local charTraits = player:getCharacterTraits()
-
-            local hadBefore = player:hasTrait(characterTrait)
-
-            charTraits:add(characterTrait)
-
-            if player.modifyTraitXPBoost then
-                player:modifyTraitXPBoost(characterTrait, false)
-
-            end
-
-            if SyncXp then
-                SyncXp(player)
-
-            else
-
-            end
-
-            local hasAfter = player:hasTrait(characterTrait)
-
-            if hasAfter and not hadBefore then
-
-                return true
-            elseif hasAfter and hadBefore then
-
-                return false
-            else
-
-                return false
-            end
-        else
-            print("[BurdJournals] Server: ERROR - Could not find CharacterTrait for: " .. traitId)
-            return false
-        end
-    end)
-
-    if success then
-        traitWasAdded = (err == true)
-    else
-        print("[BurdJournals] Server: pcall error: " .. tostring(err))
+        BurdJournals.Server.sendToClient(player, "error", {message = "Could not learn trait."})
+        return
     end
 
-    if traitWasAdded then
+    BurdJournals.debugPrint("[BurdJournals] Server: Resolved trait '" .. tostring(traitId) .. "' via " .. tostring(resolvedSource))
 
+    local charTraits = player.getCharacterTraits and player:getCharacterTraits() or nil
+    if not charTraits or not charTraits.add then
+        BurdJournals.Server.sendToClient(player, "error", {message = "Trait system unavailable."})
+        return
+    end
+
+    local hadBefore = player.hasTrait and (player:hasTrait(characterTrait) == true) or false
+    if hadBefore then
         BurdJournals.markTraitClaimedByCharacter(journalData, player, traitId)
 
-        -- Re-fetch journal by ID before calling shouldDissolve to avoid zombie object errors
         local freshJournal = BurdJournals.findItemById(player, journalId)
-        local shouldDis = false
-        if freshJournal and BurdJournals.isValidItem(freshJournal) then
-            shouldDis = BurdJournals.shouldDissolve(freshJournal, player)
+        if freshJournal and freshJournal.transmitModData then
+            freshJournal:transmitModData()
         end
 
-        BurdJournals.Server.sendToClient(player, "grantTrait", {
+        BurdJournals.Server.sendToClient(player, "traitAlreadyKnown", {
             traitId = traitId,
             journalId = journalId,
         })
 
-        if shouldDis and freshJournal then
-
-            local container = freshJournal:getContainer()
-
-            if container then
-                container:Remove(freshJournal)
-            end
-
-            local inv = player:getInventory()
-            if inv:contains(freshJournal) then
-                inv:Remove(freshJournal)
-            end
-
-            BurdJournals.Server.sendToClient(player, "journalDissolved", {
-                message = BurdJournals.getRandomDissolutionMessage(),
-                journalId = journalId
-            })
-        else
-
-            if freshJournal and freshJournal.transmitModData then
-                freshJournal:transmitModData()
-            end
-
-            -- Use per-character unclaimed counts (use freshJournal if available)
-            local jnl = freshJournal or journal
-            local remainingRewards = 0
-            local totalRewards = 0
+        if BurdJournals.Server.safeShouldDissolve(player, journalId) then
+            local jnl = BurdJournals.findItemById(player, journalId)
             if jnl then
-                remainingRewards = BurdJournals.getUnclaimedSkillCount(jnl, player) +
-                                   BurdJournals.getUnclaimedTraitCount(jnl, player) +
-                                   BurdJournals.getUnclaimedRecipeCount(jnl, player)
-                totalRewards = BurdJournals.getTotalRewards(jnl)
-            end
-            BurdJournals.Server.sendToClient(player, "absorbSuccess", {
-                traitId = traitId,
-                remaining = remainingRewards,
-                total = totalRewards,
-                journalId = journalId,
-                journalData = journalData,
+                BurdJournals.Server.dissolveJournal(player, jnl)
+                BurdJournals.Server.sendToClient(player, "journalDissolved", {
+                    message = BurdJournals.getRandomDissolutionMessage(),
+                    journalId = journalId,
                 })
+            end
         end
-    else
-
-        BurdJournals.Server.sendToClient(player, "error", {message = "Could not learn trait."})
+        return
     end
+
+    charTraits:add(characterTrait)
+
+    if player.modifyTraitXPBoost then
+        player:modifyTraitXPBoost(characterTrait, false)
+    end
+    if SyncXp then
+        SyncXp(player)
+    end
+
+    local hasAfter = player.hasTrait and (player:hasTrait(characterTrait) == true) or false
+    if not hasAfter then
+        print("[BurdJournals] Server: ERROR - Trait add verification failed for '" .. tostring(traitId) .. "'")
+        BurdJournals.Server.sendToClient(player, "error", {message = "Could not learn trait."})
+        return
+    end
+
+    BurdJournals.markTraitClaimedByCharacter(journalData, player, traitId)
+
+    local freshJournal = BurdJournals.findItemById(player, journalId)
+    local shouldDis = false
+    if freshJournal and BurdJournals.isValidItem(freshJournal) then
+        shouldDis = BurdJournals.shouldDissolve(freshJournal, player)
+    end
+
+    BurdJournals.Server.sendToClient(player, "grantTrait", {
+        traitId = traitId,
+        journalId = journalId,
+    })
+
+    if shouldDis and freshJournal then
+        BurdJournals.Server.dissolveJournal(player, freshJournal)
+        BurdJournals.Server.sendToClient(player, "journalDissolved", {
+            message = BurdJournals.getRandomDissolutionMessage(),
+            journalId = journalId,
+        })
+        return
+    end
+
+    if freshJournal and freshJournal.transmitModData then
+        freshJournal:transmitModData()
+    end
+
+    local jnl = freshJournal or journal
+    local remainingRewards = 0
+    local totalRewards = 0
+    if jnl then
+        remainingRewards = BurdJournals.getUnclaimedSkillCount(jnl, player) +
+                           BurdJournals.getUnclaimedTraitCount(jnl, player) +
+                           BurdJournals.getUnclaimedRecipeCount(jnl, player)
+        totalRewards = BurdJournals.getTotalRewards(jnl)
+    end
+
+    BurdJournals.Server.sendToClient(player, "absorbSuccess", {
+        traitId = traitId,
+        remaining = remainingRewards,
+        total = totalRewards,
+        journalId = journalId,
+        journalData = journalData,
+    })
 end
 
 function BurdJournals.Server.handleEraseJournal(player, args)
@@ -2308,7 +2912,6 @@ function BurdJournals.Server.handleClaimRecipe(player, args)
 
     local journalId = args.journalId
     local recipeName = args.recipeName
-
     local journal = BurdJournals.findItemById(player, journalId)
     if not journal then
         print("[BurdJournals] Server ERROR: Journal not found by ID " .. tostring(journalId))
@@ -2382,14 +2985,14 @@ function BurdJournals.Server.handleClaimRecipe(player, args)
         })
         -- Re-fetch journal by ID before calling shouldDissolve to avoid zombie object errors
         local freshJournal = BurdJournals.findItemById(player, journalId)
-        print("[BurdJournals] Server: Post-recipe claim check - freshJournal=" .. tostring(freshJournal ~= nil) .. ", journalId=" .. tostring(journalId))
+        BurdJournals.debugPrint("[BurdJournals] Server: Post-recipe claim check - freshJournal=" .. tostring(freshJournal ~= nil) .. ", journalId=" .. tostring(journalId))
         if freshJournal then
             local isValid = BurdJournals.isValidItem(freshJournal)
             local hasShouldDissolve = BurdJournals.shouldDissolve ~= nil
             local shouldDis = hasShouldDissolve and BurdJournals.shouldDissolve(freshJournal, player)
-            print("[BurdJournals] Server: isValid=" .. tostring(isValid) .. ", hasShouldDissolve=" .. tostring(hasShouldDissolve) .. ", shouldDis=" .. tostring(shouldDis))
+            BurdJournals.debugPrint("[BurdJournals] Server: isValid=" .. tostring(isValid) .. ", hasShouldDissolve=" .. tostring(hasShouldDissolve) .. ", shouldDis=" .. tostring(shouldDis))
             if isValid and shouldDis then
-                print("[BurdJournals] Server: DISSOLVING JOURNAL after recipe claim!")
+                BurdJournals.debugPrint("[BurdJournals] Server: DISSOLVING JOURNAL after recipe claim!")
                 BurdJournals.Server.dissolveJournal(player, freshJournal)
             end
         end
@@ -2555,8 +3158,18 @@ function BurdJournals.Server.handleEraseEntry(player, args)
             BurdJournals.debugPrint("[BurdJournals] Server: Erased skill entry: " .. entryName)
         end
 
+        -- Clear legacy claims
         if journalData.claimedSkills and journalData.claimedSkills[entryName] then
             journalData.claimedSkills[entryName] = nil
+        end
+        -- Clear per-character claims structure for ALL characters
+        if journalData.claims and type(journalData.claims) == "table" then
+            for charId, charClaims in pairs(journalData.claims) do
+                if charClaims and charClaims.skills and charClaims.skills[entryName] then
+                    charClaims.skills[entryName] = nil
+                    BurdJournals.debugPrint("[BurdJournals] Server: Cleared skill claim for character: " .. tostring(charId))
+                end
+            end
         end
     elseif entryType == "trait" then
         if journalData.traits and journalData.traits[entryName] then
@@ -2565,8 +3178,18 @@ function BurdJournals.Server.handleEraseEntry(player, args)
             BurdJournals.debugPrint("[BurdJournals] Server: Erased trait entry: " .. entryName)
         end
 
+        -- Clear legacy claims
         if journalData.claimedTraits and journalData.claimedTraits[entryName] then
             journalData.claimedTraits[entryName] = nil
+        end
+        -- Clear per-character claims structure for ALL characters
+        if journalData.claims and type(journalData.claims) == "table" then
+            for charId, charClaims in pairs(journalData.claims) do
+                if charClaims and charClaims.traits and charClaims.traits[entryName] then
+                    charClaims.traits[entryName] = nil
+                    BurdJournals.debugPrint("[BurdJournals] Server: Cleared trait claim for character: " .. tostring(charId))
+                end
+            end
         end
     elseif entryType == "recipe" then
         if journalData.recipes and journalData.recipes[entryName] then
@@ -2575,8 +3198,18 @@ function BurdJournals.Server.handleEraseEntry(player, args)
             BurdJournals.debugPrint("[BurdJournals] Server: Erased recipe entry: " .. entryName)
         end
 
+        -- Clear legacy claims
         if journalData.claimedRecipes and journalData.claimedRecipes[entryName] then
             journalData.claimedRecipes[entryName] = nil
+        end
+        -- Clear per-character claims structure for ALL characters
+        if journalData.claims and type(journalData.claims) == "table" then
+            for charId, charClaims in pairs(journalData.claims) do
+                if charClaims and charClaims.recipes and charClaims.recipes[entryName] then
+                    charClaims.recipes[entryName] = nil
+                    BurdJournals.debugPrint("[BurdJournals] Server: Cleared recipe claim for character: " .. tostring(charId))
+                end
+            end
         end
     elseif entryType == "stat" then
         if journalData.stats and journalData.stats[entryName] then
@@ -2585,8 +3218,18 @@ function BurdJournals.Server.handleEraseEntry(player, args)
             BurdJournals.debugPrint("[BurdJournals] Server: Erased stat entry: " .. entryName)
         end
 
+        -- Clear legacy claims
         if journalData.claimedStats and journalData.claimedStats[entryName] then
             journalData.claimedStats[entryName] = nil
+        end
+        -- Clear per-character claims structure for ALL characters
+        if journalData.claims and type(journalData.claims) == "table" then
+            for charId, charClaims in pairs(journalData.claims) do
+                if charClaims and charClaims.stats and charClaims.stats[entryName] then
+                    charClaims.stats[entryName] = nil
+                    BurdJournals.debugPrint("[BurdJournals] Server: Cleared stat claim for character: " .. tostring(charId))
+                end
+            end
         end
     end
 
@@ -2668,11 +3311,62 @@ function BurdJournals.Server.handleRenameJournal(player, args)
     })
 end
 
+-- Track if we've already logged the cache state this session
+BurdJournals.Server._baselineCacheLogged = false
+BurdJournals.Server._modDataInitialized = false
+BurdJournals.Server._baselineCacheInstance = nil  -- Cache the reference to avoid re-creating
+
 function BurdJournals.Server.getBaselineCache()
-    local cache = ModData.getOrCreate("BurdJournals_PlayerBaselines")
+    -- Return cached instance if we have one (prevents multiple getOrCreate calls)
+    if BurdJournals.Server._baselineCacheInstance then
+        return BurdJournals.Server._baselineCacheInstance
+    end
+    
+    -- Try to get existing ModData first (may return nil if not yet loaded from disk)
+    local cache = nil
+    
+    -- Use ModData.get first to check if data exists without creating empty table
+    if ModData.get then
+        cache = ModData.get("BurdJournals_PlayerBaselines")
+        if cache then
+            BurdJournals.debugPrint("[BurdJournals] ModData.get returned existing cache")
+        end
+    end
+    
+    -- If no cache found, use getOrCreate
+    if not cache then
+        -- IMPORTANT: Only create new cache if ModData has been initialized
+        -- This prevents creating an empty cache before save data is loaded
+        if not BurdJournals.Server._modDataInitialized then
+            print("[BurdJournals] WARNING: getBaselineCache called before ModData initialized - creating temporary empty cache")
+        end
+        cache = ModData.getOrCreate("BurdJournals_PlayerBaselines")
+    end
+    
+    -- Initialize players table if missing (but preserve existing data)
     if not cache.players then
         cache.players = {}
+        -- Mark this as a newly created cache
+        cache._createdAt = getGameTime and getGameTime():getWorldAgeHours() or 0
+        cache._version = 1
+        BurdJournals.debugPrint("[BurdJournals] Created new baseline cache (no existing data found)")
+    elseif not BurdJournals.Server._baselineCacheLogged then
+        -- Log once per session to help debug persistence issues
+        local playerCount = 0
+        local debugModifiedCount = 0
+        for id, data in pairs(cache.players) do 
+            playerCount = playerCount + 1
+            if data.debugModified then
+                debugModifiedCount = debugModifiedCount + 1
+            end
+        end
+        BurdJournals.debugPrint("[BurdJournals] Loaded existing baseline cache: " .. playerCount .. " player(s), " .. debugModifiedCount .. " debug-modified")
+        BurdJournals.Server._baselineCacheLogged = true
     end
+    
+    -- Store reference to avoid re-creating
+    BurdJournals.Server._baselineCacheInstance = cache
+    
     return cache
 end
 
@@ -2686,11 +3380,22 @@ function BurdJournals.Server.storeCachedBaseline(characterId, baselineData, forc
     if not characterId or not baselineData then return false end
 
     local cache = BurdJournals.Server.getBaselineCache()
+    local existingBaseline = cache.players[characterId]
 
-    if cache.players[characterId] and not forceOverwrite then
-        BurdJournals.debugPrint("[BurdJournals] Baseline already cached for " .. characterId .. ", ignoring new registration")
-        return false
+    -- IMPORTANT: Never overwrite debug-modified baselines unless explicitly forced
+    if existingBaseline then
+        if existingBaseline.debugModified and not forceOverwrite then
+            print("[BurdJournals] PROTECTED: Baseline for " .. characterId .. " was debug-modified, refusing automatic overwrite")
+            return false
+        end
+        if not forceOverwrite then
+            BurdJournals.debugPrint("[BurdJournals] Baseline already cached for " .. characterId .. ", ignoring new registration")
+            return false
+        end
     end
+
+    -- Preserve the debugModified flag if it was set and we're force-overwriting
+    local preserveDebugFlag = existingBaseline and existingBaseline.debugModified
 
     cache.players[characterId] = {
         skillBaseline = baselineData.skillBaseline or {},
@@ -2698,7 +3403,8 @@ function BurdJournals.Server.storeCachedBaseline(characterId, baselineData, forc
         recipeBaseline = baselineData.recipeBaseline or {},
         capturedAt = getGameTime():getWorldAgeHours(),
         steamId = baselineData.steamId,
-        characterName = baselineData.characterName
+        characterName = baselineData.characterName,
+        debugModified = baselineData.debugModified or preserveDebugFlag  -- Preserve debug flag
     }
 
     -- Persist to disk so baseline survives server restart
@@ -2726,19 +3432,62 @@ function BurdJournals.Server.handleRegisterBaseline(player, args)
         characterId = serverCharacterId
     end
 
-    local stored = BurdJournals.Server.storeCachedBaseline(characterId, {
-        skillBaseline = args.skillBaseline,
-        traitBaseline = args.traitBaseline,
-        recipeBaseline = args.recipeBaseline,
-        steamId = args.steamId,
-        characterName = args.characterName
-    }, false)
+    -- Build baseline from authoritative server state (ignore client-provided baseline)
+    local baselineData = BurdJournals.Server.buildBaselineForPlayer(player)
+    baselineData.steamId = BurdJournals.getPlayerSteamId(player)
+    local descriptor = player.getDescriptor and player:getDescriptor() or nil
+    baselineData.characterName = BurdJournals.getPlayerCharacterName and BurdJournals.getPlayerCharacterName(player) or (descriptor and (descriptor:getForename() .. " " .. descriptor:getSurname()) or nil)
+
+    local stored = BurdJournals.Server.storeCachedBaseline(characterId, baselineData, false)
 
     BurdJournals.Server.sendToClient(player, "baselineRegistered", {
         success = stored,
         characterId = characterId,
         alreadyExisted = not stored
     })
+end
+
+-- Build baseline data from server-authoritative player state
+function BurdJournals.Server.buildBaselineForPlayer(player)
+    local baseline = {
+        skillBaseline = {},
+        traitBaseline = {},
+        recipeBaseline = {}
+    }
+
+    if not player then return baseline end
+
+    -- Skills: capture current XP for all allowed skills
+    local allowedSkills = BurdJournals.getAllowedSkills and BurdJournals.getAllowedSkills() or {}
+    local xpObj = player.getXp and player:getXp()
+    if xpObj then
+        for _, skillName in ipairs(allowedSkills) do
+            local perk = BurdJournals.getPerkByName and BurdJournals.getPerkByName(skillName)
+            if perk then
+                local xp = xpObj:getXP(perk)
+                if xp and xp > 0 then
+                    baseline.skillBaseline[skillName] = xp
+                end
+            end
+        end
+    end
+
+    -- Traits: record current traits as baseline
+    local traits = BurdJournals.collectPlayerTraits and BurdJournals.collectPlayerTraits(player, false) or {}
+    for traitId, _ in pairs(traits) do
+        baseline.traitBaseline[traitId] = true
+    end
+
+    -- Recipes: only baseline for new characters (avoid baselining existing saves)
+    local hoursAlive = player.getHoursSurvived and player:getHoursSurvived() or 0
+    if hoursAlive <= 1 then
+        local recipes = BurdJournals.collectPlayerMagazineRecipes and BurdJournals.collectPlayerMagazineRecipes(player, false) or {}
+        for recipeName, _ in pairs(recipes) do
+            baseline.recipeBaseline[recipeName] = true
+        end
+    end
+
+    return baseline
 end
 
 function BurdJournals.Server.handleDeleteBaseline(player, args)
@@ -2836,10 +3585,101 @@ function BurdJournals.Server.handleRequestBaseline(player, args)
             characterId = characterId,
             skillBaseline = cachedBaseline.skillBaseline,
             traitBaseline = cachedBaseline.traitBaseline,
-            recipeBaseline = cachedBaseline.recipeBaseline
+            recipeBaseline = cachedBaseline.recipeBaseline,
+            debugModified = cachedBaseline.debugModified  -- Include debug flag
         })
     else
-        BurdJournals.debugPrint("[BurdJournals] No cached baseline for " .. characterId .. " (new player or migration needed)")
+        -- CRITICAL: Server cache is empty, but player's own ModData might have baseline!
+        -- This handles TWO scenarios:
+        -- 1. MIGRATION: Old production version stored baseline in player ModData - migrate to new system
+        -- 2. RECOVERY: After mod update, global ModData was lost but player ModData was preserved
+        local playerModData = player:getModData()
+        local playerBaseline = playerModData and playerModData.BurdJournals
+        
+        -- Log what we found for diagnostics
+        local hasBaselineFlag = playerBaseline and playerBaseline.baselineCaptured
+        local hasSkillData = playerBaseline and type(playerBaseline.skillBaseline) == "table"
+        local hasTraitData = playerBaseline and type(playerBaseline.traitBaseline) == "table"
+        local hasDebugFlag = playerBaseline and playerBaseline.debugModified
+        
+        BurdJournals.debugPrint("[BurdJournals] No server cache for " .. characterId .. " - checking player ModData...")
+        BurdJournals.debugPrint("[BurdJournals]   baselineCaptured: " .. tostring(hasBaselineFlag))
+        BurdJournals.debugPrint("[BurdJournals]   skillBaseline: " .. tostring(hasSkillData))
+        BurdJournals.debugPrint("[BurdJournals]   traitBaseline: " .. tostring(hasTraitData))
+        BurdJournals.debugPrint("[BurdJournals]   debugModified: " .. tostring(hasDebugFlag))
+        
+        if playerBaseline and playerBaseline.baselineCaptured then
+            -- Player has baseline in their own ModData - restore it to server cache!
+            -- Defensive: ensure these are actually tables before calling next()
+            local skillBaseline = type(playerBaseline.skillBaseline) == "table" and playerBaseline.skillBaseline or nil
+            local traitBaseline = type(playerBaseline.traitBaseline) == "table" and playerBaseline.traitBaseline or nil
+            local recipeBaseline = type(playerBaseline.recipeBaseline) == "table" and playerBaseline.recipeBaseline or nil
+            
+            local hasSkillData = false
+            local hasTraitData = false
+            if skillBaseline then
+                hasSkillData = BurdJournals.hasAnyEntries(skillBaseline)
+            end
+            if traitBaseline then
+                hasTraitData = BurdJournals.hasAnyEntries(traitBaseline)
+            end
+            local hasData = hasSkillData or hasTraitData
+            
+            if hasData then
+                -- Determine if this is migration from old version or recovery from mod update
+                local recoveryType = hasDebugFlag and "RECOVERY (debug-modified baseline)" or "MIGRATION (from player ModData)"
+                local skillCount = skillBaseline and BurdJournals.countTable(skillBaseline) or 0
+                local traitCount = traitBaseline and BurdJournals.countTable(traitBaseline) or 0
+                
+                BurdJournals.debugPrint("[BurdJournals] " .. recoveryType .. " for " .. characterId)
+                BurdJournals.debugPrint("[BurdJournals]   Restoring " .. skillCount .. " skill baselines, " .. traitCount .. " trait baselines")
+                
+                -- Restore to server cache for future requests
+                local restoredBaseline = {
+                    skillBaseline = skillBaseline or {},
+                    traitBaseline = traitBaseline or {},
+                    recipeBaseline = recipeBaseline or {},
+                    debugModified = playerBaseline.debugModified or false,
+                    steamId = BurdJournals.getPlayerSteamId(player),
+                    characterName = player:getDescriptor():getForename() .. " " .. player:getDescriptor():getSurname(),
+                    capturedAt = getGameTime():getWorldAgeHours(),
+                    recoveredFromPlayerModData = true,  -- Flag that this was recovered/migrated
+                    migrationSource = hasDebugFlag and "recovery" or "migration"
+                }
+                
+                -- Store in server cache (force overwrite since cache is empty)
+                local cache = BurdJournals.Server.getBaselineCache()
+                cache.players[characterId] = restoredBaseline
+                
+                -- Persist the recovered data
+                if ModData.transmit then
+                    ModData.transmit("BurdJournals_PlayerBaselines")
+                end
+                
+                BurdJournals.debugPrint("[BurdJournals] SUCCESS: Baseline restored to server cache for " .. characterId)
+                
+                -- Return the recovered baseline
+                BurdJournals.Server.sendToClient(player, "baselineResponse", {
+                    found = true,
+                    characterId = characterId,
+                    skillBaseline = restoredBaseline.skillBaseline,
+                    traitBaseline = restoredBaseline.traitBaseline,
+                    recipeBaseline = restoredBaseline.recipeBaseline,
+                    debugModified = restoredBaseline.debugModified,
+                    recovered = true  -- Let client know this was recovered
+                })
+                return
+            else
+                BurdJournals.debugPrint("[BurdJournals] Player has baselineCaptured=true but no actual data (empty baselines)")
+            end
+        elseif playerBaseline then
+            -- Player has BurdJournals data but no baselineCaptured flag - might be very old version
+            BurdJournals.debugPrint("[BurdJournals] Player has BurdJournals data but no baselineCaptured flag - cannot migrate")
+        else
+            BurdJournals.debugPrint("[BurdJournals] No BurdJournals data in player ModData")
+        end
+        
+        BurdJournals.debugPrint("[BurdJournals] No baseline found for " .. characterId .. " (new player)")
         BurdJournals.Server.sendToClient(player, "baselineResponse", {
             found = false,
             characterId = characterId
@@ -2905,21 +3745,2041 @@ function BurdJournals.Server.forceBaselineCleanup()
     return pruned
 end
 
-print("[BurdJournals] Registering OnClientCommand handler...")
-print("[BurdJournals] Events table exists: " .. tostring(Events ~= nil))
-print("[BurdJournals] Events.OnClientCommand exists: " .. tostring(Events and Events.OnClientCommand ~= nil))
-print("[BurdJournals] BurdJournals.Server.onClientCommand exists: " .. tostring(BurdJournals.Server.onClientCommand ~= nil))
+-- One-shot admin migration: proactively migrate all online players' journals.
+local function forEachInventoryItemRecursive(container, visitor)
+    if not container or not visitor or not container.getItems then
+        return
+    end
+    local items = container:getItems()
+    if not items then
+        return
+    end
+    for i = 0, items:size() - 1 do
+        local item = items:get(i)
+        if item then
+            visitor(item)
+            if item.getInventory then
+                local subInventory = item:getInventory()
+                if subInventory then
+                    forEachInventoryItemRecursive(subInventory, visitor)
+                end
+            end
+        end
+    end
+end
 
-local ok, err = pcall(function()
+function BurdJournals.Server.handleDebugMigrateOnlineJournals(player, args)
+    if not BurdJournals.Server.isDebugAllowed(player) then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Debug commands not allowed"})
+        return
+    end
+
+    local stats = {
+        players = 0,
+        journalsScanned = 0,
+        journalsUpdated = 0,
+    }
+
+    local function processPlayer(targetPlayer)
+        if not targetPlayer or not targetPlayer.getInventory then
+            return
+        end
+        local inventory = targetPlayer:getInventory()
+        if not inventory then
+            return
+        end
+
+        stats.players = stats.players + 1
+        forEachInventoryItemRecursive(inventory, function(item)
+            if not item or not item.getModData then
+                return
+            end
+            local modData = item:getModData()
+            local data = modData and modData.BurdJournals
+            if type(data) ~= "table" then
+                return
+            end
+
+            stats.journalsScanned = stats.journalsScanned + 1
+            local beforeSchema = tonumber(data.migrationSchemaVersion) or 0
+            local beforeSanitize = tonumber(data.sanitizedVersion) or 0
+            local beforeCompact = tonumber(data.compactVersion) or 0
+            local beforeDrLegacy = data.drLegacyMode3Migrated == true
+
+            BurdJournals.migrateJournalIfNeeded(item, targetPlayer)
+
+            local afterData = modData.BurdJournals or data
+            local afterSchema = tonumber(afterData.migrationSchemaVersion) or 0
+            local afterSanitize = tonumber(afterData.sanitizedVersion) or 0
+            local afterCompact = tonumber(afterData.compactVersion) or 0
+            local afterDrLegacy = afterData.drLegacyMode3Migrated == true
+            if afterSchema > beforeSchema
+                or afterSanitize > beforeSanitize
+                or afterCompact > beforeCompact
+                or (afterDrLegacy and not beforeDrLegacy) then
+                stats.journalsUpdated = stats.journalsUpdated + 1
+            end
+        end)
+    end
+
+    local onlinePlayers = getOnlinePlayers and getOnlinePlayers() or nil
+    if onlinePlayers and onlinePlayers.size then
+        for i = 0, onlinePlayers:size() - 1 do
+            processPlayer(onlinePlayers:get(i))
+        end
+    else
+        processPlayer(player)
+    end
+
+    local message = "Journal migration complete: "
+        .. tostring(stats.journalsUpdated)
+        .. " updated / "
+        .. tostring(stats.journalsScanned)
+        .. " scanned across "
+        .. tostring(stats.players)
+        .. " player(s)."
+    BurdJournals.debugPrint("[BurdJournals] " .. message)
+    BurdJournals.Server.sendToClient(player, "debugSuccess", {message = message, stats = stats})
+end
+
+-- ============================================================================
+-- Debug Journal Backup System (Server-side persistence for MP)
+-- ============================================================================
+
+function BurdJournals.Server.getDebugJournalCache()
+    local cache = ModData.getOrCreate("BurdJournals_DebugJournalCache")
+    if not cache.journals then
+        cache.journals = {}
+    end
+    return cache
+end
+
+function BurdJournals.Server.handleSaveDebugJournalBackup(player, args)
+    if not player or not args then return end
+    if not BurdJournals.Server.isDebugAllowed(player) then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Debug commands not allowed"})
+        return
+    end
+    local journalKey = args.journalKey
+    local journalData = args.journalData
+    if not journalKey or not journalData then return end
+
+    local normalized = BurdJournals.normalizeJournalData(journalData) or journalData
+    if type(normalized) ~= "table" then return end
+
+    local cache = BurdJournals.Server.getDebugJournalCache()
+    cache.journals[journalKey] = {
+        skills = {},
+        traits = {},
+        recipes = {},
+        stats = {},
+        skillReadCounts = {},
+        drLegacyMode3Migrated = normalized.drLegacyMode3Migrated == true,
+        migrationSchemaVersion = tonumber(normalized.migrationSchemaVersion) or 0,
+        isDebugSpawned = true,
+        isDebugEdited = true,
+        isPlayerCreated = normalized.isPlayerCreated ~= false,
+        sanitizedVersion = normalized.sanitizedVersion,
+        uuid = normalized.uuid,
+        itemType = normalized.itemType,
+        itemID = normalized.itemID,
+        readCount = tonumber(normalized.readCount) or 0,
+        readSessionCount = tonumber(normalized.readSessionCount) or 0,
+        currentSessionId = normalized.currentSessionId,
+        currentSessionReadCount = tonumber(normalized.currentSessionReadCount) or 0,
+        timestamp = getTimestampMs and getTimestampMs() or os.time(),
+        savedBy = player:getUsername(),
+    }
+
+    for skillName, skillData in pairs(normalized.skills or {}) do
+        if skillName and type(skillData) == "table" then
+            cache.journals[journalKey].skills[skillName] = {
+                xp = tonumber(skillData.xp) or 0,
+                level = tonumber(skillData.level) or 0
+            }
+        end
+    end
+    for traitId, value in pairs(normalized.traits or {}) do
+        if traitId then cache.journals[journalKey].traits[traitId] = value end
+    end
+    for recipeName, value in pairs(normalized.recipes or {}) do
+        if recipeName then cache.journals[journalKey].recipes[recipeName] = value end
+    end
+    for statId, statData in pairs(normalized.stats or {}) do
+        if statId then cache.journals[journalKey].stats[statId] = statData end
+    end
+    local skillReadCounts = normalized.skillReadCounts
+    if type(skillReadCounts) ~= "table" and BurdJournals.normalizeTable then
+        skillReadCounts = BurdJournals.normalizeTable(skillReadCounts)
+    end
+    if type(skillReadCounts) == "table" then
+        for skillName, count in pairs(skillReadCounts) do
+            if skillName then
+                cache.journals[journalKey].skillReadCounts[skillName] = tonumber(count) or 0
+            end
+        end
+    end
+
+    if ModData.transmit then
+        ModData.transmit("BurdJournals_DebugJournalCache")
+    end
+
+    BurdJournals.Server.sendToClient(player, "debugJournalBackupSaved", {
+        journalKey = journalKey,
+        success = true
+    })
+end
+
+function BurdJournals.Server.handleRequestDebugJournalBackup(player, args)
+    if not player or not args then return end
+    if not BurdJournals.Server.isDebugAllowed(player) then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Debug commands not allowed"})
+        return
+    end
+    local journalKey = args.journalKey
+    if not journalKey then return end
+
+    local cache = BurdJournals.Server.getDebugJournalCache()
+    local backup = cache.journals and cache.journals[journalKey]
+    if backup then
+        BurdJournals.Server.sendToClient(player, "debugJournalBackupResponse", {
+            journalKey = journalKey,
+            found = true,
+            journalData = backup
+        })
+    else
+        BurdJournals.Server.sendToClient(player, "debugJournalBackupResponse", {
+            journalKey = journalKey,
+            found = false
+        })
+    end
+end
+
+-- Apply debug-edited journal payload to server-side item ModData (authoritative MP persistence)
+function BurdJournals.Server.handleDebugApplyJournalEdits(player, args)
+    if not BurdJournals.Server.isDebugAllowed(player) then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Debug commands not allowed"})
+        return
+    end
+    if not args or not args.journalId or not args.journalData then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Invalid debug journal edit payload"})
+        return
+    end
+
+    local journal = BurdJournals.findItemById(player, args.journalId)
+    if not journal then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Journal not found for debug apply"})
+        return
+    end
+
+    local normalized = BurdJournals.normalizeJournalData(args.journalData) or args.journalData
+    if type(normalized) ~= "table" then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Invalid normalized debug journal data"})
+        return
+    end
+
+    local modData = journal:getModData()
+    modData.BurdJournals = modData.BurdJournals or {}
+    local bj = modData.BurdJournals
+
+    if not bj.uuid then
+        bj.uuid = normalized.uuid or ((BurdJournals.generateUUID and BurdJournals.generateUUID()) or ("debug-" .. tostring(args.journalId)))
+    end
+
+    bj.skills = {}
+    for skillName, skillData in pairs(normalized.skills or {}) do
+        if skillName and type(skillData) == "table" then
+            bj.skills[skillName] = {
+                xp = tonumber(skillData.xp) or 0,
+                level = tonumber(skillData.level) or 0
+            }
+        end
+    end
+
+    bj.traits = {}
+    for traitId, value in pairs(normalized.traits or {}) do
+        if traitId then
+            bj.traits[traitId] = value
+        end
+    end
+
+    bj.recipes = {}
+    for recipeName, value in pairs(normalized.recipes or {}) do
+        if recipeName then
+            bj.recipes[recipeName] = value
+        end
+    end
+
+    bj.stats = {}
+    for statId, statData in pairs(normalized.stats or {}) do
+        if statId then
+            bj.stats[statId] = statData
+        end
+    end
+
+    bj.readCount = tonumber(normalized.readCount) or 0
+    bj.readSessionCount = tonumber(normalized.readSessionCount) or 0
+    bj.currentSessionId = normalized.currentSessionId
+    bj.currentSessionReadCount = tonumber(normalized.currentSessionReadCount) or 0
+    bj.skillReadCounts = {}
+    bj.drLegacyMode3Migrated = normalized.drLegacyMode3Migrated == true
+    bj.migrationSchemaVersion = tonumber(normalized.migrationSchemaVersion) or (tonumber(BurdJournals.MIGRATION_SCHEMA_VERSION) or 0)
+    local normalizedSkillReadCounts = normalized.skillReadCounts
+    if type(normalizedSkillReadCounts) ~= "table" and BurdJournals.normalizeTable then
+        normalizedSkillReadCounts = BurdJournals.normalizeTable(normalizedSkillReadCounts)
+    end
+    if type(normalizedSkillReadCounts) == "table" then
+        for skillName, count in pairs(normalizedSkillReadCounts) do
+            if skillName then
+                bj.skillReadCounts[skillName] = tonumber(count) or 0
+            end
+        end
+    end
+
+    bj.isDebugSpawned = true
+    bj.isDebugEdited = true
+    bj.isPlayerCreated = true
+    bj.isWritten = true
+    bj.sanitizedVersion = BurdJournals.SANITIZE_VERSION or 1
+    if normalized.uuid then
+        bj.uuid = normalized.uuid
+    end
+
+    -- Also persist an authoritative backup entry so debug edits survive future patch/update edge cases.
+    local journalKey = args.journalKey or bj.uuid or tostring(args.journalId)
+    if journalKey and BurdJournals.Server.getDebugJournalCache then
+        local cache = BurdJournals.Server.getDebugJournalCache()
+        cache.journals[journalKey] = {
+            skills = {},
+            traits = {},
+            recipes = {},
+            stats = {},
+            skillReadCounts = {},
+            drLegacyMode3Migrated = bj.drLegacyMode3Migrated == true,
+            migrationSchemaVersion = tonumber(bj.migrationSchemaVersion) or 0,
+            isDebugSpawned = true,
+            isDebugEdited = true,
+            isPlayerCreated = true,
+            sanitizedVersion = bj.sanitizedVersion,
+            uuid = bj.uuid,
+            itemType = journal:getFullType(),
+            itemID = journal:getID(),
+            readCount = tonumber(bj.readCount) or 0,
+            readSessionCount = tonumber(bj.readSessionCount) or 0,
+            currentSessionId = bj.currentSessionId,
+            currentSessionReadCount = tonumber(bj.currentSessionReadCount) or 0,
+            timestamp = getTimestampMs and getTimestampMs() or os.time(),
+            savedBy = player:getUsername(),
+        }
+        for skillName, skillData in pairs(bj.skills or {}) do
+            if skillName and type(skillData) == "table" then
+                cache.journals[journalKey].skills[skillName] = {
+                    xp = tonumber(skillData.xp) or 0,
+                    level = tonumber(skillData.level) or 0
+                }
+            end
+        end
+        for traitId, value in pairs(bj.traits or {}) do
+            if traitId then cache.journals[journalKey].traits[traitId] = value end
+        end
+        for recipeName, value in pairs(bj.recipes or {}) do
+            if recipeName then cache.journals[journalKey].recipes[recipeName] = value end
+        end
+        for statId, statData in pairs(bj.stats or {}) do
+            if statId then cache.journals[journalKey].stats[statId] = statData end
+        end
+        for skillName, count in pairs(bj.skillReadCounts or {}) do
+            if skillName then cache.journals[journalKey].skillReadCounts[skillName] = tonumber(count) or 0 end
+        end
+        if ModData.transmit then
+            ModData.transmit("BurdJournals_DebugJournalCache")
+        end
+    end
+
+    if journal.transmitModData then
+        journal:transmitModData()
+    end
+    if BurdJournals.captureJournalDRState then
+        BurdJournals.captureJournalDRState(journal, "debugApplyJournalEdits", player)
+    end
+end
+
+-- ============================================================================
+-- Debug Command Handlers (Server-side)
+-- ============================================================================
+
+-- Check if player is allowed to use debug commands
+function BurdJournals.Server.isDebugAllowed(player)
+    if not player then 
+        BurdJournals.debugPrint("[BurdJournals] DEBUG: isDebugAllowed - no player")
+        return false 
+    end
+    
+    local username = player:getUsername() or "unknown"
+    
+    -- Check sandbox option
+    local sandboxEnabled = SandboxVars and SandboxVars.BurdJournals and SandboxVars.BurdJournals.AllowDebugCommands
+    BurdJournals.debugPrint("[BurdJournals] DEBUG: isDebugAllowed for " .. username .. " - sandboxEnabled=" .. tostring(sandboxEnabled))
+    if sandboxEnabled then return true end
+    
+    -- Check if player is admin
+    local isAdmin = player:isAccessLevel("admin")
+    BurdJournals.debugPrint("[BurdJournals] DEBUG: isDebugAllowed - isAdmin=" .. tostring(isAdmin))
+    if isAdmin then return true end
+    
+    -- Check global debug mode
+    local debugMode = getDebug and getDebug()
+    BurdJournals.debugPrint("[BurdJournals] DEBUG: isDebugAllowed - debugMode=" .. tostring(debugMode))
+    if debugMode then return true end
+    
+    BurdJournals.debugPrint("[BurdJournals] DEBUG: isDebugAllowed - DENIED for " .. username)
+    return false
+end
+
+-- Helper: Find player by username
+function BurdJournals.Server.findPlayerByUsername(username)
+    if not username then return nil end
+    local onlinePlayers = getOnlinePlayers()
+    if onlinePlayers then
+        for i = 0, onlinePlayers:size() - 1 do
+            local p = onlinePlayers:get(i)
+            if p and p:getUsername() == username then
+                return p
+            end
+        end
+    end
+    return nil
+end
+
+-- Build canonical trait IDs to try (includes aliases, deduped case-insensitively)
+function BurdJournals.Server.buildTraitIdsToTry(traitId)
+    local traitIdsToTry = {}
+    local seen = {}
+
+    local function addTraitId(id)
+        if not id then return end
+        id = tostring(id)
+        if id == "" then return end
+        local key = string.lower(id)
+        if seen[key] then return end
+        seen[key] = true
+        table.insert(traitIdsToTry, id)
+    end
+
+    addTraitId(traitId)
+    addTraitId(string.lower(traitId))
+
+    if BurdJournals and BurdJournals.TRAIT_ALIASES then
+        local aliases = BurdJournals.TRAIT_ALIASES[string.lower(traitId)]
+        if aliases then
+            for _, alias in ipairs(aliases) do
+                addTraitId(alias)
+                addTraitId(string.lower(alias))
+            end
+        end
+    end
+
+    return traitIdsToTry
+end
+
+-- Resolve trait ID/alias into a Build 42 CharacterTrait object.
+-- Returns: traitObj, sourceLabel, traitIdsToTry, foundTraits
+function BurdJournals.Server.resolveCharacterTrait(traitId, targetPlayer)
+    if not traitId then
+        return nil, nil, {}, {}
+    end
+
+    local traitIdsToTry = BurdJournals.Server.buildTraitIdsToTry(traitId)
+    local foundTraits = {}
+    local seenTraits = {}
+
+    local function addFoundTrait(traitObj, sourceLabel)
+        if not traitObj then return end
+        if seenTraits[traitObj] then return end
+        seenTraits[traitObj] = true
+        table.insert(foundTraits, { trait = traitObj, source = sourceLabel or "unknown" })
+    end
+
+    local function tryResourceLookup(resourceLoc)
+        if not (CharacterTrait and CharacterTrait.get and ResourceLocation and ResourceLocation.of) then
+            return
+        end
+        local ok, result = BurdJournals.safePcall(function()
+            return CharacterTrait.get(ResourceLocation.of(resourceLoc))
+        end)
+        if ok and result then
+            addFoundTrait(result, "ResourceLocation:" .. tostring(resourceLoc))
+        end
+    end
+
+    -- 1) ResourceLocation lookups
+    if CharacterTrait and CharacterTrait.get and ResourceLocation and ResourceLocation.of then
+        for _, tryId in ipairs(traitIdsToTry) do
+            local original = "base:" .. tostring(tryId)
+            local lower = "base:" .. string.lower(tostring(tryId))
+            local spaced = "base:" .. string.lower(tostring(tryId):gsub("(%u)", " %1"):sub(2))
+
+            tryResourceLookup(original)
+            if lower ~= original then
+                tryResourceLookup(lower)
+            end
+            if spaced ~= original and spaced ~= lower then
+                tryResourceLookup(spaced)
+            end
+        end
+    end
+
+    -- 2) CharacterTrait enum style lookups
+    if CharacterTrait then
+        for _, tryId in ipairs(traitIdsToTry) do
+            local underscored = tostring(tryId):gsub("(%u)", "_%1"):sub(2):upper()
+            local ct = CharacterTrait[underscored]
+            if ct then
+                if type(ct) == "string" then
+                    tryResourceLookup(ct)
+                else
+                    addFoundTrait(ct, "Enum:" .. underscored)
+                end
+            end
+        end
+    end
+
+    -- 3) CharacterTraitDefinition scan
+    if CharacterTraitDefinition and CharacterTraitDefinition.getTraits then
+        local allTraits = CharacterTraitDefinition.getTraits()
+        if allTraits then
+            local wanted = {}
+            for _, tryId in ipairs(traitIdsToTry) do
+                wanted[string.lower(tostring(tryId))] = true
+            end
+
+            for i = 0, allTraits:size() - 1 do
+                local def = allTraits:get(i)
+                if def then
+                    local defType = def.getType and def:getType() or nil
+                    local defLabel = def.getLabel and def:getLabel() or nil
+                    local defName = nil
+
+                    if defType and defType.getName then
+                        local okName, nameResult = BurdJournals.safePcall(function()
+                            return defType:getName()
+                        end)
+                        if okName and nameResult then
+                            defName = tostring(nameResult)
+                        end
+                    end
+                    if not defName and defType then
+                        defName = tostring(defType)
+                    end
+
+                    local nameMatches = defName and wanted[string.lower(defName)] == true
+                    local labelMatches = defLabel and wanted[string.lower(tostring(defLabel))] == true
+                    if defType and (nameMatches or labelMatches) then
+                        addFoundTrait(defType, "Definition:" .. tostring(defName or defLabel or "?"))
+                    end
+                end
+            end
+        end
+    end
+
+    -- Prefer trait object the target currently has (important for removal)
+    local resolvedTrait = nil
+    local resolvedSource = nil
+    if targetPlayer and targetPlayer.hasTrait then
+        for _, entry in ipairs(foundTraits) do
+            if targetPlayer:hasTrait(entry.trait) == true then
+                resolvedTrait = entry.trait
+                resolvedSource = entry.source
+                break
+            end
+        end
+    end
+
+    if not resolvedTrait and #foundTraits > 0 then
+        resolvedTrait = foundTraits[1].trait
+        resolvedSource = foundTraits[1].source
+    end
+
+    return resolvedTrait, resolvedSource, traitIdsToTry, foundTraits
+end
+
+-- Handle debug: Set skill level
+function BurdJournals.Server.handleDebugSetSkill(player, args)
+    if not BurdJournals.Server.isDebugAllowed(player) then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Debug commands not allowed"})
+        return
+    end
+    
+    local skillName = args.skillName
+    local level = args.level or 10
+    
+    -- Support targeting other players
+    local targetPlayer = player
+    if args.targetUsername and args.targetUsername ~= player:getUsername() then
+        targetPlayer = BurdJournals.Server.findPlayerByUsername(args.targetUsername)
+        if not targetPlayer then
+            BurdJournals.Server.sendToClient(player, "debugError", {message = "Player not found: " .. args.targetUsername})
+            return
+        end
+    end
+    
+    local perk = BurdJournals.getPerkByName(skillName)
+    if not perk then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Invalid skill: " .. tostring(skillName)})
+        return
+    end
+    
+    local xpObj = targetPlayer:getXp()
+    local isPassive = (skillName == "Fitness" or skillName == "Strength")
+    
+    BurdJournals.debugPrint("[BurdJournals] DEBUG: Setting " .. skillName .. " (passive=" .. tostring(isPassive) .. ") to level " .. level .. " for " .. targetPlayer:getUsername())
+    
+    -- Direct XP manipulation - most reliable approach
+    -- First, reset to 0 by removing all XP
+    local currentXP = xpObj:getXP(perk)
+    if currentXP > 0 then
+        xpObj:AddXP(perk, -currentXP * 10, false, false, false, false)
+        BurdJournals.debugPrint("[BurdJournals] DEBUG: Reset " .. skillName .. " XP (was " .. currentXP .. ")")
+    end
+    
+    -- Then add XP to reach target level (if level > 0)
+    if level > 0 then
+        -- getTotalXpForLevel(N) returns XP needed to BE at level N
+        local targetXP = perk:getTotalXpForLevel(level)
+        local xpToAdd = targetXP
+        if isPassive then
+            xpToAdd = targetXP * 5
+        end
+        xpObj:AddXP(perk, xpToAdd, false, false, false, true)  -- checkLevelUp = true!
+        BurdJournals.debugPrint("[BurdJournals] DEBUG: Added " .. xpToAdd .. " XP to reach level " .. level .. " for " .. skillName)
+    end
+    
+    -- Sync after changes
+    if SyncXp then
+        SyncXp(targetPlayer)
+    end
+    
+    local finalLevel = level
+    BurdJournals.debugPrint("[BurdJournals] DEBUG: " .. skillName .. " final level = " .. finalLevel .. " for " .. targetPlayer:getUsername())
+    
+    -- Send specific response so client can refresh the appropriate tab
+    BurdJournals.Server.sendToClient(player, "debugSkillSet", {
+        skillName = skillName,
+        level = finalLevel,
+        targetUsername = targetPlayer:getUsername()
+    })
+end
+
+-- Handle debug: Set all skills
+function BurdJournals.Server.handleDebugSetAllSkills(player, args)
+    BurdJournals.debugPrint("[BurdJournals] SERVER: handleDebugSetAllSkills called for " .. (player and player:getUsername() or "nil"))
+    BurdJournals.debugPrint("[BurdJournals] SERVER: args.level = " .. tostring(args and args.level))
+    
+    if not BurdJournals.Server.isDebugAllowed(player) then
+        print("[BurdJournals] SERVER: Debug not allowed, sending error")
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Debug commands not allowed"})
+        return
+    end
+    
+    -- Support targeting other players
+    local targetPlayer = player
+    if args.targetUsername and args.targetUsername ~= player:getUsername() then
+        targetPlayer = BurdJournals.Server.findPlayerByUsername(args.targetUsername)
+        if not targetPlayer then
+            BurdJournals.Server.sendToClient(player, "debugError", {message = "Player not found: " .. args.targetUsername})
+            return
+        end
+    end
+    
+    local level = args.level or 10
+    local count = 0
+    local xpObj = targetPlayer:getXp()
+    
+    BurdJournals.debugPrint("[BurdJournals] SERVER: Setting all skills to level " .. level .. " for " .. targetPlayer:getUsername())
+    
+    for i = 0, Perks.getMaxIndex() - 1 do
+        local perk = Perks.fromIndex(i)
+        if perk and perk:getParent() ~= Perks.None then
+            local perkName = tostring(perk)
+            local isPassive = (perkName == "Fitness" or perkName == "Strength")
+            
+            -- Direct XP manipulation - most reliable approach
+            -- First, reset to 0 by removing all XP
+            local currentXP = xpObj:getXP(perk)
+            if currentXP > 0 then
+                -- Remove current XP (negative AddXP)
+                xpObj:AddXP(perk, -currentXP * 10, false, false, false, false)
+            end
+            
+            -- Then add XP to reach target level (if level > 0)
+            if level > 0 then
+                -- getTotalXpForLevel(N) = XP needed to BE at level N
+                local targetXP = perk:getTotalXpForLevel(level)
+                
+                -- For passive skills, we need 5x the XP when using AddXP
+                local xpToAdd = targetXP
+                if isPassive then
+                    xpToAdd = targetXP * 5
+                end
+                
+                xpObj:AddXP(perk, xpToAdd, false, false, false, true)  -- checkLevelUp = true!
+            end
+            
+            count = count + 1
+        end
+    end
+    
+    -- Sync after all changes
+    if SyncXp then
+        SyncXp(targetPlayer)
+    end
+    
+    BurdJournals.debugPrint("[BurdJournals] DEBUG: Set all " .. count .. " skills to level " .. level .. " for " .. targetPlayer:getUsername())
+    
+    -- Send specific response so client can refresh UI after changes are applied
+    BurdJournals.Server.sendToClient(player, "debugAllSkillsSet", {
+        level = level,
+        count = count,
+        targetUsername = targetPlayer:getUsername()
+    })
+end
+
+-- Handle debug: Add XP to skill
+function BurdJournals.Server.handleDebugAddXP(player, args)
+    if not BurdJournals.Server.isDebugAllowed(player) then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Debug commands not allowed"})
+        return
+    end
+    
+    local skillName = args.skillName
+    local xp = args.xp or 1000
+    
+    local perk = BurdJournals.getPerkByName(skillName)
+    if not perk then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Invalid skill: " .. tostring(skillName)})
+        return
+    end
+    
+    -- Apply passive multiplier
+    local xpToAdd = xp
+    if skillName == "Fitness" or skillName == "Strength" then
+        xpToAdd = xp * 5
+    end
+    
+    player:getXp():AddXP(perk, xpToAdd, false, false, false, true)  -- checkLevelUp = true!
+    BurdJournals.debugPrint("[BurdJournals] DEBUG: Added " .. xp .. " XP to " .. skillName .. " for " .. player:getUsername())
+    
+    BurdJournals.Server.sendToClient(player, "debugSuccess", {message = "Added " .. xp .. " XP to " .. skillName})
+end
+
+-- Handle debug: Set skill to specific level (for player journal claims from debug-spawned journals)
+-- Uses XP-based approach like production version (NOT setXPToLevel which is unreliable)
+function BurdJournals.Server.handleDebugSetSkillToLevel(player, args)
+    if not BurdJournals.Server.isDebugAllowed(player) then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Debug commands not allowed"})
+        return
+    end
+    
+    local skillName = args.skillName
+    local targetLevel = args.level or 0
+    
+    local perk = BurdJournals.getPerkByName(skillName)
+    if not perk then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Invalid skill: " .. tostring(skillName)})
+        return
+    end
+    
+    local xpObj = player:getXp()
+    local levelBefore = player:getPerkLevel(perk)
+    local xpBefore = xpObj:getXP(perk)
+    
+    -- Calculate target XP needed for the target level
+    -- getTotalXpForLevel(N) = XP threshold to BE AT level N
+    -- This matches how the game engine and getSkillLevelFromXP determine level
+    local targetXP = 0
+    
+    -- Standard skill XP thresholds - to BE at each level
+    -- Level N requires XP >= xpTable[N]
+    local xpTable = {
+        [0] = 0,
+        [1] = 80,       -- Level 1: need >= 75, add buffer
+        [2] = 240,      -- Level 2: need >= 225, add buffer
+        [3] = 540,      -- Level 3: need >= 500, add buffer
+        [4] = 940,      -- Level 4: need >= 900, add buffer
+        [5] = 1475,     -- Level 5: need >= 1425, add buffer
+        [6] = 2130,     -- Level 6: need >= 2075, add buffer
+        [7] = 2920,     -- Level 7: need >= 2850, add buffer
+        [8] = 3840,     -- Level 8: need >= 3750, add buffer
+        [9] = 4890,     -- Level 9: need >= 4775, add buffer
+        [10] = 6050     -- Level 10: need >= 5925, add buffer
+    }
+    
+    -- Try PZ API first: getTotalXpForLevel(N) = XP threshold to BE AT level N
+    -- Add small buffer to be safely above threshold
+    if perk.getTotalXpForLevel and targetLevel > 0 then
+        local apiXP = perk:getTotalXpForLevel(targetLevel)
+        if apiXP and apiXP >= 0 then
+            -- Add 10% buffer but not enough to reach next level
+            local nextLevelXP = perk:getTotalXpForLevel(targetLevel + 1) or (apiXP * 1.5)
+            local buffer = math.max(1, math.floor((nextLevelXP - apiXP) * 0.1))
+            targetXP = apiXP + buffer
+            BurdJournals.debugPrint("[BurdJournals DEBUG CLAIM]   Using PZ API: getTotalXpForLevel(" .. targetLevel .. ") + buffer = " .. tostring(targetXP) .. " (for level " .. targetLevel .. ")")
+        else
+            -- API returned nil, use fallback
+            targetXP = xpTable[targetLevel] or 0
+            BurdJournals.debugPrint("[BurdJournals DEBUG CLAIM]   PZ API returned nil, using fallback XP table: " .. tostring(targetXP))
+        end
+    else
+        -- Use fallback XP table
+        targetXP = xpTable[targetLevel] or 0
+        BurdJournals.debugPrint("[BurdJournals DEBUG CLAIM]   Using fallback XP table: " .. tostring(targetXP))
+    end
+    
+    BurdJournals.debugPrint("================================================================================")
+    BurdJournals.debugPrint("[BurdJournals DEBUG CLAIM] Skill: " .. tostring(skillName))
+    BurdJournals.debugPrint("[BurdJournals DEBUG CLAIM]   TARGET LEVEL: " .. tostring(targetLevel))
+    BurdJournals.debugPrint("[BurdJournals DEBUG CLAIM]   TARGET XP (for level " .. targetLevel .. "): " .. tostring(targetXP))
+    BurdJournals.debugPrint("[BurdJournals DEBUG CLAIM]   PLAYER BEFORE: Level " .. tostring(levelBefore) .. ", XP " .. tostring(xpBefore))
+    BurdJournals.debugPrint("================================================================================")
+    
+    -- Only set if target level is higher than current
+    if targetLevel > levelBefore and targetXP > xpBefore then
+        -- Calculate XP difference needed
+        local xpToAdd = targetXP - xpBefore
+        
+        BurdJournals.debugPrint("[BurdJournals DEBUG CLAIM]   XP to add: " .. tostring(xpToAdd))
+        
+        -- Apply XP directly using AddXP (same as production version)
+        -- AddXP signature: AddXP(perk, amount, addToKnownRecipes, useMultipliers, isPassive, checkLevelUp)
+        -- IMPORTANT: checkLevelUp MUST be true to recalculate level from new XP!
+        local success = false
+        if xpObj and xpObj.AddXP then
+            xpObj:AddXP(perk, xpToAdd, false, false, false, true)
+            success = true
+        end
+        
+        local levelAfter = player:getPerkLevel(perk)
+        local xpAfter = xpObj:getXP(perk)
+        
+        BurdJournals.debugPrint("================================================================================")
+        BurdJournals.debugPrint("[BurdJournals DEBUG CLAIM RESULT] Skill: " .. tostring(skillName))
+        BurdJournals.debugPrint("[BurdJournals DEBUG CLAIM RESULT]   TARGET: Level " .. tostring(targetLevel) .. ", XP " .. tostring(targetXP))
+        BurdJournals.debugPrint("[BurdJournals DEBUG CLAIM RESULT]   XP ADDED: " .. tostring(xpToAdd))
+        BurdJournals.debugPrint("[BurdJournals DEBUG CLAIM RESULT]   PLAYER AFTER: Level " .. tostring(levelAfter) .. ", XP " .. tostring(xpAfter))
+        if levelAfter < targetLevel then
+            print("[BurdJournals DEBUG CLAIM RESULT]   WARNING: Player level (" .. levelAfter .. ") is LESS than target (" .. targetLevel .. ")!")
+            BurdJournals.debugPrint("[BurdJournals DEBUG CLAIM RESULT]   This may indicate a PZ XP scaling issue or passive skill behavior")
+        elseif levelAfter == targetLevel then
+            BurdJournals.debugPrint("[BurdJournals DEBUG CLAIM RESULT]   SUCCESS: Player reached target level " .. targetLevel)
+        else
+            BurdJournals.debugPrint("[BurdJournals DEBUG CLAIM RESULT]   NOTE: Player exceeded target level (" .. levelAfter .. " > " .. targetLevel .. ")")
+        end
+        BurdJournals.debugPrint("================================================================================")
+        
+        if success then
+            BurdJournals.Server.sendToClient(player, "claimSuccess", {
+                skillName = skillName,
+                xpAdded = xpToAdd,
+                message = "Set " .. skillName .. " to level " .. targetLevel,
+                debug_targetLevel = targetLevel,
+                debug_targetXP = targetXP,
+                debug_xpAdded = xpToAdd,
+                debug_levelAfter = levelAfter,
+                debug_xpAfter = xpAfter,
+            })
+        else
+            -- Fallback to addXp global function
+            if addXp then
+                BurdJournals.debugPrint("[BurdJournals DEBUG CLAIM] AddXP failed, trying addXp() global")
+                addXp(player, perk, xpToAdd)
+                levelAfter = player:getPerkLevel(perk)
+                xpAfter = xpObj:getXP(perk)
+            end
+            BurdJournals.Server.sendToClient(player, "claimSuccess", {
+                skillName = skillName,
+                xpAdded = xpToAdd,
+                message = "Set " .. skillName .. " to level " .. targetLevel .. " (via fallback)",
+                debug_targetLevel = targetLevel,
+                debug_levelAfter = levelAfter,
+                debug_xpAfter = xpAfter,
+            })
+        end
+    else
+        BurdJournals.debugPrint("[BurdJournals DEBUG CLAIM] Player already at or above target - levelBefore=" .. levelBefore .. ", xpBefore=" .. xpBefore .. ", targetLevel=" .. targetLevel .. ", targetXP=" .. targetXP)
+        BurdJournals.Server.sendToClient(player, "skillMaxed", {
+            skillName = skillName,
+            alreadyAtLevel = true,
+            message = "Already at level " .. levelBefore .. " for " .. skillName
+        })
+    end
+end
+
+-- Handle debug: Set skill to specific XP value (for player journal claims from debug-spawned journals)
+-- This uses the actual recorded XP from the journal, not calculated from level
+-- This is the correct way to restore Player Journal skills - SET to exact XP, not ADD
+function BurdJournals.Server.handleDebugSetSkillXP(player, args)
+    if not BurdJournals.Server.isDebugAllowed(player) then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Debug commands not allowed"})
+        return
+    end
+
+    if not args or not args.skillName then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Invalid debugSetSkillXP payload"})
+        return
+    end
+
+    local skillName = args.skillName
+    local targetXP = args.targetXP or 0
+    local targetLevel = args.targetLevel or 0  -- Target level from journal
+
+    local perk = BurdJournals.getPerkByName(skillName)
+    if not perk then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Invalid skill: " .. tostring(skillName)})
+        return
+    end
+
+    local function normalizeToTable(value)
+        if type(value) == "table" then
+            return value
+        end
+        if BurdJournals.normalizeTable then
+            local normalized = BurdJournals.normalizeTable(value)
+            if type(normalized) == "table" then
+                return normalized
+            end
+        end
+        return nil
+    end
+
+    local function mergeMaxNumberMap(targetMap, sourceMap)
+        local source = normalizeToTable(sourceMap)
+        local target = normalizeToTable(targetMap)
+        if type(target) ~= "table" then
+            target = {}
+        end
+        if type(source) ~= "table" then
+            return target, false
+        end
+        local changed = false
+        for key, value in pairs(source) do
+            if key ~= nil then
+                local mapKey = tostring(key)
+                local incoming = math.max(0, tonumber(value) or 0)
+                local existing = math.max(0, tonumber(target[mapKey]) or 0)
+                if incoming > existing then
+                    target[mapKey] = incoming
+                    changed = true
+                end
+            end
+        end
+        return target, changed
+    end
+
+    local resolvedJournal = nil
+    local requestedJournalId = tonumber(args.journalId) or args.journalId
+    if requestedJournalId then
+        resolvedJournal = BurdJournals.findItemById(player, requestedJournalId)
+    end
+    if (not resolvedJournal) and args.journalUUID and BurdJournals.findJournalByUUID then
+        resolvedJournal = BurdJournals.findJournalByUUID(player, args.journalUUID)
+    end
+
+    local responseJournalId = nil
+    local responseJournalData = nil
+
+    if resolvedJournal then
+        local modData = resolvedJournal:getModData()
+        modData.BurdJournals = modData.BurdJournals or {}
+        local journalData = modData.BurdJournals
+
+        if BurdJournals.restoreJournalDRStateIfMissing then
+            BurdJournals.restoreJournalDRStateIfMissing(resolvedJournal, "debugSetSkillXP", player)
+            journalData = modData.BurdJournals or journalData
+        end
+
+        local didMergeDR = false
+        local sourceData = args.journalData
+        if type(sourceData) == "table" and BurdJournals.normalizeJournalData then
+            sourceData = BurdJournals.normalizeJournalData(sourceData) or sourceData
+        end
+
+        if type(sourceData) == "table" then
+            local sourceReadCount = math.max(0, tonumber(sourceData.readCount) or 0)
+            if sourceReadCount > math.max(0, tonumber(journalData.readCount) or 0) then
+                journalData.readCount = sourceReadCount
+                didMergeDR = true
+            end
+
+            local sourceSessionCount = math.max(0, tonumber(sourceData.readSessionCount) or 0)
+            if sourceSessionCount > math.max(0, tonumber(journalData.readSessionCount) or 0) then
+                journalData.readSessionCount = sourceSessionCount
+                didMergeDR = true
+            end
+
+            local sourceSessionReads = math.max(0, tonumber(sourceData.currentSessionReadCount) or 0)
+            if sourceSessionReads > math.max(0, tonumber(journalData.currentSessionReadCount) or 0) then
+                journalData.currentSessionReadCount = sourceSessionReads
+                didMergeDR = true
+            end
+
+            if sourceData.currentSessionId and sourceData.currentSessionId ~= journalData.currentSessionId then
+                journalData.currentSessionId = sourceData.currentSessionId
+                didMergeDR = true
+            end
+
+            local mergedSkillReadCounts, skillCountsChanged = mergeMaxNumberMap(journalData.skillReadCounts, sourceData.skillReadCounts)
+            journalData.skillReadCounts = mergedSkillReadCounts
+            if skillCountsChanged then
+                didMergeDR = true
+            end
+            if sourceData.drLegacyMode3Migrated == true and journalData.drLegacyMode3Migrated ~= true then
+                journalData.drLegacyMode3Migrated = true
+                didMergeDR = true
+            end
+            local sourceMigrationSchemaVersion = tonumber(sourceData.migrationSchemaVersion) or 0
+            local targetMigrationSchemaVersion = tonumber(journalData.migrationSchemaVersion) or 0
+            if sourceMigrationSchemaVersion > targetMigrationSchemaVersion then
+                journalData.migrationSchemaVersion = sourceMigrationSchemaVersion
+                didMergeDR = true
+            end
+
+            local sourceClaims = normalizeToTable(sourceData.claims)
+            if type(sourceClaims) == "table" then
+                local targetClaims = normalizeToTable(journalData.claims)
+                if type(targetClaims) ~= "table" then
+                    targetClaims = {}
+                end
+                for characterId, sourceClaimData in pairs(sourceClaims) do
+                    if characterId ~= nil then
+                        local sourceClaimTable = normalizeToTable(sourceClaimData)
+                        if type(sourceClaimTable) == "table" then
+                            local targetClaimTable = normalizeToTable(targetClaims[characterId])
+                            if type(targetClaimTable) ~= "table" then
+                                targetClaimTable = {}
+                            end
+                            local mergedDrClaims, drClaimsChanged = mergeMaxNumberMap(targetClaimTable.drSkillReadCounts, sourceClaimTable.drSkillReadCounts)
+                            targetClaimTable.drSkillReadCounts = mergedDrClaims
+                            targetClaims[characterId] = targetClaimTable
+                            if drClaimsChanged then
+                                didMergeDR = true
+                            end
+                        end
+                    end
+                end
+                journalData.claims = targetClaims
+            end
+        end
+
+        -- Fallback for legacy clients that didn't send DR fields.
+        if (not didMergeDR) and BurdJournals.consumeJournalClaimRead then
+            BurdJournals.consumeJournalClaimRead(journalData, skillName, args.claimSessionId, player)
+            didMergeDR = true
+        end
+
+        if didMergeDR and resolvedJournal.transmitModData then
+            resolvedJournal:transmitModData()
+        end
+        if didMergeDR and BurdJournals.captureJournalDRState then
+            BurdJournals.captureJournalDRState(resolvedJournal, "debugSetSkillXP", player)
+        end
+
+        responseJournalId = resolvedJournal:getID()
+        responseJournalData = journalData
+    end
+
+    local xpObj = player:getXp()
+    local levelBefore = player:getPerkLevel(perk)
+    local xpBefore = xpObj:getXP(perk)
+
+    BurdJournals.debugPrint("================================================================================")
+    BurdJournals.debugPrint("[BurdJournals DEBUG SET XP] Skill: " .. tostring(skillName))
+    BurdJournals.debugPrint("[BurdJournals DEBUG SET XP]   TARGET LEVEL: " .. tostring(targetLevel) .. ", TARGET XP: " .. tostring(targetXP))
+    BurdJournals.debugPrint("[BurdJournals DEBUG SET XP]   PLAYER BEFORE: Level " .. tostring(levelBefore) .. ", XP " .. tostring(xpBefore))
+    BurdJournals.debugPrint("================================================================================")
+
+    -- Use XP-based comparison (more accurate than level comparison)
+    -- Only apply XP if target XP is higher than current XP
+    if targetXP > xpBefore then
+        -- Calculate XP difference needed
+        local xpToAdd = targetXP - xpBefore
+
+        -- AddXP adds the specified amount directly for all skills
+        BurdJournals.debugPrint("[BurdJournals DEBUG SET XP]   XP to add: " .. tostring(xpToAdd))
+
+        -- Use sendAddXp if available (MP-safe, handles client sync automatically)
+        -- Fall back to direct AddXP + syncXp if not
+        local success = false
+        if sendAddXp then
+            BurdJournals.debugPrint("[BurdJournals DEBUG SET XP]   Using sendAddXp (MP-safe)")
+            sendAddXp(player, perk, xpToAdd, false)  -- false = don't use multipliers
+            success = true
+        end
+
+        if not success then
+            -- Fallback: Apply XP directly using AddXP
+            -- AddXP signature: AddXP(perk, amount, addToKnownRecipes, useMultipliers, isPassive, checkLevelUp)
+            BurdJournals.debugPrint("[BurdJournals DEBUG SET XP]   Using direct AddXP (no immediate sync)")
+            if xpObj and xpObj.AddXP then
+                xpObj:AddXP(perk, xpToAdd, false, false, false, true)
+                success = true
+            end
+            -- NOTE: Don't call syncXp here - it disrupts batch command processing
+            -- Client will request sync at end of batch via requestXpSync command
+        end
+
+        local levelAfter = player:getPerkLevel(perk)
+        local xpAfter = xpObj:getXP(perk)
+
+        BurdJournals.debugPrint("================================================================================")
+        BurdJournals.debugPrint("[BurdJournals DEBUG SET XP RESULT] Skill: " .. tostring(skillName))
+        BurdJournals.debugPrint("[BurdJournals DEBUG SET XP RESULT]   TARGET: Level " .. tostring(targetLevel) .. ", XP " .. tostring(targetXP))
+        BurdJournals.debugPrint("[BurdJournals DEBUG SET XP RESULT]   XP ADDED: " .. tostring(xpToAdd))
+        BurdJournals.debugPrint("[BurdJournals DEBUG SET XP RESULT]   PLAYER AFTER: Level " .. tostring(levelAfter) .. ", XP " .. tostring(xpAfter))
+        if levelAfter < targetLevel then
+            print("[BurdJournals DEBUG SET XP RESULT]   WARNING: Player level (" .. levelAfter .. ") is LESS than target (" .. targetLevel .. ")!")
+            BurdJournals.debugPrint("[BurdJournals DEBUG SET XP RESULT]   This may indicate a PZ XP scaling issue or passive skill behavior")
+        elseif levelAfter == targetLevel then
+            BurdJournals.debugPrint("[BurdJournals DEBUG SET XP RESULT]   SUCCESS: Player reached target level " .. targetLevel)
+        else
+            BurdJournals.debugPrint("[BurdJournals DEBUG SET XP RESULT]   NOTE: Player exceeded target level (" .. levelAfter .. " > " .. targetLevel .. ")")
+        end
+        BurdJournals.debugPrint("================================================================================")
+
+        if success then
+            BurdJournals.Server.sendToClient(player, "claimSuccess", {
+                skillName = skillName,
+                xpAdded = xpToAdd,
+                message = "Set " .. skillName .. " to level " .. levelAfter,
+                journalId = responseJournalId,
+                journalData = responseJournalData,
+                debug_targetLevel = targetLevel,
+                debug_targetXP = targetXP,
+                debug_xpAdded = xpToAdd,
+                debug_levelAfter = levelAfter,
+                debug_xpAfter = xpAfter,
+            })
+        else
+            -- Fallback to addXp global function
+            if addXp then
+                BurdJournals.debugPrint("[BurdJournals DEBUG SET XP] AddXP failed, trying addXp() global")
+                addXp(player, perk, xpToAdd)
+                levelAfter = player:getPerkLevel(perk)
+                xpAfter = xpObj:getXP(perk)
+            end
+            BurdJournals.Server.sendToClient(player, "claimSuccess", {
+                skillName = skillName,
+                xpAdded = xpToAdd,
+                message = "Set " .. skillName .. " to level " .. levelAfter .. " (via fallback)",
+                journalId = responseJournalId,
+                journalData = responseJournalData,
+                debug_targetLevel = targetLevel,
+                debug_levelAfter = levelAfter,
+                debug_xpAfter = xpAfter,
+            })
+        end
+    else
+        BurdJournals.debugPrint("[BurdJournals DEBUG SET XP] Player already at or above target XP - xpBefore=" .. xpBefore .. ", targetXP=" .. targetXP)
+        BurdJournals.Server.sendToClient(player, "skillMaxed", {
+            skillName = skillName,
+            journalId = responseJournalId,
+            journalData = responseJournalData,
+            alreadyAtLevel = true,
+            message = "Already at level " .. levelBefore .. " for " .. skillName .. " (target was level " .. targetLevel .. ")"
+        })
+    end
+end
+
+-- Handle debug: Add trait
+function BurdJournals.Server.handleDebugAddTrait(player, args)
+    if not BurdJournals.Server.isDebugAllowed(player) then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Debug commands not allowed"})
+        return
+    end
+
+    local traitId = args.traitId
+    if not traitId then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "No trait specified"})
+        return
+    end
+
+    local targetPlayer = player
+    if args.targetUsername and args.targetUsername ~= player:getUsername() then
+        targetPlayer = BurdJournals.Server.findPlayerByUsername(args.targetUsername)
+        if not targetPlayer then
+            BurdJournals.Server.sendToClient(player, "debugError", {message = "Player not found: " .. args.targetUsername})
+            return
+        end
+    end
+
+    BurdJournals.debugPrint("[BurdJournals] DEBUG handleDebugAddTrait: traitId=" .. tostring(traitId) .. " for " .. targetPlayer:getUsername())
+
+    local characterTrait, resolvedSource, traitIdsToTry = BurdJournals.Server.resolveCharacterTrait(traitId, nil)
+    if not characterTrait then
+        print("[BurdJournals] DEBUG ERROR: Could not find CharacterTrait for: " .. tostring(traitId))
+        if traitIdsToTry and #traitIdsToTry > 0 then
+            BurdJournals.debugPrint("[BurdJournals] DEBUG: Tried IDs: " .. table.concat(traitIdsToTry, ", "))
+        end
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Invalid trait: " .. traitId})
+        return
+    end
+
+    BurdJournals.debugPrint("[BurdJournals] DEBUG: Resolved trait via " .. tostring(resolvedSource))
+
+    local charTraits = targetPlayer.getCharacterTraits and targetPlayer:getCharacterTraits() or nil
+    if not charTraits or not charTraits.add then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Trait system unavailable"})
+        return
+    end
+
+    local hadBefore = targetPlayer.hasTrait and (targetPlayer:hasTrait(characterTrait) == true) or false
+
+    -- Keep debug behavior: allow add attempts even if already present.
+    charTraits:add(characterTrait)
+
+    if targetPlayer.modifyTraitXPBoost then
+        targetPlayer:modifyTraitXPBoost(characterTrait, false)
+    end
+    if SyncXp then
+        SyncXp(targetPlayer)
+    end
+
+    local hasAfter = targetPlayer.hasTrait and (targetPlayer:hasTrait(characterTrait) == true) or false
+    if hasAfter then
+        BurdJournals.debugPrint("[BurdJournals] DEBUG: Trait add success=" .. tostring(not hadBefore) .. " (hadBefore=" .. tostring(hadBefore) .. ")")
+        BurdJournals.Server.sendToClient(player, "debugTraitAdded", {
+            traitId = traitId,
+            targetUsername = targetPlayer:getUsername(),
+            alreadyHad = hadBefore,
+        })
+    else
+        print("[BurdJournals] DEBUG ERROR: Failed to add trait " .. traitId .. " - hasTrait returned false after add")
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Failed to add trait: " .. traitId})
+    end
+end
+
+-- Handle debug: Remove trait (supports removeAll flag for duplicate traits)
+function BurdJournals.Server.handleDebugRemoveTrait(player, args)
+    if not BurdJournals.Server.isDebugAllowed(player) then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Debug commands not allowed"})
+        return
+    end
+
+    local traitId = args.traitId
+    local removeAll = args.removeAll or false
+    if not traitId then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "No trait specified"})
+        return
+    end
+
+    local targetPlayer = player
+    if args.targetUsername and args.targetUsername ~= player:getUsername() then
+        targetPlayer = BurdJournals.Server.findPlayerByUsername(args.targetUsername)
+        if not targetPlayer then
+            BurdJournals.Server.sendToClient(player, "debugError", {message = "Player not found: " .. args.targetUsername})
+            return
+        end
+    end
+
+    BurdJournals.debugPrint("[BurdJournals] DEBUG handleDebugRemoveTrait: traitId=" .. tostring(traitId) .. " removeAll=" .. tostring(removeAll) .. " for " .. targetPlayer:getUsername())
+
+    local removeCount = 0
+    local success = false
+
+    local characterTrait, resolvedSource, traitIdsToTry, foundTraits = BurdJournals.Server.resolveCharacterTrait(traitId, targetPlayer)
+    if not characterTrait then
+        print("[BurdJournals] DEBUG ERROR: Could not resolve CharacterTrait object for: " .. tostring(traitId))
+        if traitIdsToTry and #traitIdsToTry > 0 then
+            BurdJournals.debugPrint("[BurdJournals] DEBUG: Tried IDs: " .. table.concat(traitIdsToTry, ", "))
+        end
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Invalid/unknown trait: " .. traitId})
+        return
+    end
+
+    BurdJournals.debugPrint("[BurdJournals] DEBUG: Resolved trait via " .. tostring(resolvedSource))
+
+    local hadTraitBefore = targetPlayer.hasTrait and (targetPlayer:hasTrait(characterTrait) == true) or false
+    if not hadTraitBefore then
+        BurdJournals.Server.sendToClient(player, "debugTraitRemoved", {
+            traitId = traitId,
+            removeCount = 0,
+            stillHasTrait = false,
+            success = true,
+            targetUsername = targetPlayer:getUsername(),
+            message = "Player doesn't have trait: " .. traitId,
+        })
+        return
+    end
+
+    local charTraits = targetPlayer.getCharacterTraits and targetPlayer:getCharacterTraits() or nil
+    if not charTraits then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Trait system unavailable"})
+        return
+    end
+
+    local maxAttempts = removeAll and 100 or 1
+    for attempt = 1, maxAttempts do
+        local removed = false
+
+        if charTraits.remove then
+            local result = charTraits:remove(characterTrait) == true
+            if result then
+                removed = true
+                removeCount = removeCount + 1
+                success = true
+                BurdJournals.debugPrint("[BurdJournals] DEBUG: SUCCESS via remove(CharacterTrait) attempt #" .. attempt)
+            end
+        end
+
+        if not removed and charTraits.set then
+            charTraits:set(characterTrait, false)
+            local stillHas = targetPlayer.hasTrait and (targetPlayer:hasTrait(characterTrait) == true) or false
+            if not stillHas then
+                removed = true
+                removeCount = removeCount + 1
+                success = true
+                BurdJournals.debugPrint("[BurdJournals] DEBUG: SUCCESS via set(CharacterTrait, false) attempt #" .. attempt)
+            end
+        end
+
+        if not removed and foundTraits and #foundTraits > 0 then
+            for _, entry in ipairs(foundTraits) do
+                local aliasTrait = entry.trait
+                if aliasTrait then
+                    if charTraits.remove then
+                        charTraits:remove(aliasTrait)
+                    end
+                    if charTraits.set then
+                        charTraits:set(aliasTrait, false)
+                    end
+                end
+            end
+
+            local stillHas = targetPlayer.hasTrait and (targetPlayer:hasTrait(characterTrait) == true) or false
+            if not stillHas then
+                removed = true
+                removeCount = removeCount + 1
+                success = true
+                BurdJournals.debugPrint("[BurdJournals] DEBUG: SUCCESS via alias object removal attempt #" .. attempt)
+            end
+        end
+
+        if not removed then
+            BurdJournals.debugPrint("[BurdJournals] DEBUG: No removal method worked on attempt #" .. attempt)
+            break
+        end
+
+        if removeAll then
+            local stillHas = targetPlayer.hasTrait and (targetPlayer:hasTrait(characterTrait) == true) or false
+            if not stillHas then
+                break
+            end
+        else
+            break
+        end
+    end
+
+    if success and targetPlayer.modifyTraitXPBoost then
+        targetPlayer:modifyTraitXPBoost(characterTrait, true)
+    end
+
+    if SyncXp then
+        SyncXp(targetPlayer)
+    end
+
+    local stillHasTrait = targetPlayer.hasTrait and (targetPlayer:hasTrait(characterTrait) == true) or false
+    local finalSuccess = not stillHasTrait
+
+    BurdJournals.Server.sendToClient(player, "debugTraitRemoved", {
+        traitId = traitId,
+        removeCount = removeCount,
+        stillHasTrait = stillHasTrait,
+        success = finalSuccess,
+        targetUsername = targetPlayer:getUsername(),
+    })
+end
+
+-- Handle debug: Remove ALL traits from player
+function BurdJournals.Server.handleDebugRemoveAllTraits(player, args)
+    if not BurdJournals.Server.isDebugAllowed(player) then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Debug commands not allowed"})
+        return
+    end
+    
+    -- Support targeting other players
+    local targetPlayer = player
+    if args.targetUsername and args.targetUsername ~= player:getUsername() then
+        targetPlayer = BurdJournals.Server.findPlayerByUsername(args.targetUsername)
+        if not targetPlayer then
+            BurdJournals.Server.sendToClient(player, "debugError", {message = "Player not found: " .. args.targetUsername})
+            return
+        end
+    end
+    
+    BurdJournals.debugPrint("[BurdJournals] DEBUG handleDebugRemoveAllTraits for " .. targetPlayer:getUsername())
+    
+    local removeCount = 0
+    
+    -- Get CharacterTraits from descriptor (Build 42 API)
+    local charTraits = nil
+    if targetPlayer.getDescriptor and targetPlayer:getDescriptor() then
+        local descriptor = targetPlayer:getDescriptor()
+        if descriptor and descriptor.getTraits then
+            charTraits = descriptor:getTraits()
+        end
+    end
+    if not charTraits and targetPlayer.getCharacterTraits then
+        charTraits = targetPlayer:getCharacterTraits()
+    end
+    
+    -- Collect all traits the player has using CharacterTraitDefinition iteration (Build 42)
+    local traitsToRemove = {}
+    local CharacterTraitDefinition = CharacterTraitDefinition
+    local CharacterTrait = CharacterTrait
+    
+    if CharacterTraitDefinition and CharacterTraitDefinition.getTraits then
+        local allDefs = CharacterTraitDefinition.getTraits()
+        if allDefs then
+            BurdJournals.debugPrint("[BurdJournals] DEBUG: Scanning " .. allDefs:size() .. " trait definitions...")
+            for i = 0, allDefs:size() - 1 do
+                local def = allDefs:get(i)
+                if def and def.getTrait then
+                    local traitObj = def:getTrait()
+                    if traitObj then
+                        local hasIt = false
+                        if targetPlayer.hasTrait then
+                            hasIt = targetPlayer:hasTrait(traitObj) == true
+                        end
+                        if hasIt then
+                            local traitId = "unknown"
+                            if traitObj.getResourceLocation then
+                                local loc = traitObj:getResourceLocation()
+                                if loc then traitId = tostring(loc) end
+                            end
+                            table.insert(traitsToRemove, {trait = traitObj, id = traitId})
+                            BurdJournals.debugPrint("[BurdJournals] DEBUG: Player has trait: " .. traitId)
+                        end
+                    end
+                end
+            end
+        end
+    else
+        BurdJournals.debugPrint("[BurdJournals] DEBUG: CharacterTraitDefinition not available, falling back to old API")
+    end
+    
+    BurdJournals.debugPrint("[BurdJournals] DEBUG: Found " .. #traitsToRemove .. " traits to remove")
+    
+    -- Remove each trait individually (Build 42 approach)
+    for _, traitData in ipairs(traitsToRemove) do
+        local traitObj = traitData.trait
+        local traitId = traitData.id
+        local removed = false
+        
+        -- Try remove method
+        if charTraits and charTraits.remove then
+            charTraits:remove(traitObj)
+            BurdJournals.debugPrint("[BurdJournals] DEBUG: charTraits:remove(" .. traitId .. ") called")
+        end
+        
+        -- Try set(trait, false) method
+        if charTraits and charTraits.set then
+            charTraits:set(traitObj, false)
+            -- Verify removal
+            local stillHas = true
+            if targetPlayer.hasTrait then
+                stillHas = targetPlayer:hasTrait(traitObj) == true
+            end
+            if not stillHas then
+                removed = true
+                BurdJournals.debugPrint("[BurdJournals] DEBUG: Successfully removed " .. traitId)
+            end
+        end
+        
+        if removed then
+            removeCount = removeCount + 1
+        else
+            BurdJournals.debugPrint("[BurdJournals] DEBUG: Failed to remove " .. traitId)
+        end
+    end
+    
+    -- Fallback: try old API if Build 42 approach found no traits
+    if #traitsToRemove == 0 then
+        local oldTraits = nil
+        if targetPlayer.getTraits then
+            oldTraits = targetPlayer:getTraits()
+        end
+        if oldTraits and oldTraits.size then
+            local size = oldTraits:size()
+            if size > 0 then
+                BurdJournals.debugPrint("[BurdJournals] DEBUG: Falling back to old API, clearing " .. size .. " traits")
+                if oldTraits.clear then
+                    oldTraits:clear()
+                    removeCount = size
+                end
+            end
+        end
+    end
+    
+    -- Sync changes
+    if SyncXp then
+        SyncXp(targetPlayer)
+    end
+    
+    BurdJournals.debugPrint("[BurdJournals] DEBUG: Removed " .. removeCount .. " traits from " .. targetPlayer:getUsername())
+    
+    -- Send specific response so client can refresh UI after changes are applied
+    BurdJournals.Server.sendToClient(player, "debugAllTraitsRemoved", {
+        count = removeCount,
+        targetUsername = targetPlayer:getUsername()
+    })
+end
+
+-- Handle debug: Clear baseline
+function BurdJournals.Server.handleDebugClearBaseline(player, args)
+    if not BurdJournals.Server.isDebugAllowed(player) then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Debug commands not allowed"})
+        return
+    end
+    
+    -- Support targeting other players
+    local targetPlayer = player
+    if args.targetUsername and args.targetUsername ~= player:getUsername() then
+        targetPlayer = BurdJournals.Server.findPlayerByUsername(args.targetUsername)
+        if not targetPlayer then
+            BurdJournals.Server.sendToClient(player, "debugError", {message = "Player not found: " .. args.targetUsername})
+            return
+        end
+    end
+    
+    local category = args.category or "all"  -- all, skills, traits, recipes
+    local modData = targetPlayer:getModData()
+    modData.BurdJournals_Baseline = modData.BurdJournals_Baseline or {skills = {}, traits = {}, recipes = {}}
+    modData.BurdJournals = modData.BurdJournals or {}
+    
+    if category == "all" then
+        modData.BurdJournals_Baseline = {skills = {}, traits = {}, recipes = {}}
+        modData.BurdJournals.skillBaseline = {}
+        modData.BurdJournals.traitBaseline = {}
+        modData.BurdJournals.recipeBaseline = {}
+    elseif category == "skills" then
+        modData.BurdJournals_Baseline.skills = {}
+        modData.BurdJournals.skillBaseline = {}
+    elseif category == "traits" then
+        modData.BurdJournals_Baseline.traits = {}
+        modData.BurdJournals.traitBaseline = {}
+    elseif category == "recipes" then
+        modData.BurdJournals_Baseline.recipes = {}
+        modData.BurdJournals.recipeBaseline = {}
+    end
+    
+    BurdJournals.debugPrint("[BurdJournals] DEBUG: Cleared " .. category .. " baseline for " .. targetPlayer:getUsername())
+    BurdJournals.Server.sendToClient(player, "debugSuccess", {message = "Cleared " .. category .. " baseline for " .. targetPlayer:getUsername()})
+end
+
+-- Handle debug: Recalculate baseline
+function BurdJournals.Server.handleDebugRecalcBaseline(player, args)
+    if not BurdJournals.Server.isDebugAllowed(player) then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Debug commands not allowed"})
+        return
+    end
+    
+    -- Tell client to recalculate (client has profession info)
+    BurdJournals.Server.sendToClient(player, "recalculateBaseline", {})
+end
+
+-- Handle debug: Update skill baseline (syncs to server cache for MP persistence)
+function BurdJournals.Server.handleDebugUpdateSkillBaseline(player, args)
+    if not BurdJournals.Server.isDebugAllowed(player) then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Debug commands not allowed"})
+        return
+    end
+    
+    local skillName = args.skillName
+    local baselineXP = args.baselineXP
+    local targetUsername = args.targetUsername
+    
+    if not skillName then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Missing skill name"})
+        return
+    end
+    
+    -- Find target player (default to self)
+    local targetPlayer = player
+    if targetUsername and targetUsername ~= player:getUsername() then
+        local onlinePlayers = getOnlinePlayers()
+        for i = 0, onlinePlayers:size() - 1 do
+            local p = onlinePlayers:get(i)
+            if p and p:getUsername() == targetUsername then
+                targetPlayer = p
+                break
+            end
+        end
+    end
+    
+    -- Update player's modData
+    local modData = targetPlayer:getModData()
+    modData.BurdJournals = modData.BurdJournals or {}
+    modData.BurdJournals.skillBaseline = modData.BurdJournals.skillBaseline or {}
+    modData.BurdJournals.skillBaseline[skillName] = baselineXP
+    
+    -- Update server cache for persistence across logout/rejoin
+    local characterId = BurdJournals.getPlayerCharacterId(targetPlayer)
+    if characterId then
+        local cache = BurdJournals.Server.getBaselineCache()
+        if not cache.players[characterId] then
+            cache.players[characterId] = {
+                skillBaseline = {},
+                traitBaseline = {},
+                recipeBaseline = {},
+                capturedAt = getGameTime():getWorldAgeHours(),
+                steamId = BurdJournals.getPlayerSteamId(targetPlayer),
+                characterName = targetPlayer:getDescriptor():getForename() .. " " .. targetPlayer:getDescriptor():getSurname()
+            }
+        end
+        cache.players[characterId].skillBaseline[skillName] = baselineXP
+        cache.players[characterId].debugModified = true  -- Mark as debug-modified
+        
+        -- Also update the player's local modData (this is the key backup that survives mod updates!)
+        local playerModData = targetPlayer:getModData()
+        if not playerModData.BurdJournals then
+            playerModData.BurdJournals = {}
+        end
+        playerModData.BurdJournals.debugModified = true
+        playerModData.BurdJournals.baselineCaptured = true  -- Ensure this flag is set
+        playerModData.BurdJournals.skillBaseline = playerModData.BurdJournals.skillBaseline or {}
+        playerModData.BurdJournals.skillBaseline[skillName] = baselineXP
+        
+        -- Persist server cache to global ModData
+        if ModData.transmit then
+            ModData.transmit("BurdJournals_PlayerBaselines")
+        end
+        
+        -- CRITICAL: Also transmit player's own ModData to ensure it's saved with their character
+        -- This is the fallback that allows recovery after mod updates!
+        if targetPlayer.transmitModData then
+            targetPlayer:transmitModData()
+        end
+        
+        BurdJournals.debugPrint("[BurdJournals] DEBUG: Updated skill baseline for " .. targetPlayer:getUsername() .. ": " .. skillName .. " = " .. tostring(baselineXP))
+        
+        -- Send specific response so client can refresh the Baseline tab
+        BurdJournals.Server.sendToClient(player, "debugBaselineSkillSet", {
+            skillName = skillName,
+            baselineXP = baselineXP,
+            targetUsername = targetPlayer:getUsername()
+        })
+    else
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Could not get character ID"})
+    end
+end
+
+-- Handle debug: Update trait baseline (syncs to server cache for MP persistence)
+function BurdJournals.Server.handleDebugUpdateTraitBaseline(player, args)
+    if not BurdJournals.Server.isDebugAllowed(player) then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Debug commands not allowed"})
+        return
+    end
+    
+    local traitId = args.traitId
+    local isBaseline = args.isBaseline
+    local targetUsername = args.targetUsername
+    
+    if not traitId then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Missing trait ID"})
+        return
+    end
+    
+    -- Find target player (default to self)
+    local targetPlayer = player
+    if targetUsername and targetUsername ~= player:getUsername() then
+        local onlinePlayers = getOnlinePlayers()
+        for i = 0, onlinePlayers:size() - 1 do
+            local p = onlinePlayers:get(i)
+            if p and p:getUsername() == targetUsername then
+                targetPlayer = p
+                break
+            end
+        end
+    end
+    
+    -- Update player's modData using the shared function (handles aliases)
+    if BurdJournals.setTraitBaseline then
+        BurdJournals.setTraitBaseline(targetPlayer, traitId, isBaseline)
+    end
+    
+    -- Update server cache for persistence across logout/rejoin
+    local characterId = BurdJournals.getPlayerCharacterId(targetPlayer)
+    if characterId then
+        local cache = BurdJournals.Server.getBaselineCache()
+        if not cache.players[characterId] then
+            cache.players[characterId] = {
+                skillBaseline = {},
+                traitBaseline = {},
+                recipeBaseline = {},
+                capturedAt = getGameTime():getWorldAgeHours(),
+                steamId = BurdJournals.getPlayerSteamId(targetPlayer),
+                characterName = targetPlayer:getDescriptor():getForename() .. " " .. targetPlayer:getDescriptor():getSurname()
+            }
+        end
+        
+        -- Get all aliases and store them
+        local aliases = BurdJournals.getTraitAliases and BurdJournals.getTraitAliases(traitId) or {traitId, string.lower(traitId)}
+        for _, alias in ipairs(aliases) do
+            if isBaseline then
+                cache.players[characterId].traitBaseline[alias] = true
+            else
+                cache.players[characterId].traitBaseline[alias] = nil
+            end
+        end
+        cache.players[characterId].debugModified = true  -- Mark as debug-modified
+        
+        -- Also update the player's local modData (this is the key backup that survives mod updates!)
+        local playerModData = targetPlayer:getModData()
+        if not playerModData.BurdJournals then
+            playerModData.BurdJournals = {}
+        end
+        playerModData.BurdJournals.debugModified = true
+        playerModData.BurdJournals.baselineCaptured = true  -- Ensure this flag is set
+        -- Also sync trait baseline to player ModData
+        playerModData.BurdJournals.traitBaseline = playerModData.BurdJournals.traitBaseline or {}
+        for _, alias in ipairs(aliases) do
+            if isBaseline then
+                playerModData.BurdJournals.traitBaseline[alias] = true
+            else
+                playerModData.BurdJournals.traitBaseline[alias] = nil
+            end
+        end
+        
+        -- Persist server cache to global ModData
+        if ModData.transmit then
+            ModData.transmit("BurdJournals_PlayerBaselines")
+        end
+        
+        -- CRITICAL: Also transmit player's own ModData to ensure it's saved with their character
+        -- This is the fallback that allows recovery after mod updates!
+        if targetPlayer.transmitModData then
+            targetPlayer:transmitModData()
+        end
+        
+        local status = isBaseline and "added to" or "removed from"
+        BurdJournals.debugPrint("[BurdJournals] DEBUG: Trait " .. traitId .. " " .. status .. " baseline for " .. targetPlayer:getUsername())
+        
+        -- Send specific response so client can refresh the Baseline tab
+        BurdJournals.Server.sendToClient(player, "debugBaselineTraitSet", {
+            traitId = traitId,
+            isBaseline = isBaseline,
+            targetUsername = targetPlayer:getUsername()
+        })
+    else
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Could not get character ID"})
+    end
+end
+
+-- Handle debug: Spawn journal (server-side for MP persistence)
+function BurdJournals.Server.handleDebugSpawnJournal(player, args)
+    if not BurdJournals.Server.isDebugAllowed(player) then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Debug commands not allowed"})
+        return
+    end
+    
+    local inventory = player:getInventory()
+    if not inventory then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "No inventory"})
+        return
+    end
+    
+    -- Determine item type
+    local itemType
+    local journalType = args.journalType or "filled"
+    
+    if journalType == "blank" then
+        itemType = "BurdJournals.BlankSurvivalJournal"
+    elseif journalType == "worn" then
+        itemType = "BurdJournals.FilledSurvivalJournal_Worn"
+    elseif journalType == "bloody" then
+        itemType = "BurdJournals.FilledSurvivalJournal_Bloody"
+    else
+        itemType = "BurdJournals.FilledSurvivalJournal"
+    end
+    
+    BurdJournals.debugPrint("[BurdJournals] DEBUG: Server spawning journal type=" .. itemType)
+    
+    -- Create the item server-side (authoritative)
+    local item = inventory:AddItem(itemType)
+    if not item then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Failed to create journal"})
+        return
+    end
+    
+    -- Initialize ModData for non-blank journals
+    if journalType ~= "blank" then
+        local modData = item:getModData()
+        modData.BurdJournals = modData.BurdJournals or {}
+        local data = modData.BurdJournals
+        
+        -- Core identification
+        data.uuid = (BurdJournals.generateUUID and BurdJournals.generateUUID()) or tostring((getTimestampMs and getTimestampMs()) or os.time())
+        local worldAge = getGameTime() and getGameTime():getWorldAgeHours() or 0
+        data.timestamp = worldAge
+        local requestedAge = tonumber(args.ageHours or 0) or 0
+        if requestedAge > 0 then
+            data.timestamp = math.max(0, worldAge - requestedAge)
+        end
+        data.lastModified = worldAge
+        
+        -- CRITICAL: These fields are required for persistence across server restarts/mod updates
+        data.isDebugSpawned = true  -- Flag to bypass origin restrictions
+        data.isWritten = true       -- Mark as properly initialized (prevents re-initialization)
+        data.journalVersion = BurdJournals.VERSION or "dev"  -- Version tracking for migration
+        data.sanitizedVersion = BurdJournals.SANITIZE_VERSION or 1  -- Prevent re-sanitization
+        
+        -- Owner information - required for validation and permissions
+        data.ownerCharacterName = args.owner or "Debug Spawn"
+        data.author = args.owner or "Debug Spawn"
+        data.ownerSteamId = BurdJournals.getPlayerSteamId and BurdJournals.getPlayerSteamId(player) or "debug_" .. player:getUsername()
+        data.ownerUsername = player:getUsername()
+        
+        -- Journal type flags - important for claim logic
+        -- If marked as player journal OR has full player ownership info, treat as player-created
+        if args.isPlayerJournal or (args.ownerSteamId and args.ownerUsername) then
+            data.isPlayerCreated = true
+        else
+            data.isPlayerCreated = false
+        end
+        
+        -- Override owner info if explicitly provided
+        if args.ownerSteamId then
+            data.ownerSteamId = args.ownerSteamId
+        end
+        if args.ownerUsername then
+            data.ownerUsername = args.ownerUsername
+        end
+        if args.ownerCharacterName then
+            data.ownerCharacterName = args.ownerCharacterName
+            data.author = args.ownerCharacterName
+        end
+        
+        -- Initialize data containers
+        data.skills = {}
+        data.traits = {}
+        data.recipes = {}
+        data.stats = {}
+        data.claims = {}  -- Per-character claims tracking
+        
+        -- Mark origin for worn/bloody
+        if journalType == "worn" then
+            data.isWorn = true
+            data.wasFromWorn = true
+        elseif journalType == "bloody" then
+            data.isBloody = true
+            data.wasFromBloody = true
+            data.hasBloodyOrigin = true
+        end
+        
+        -- Handle profession for worn/bloody journals
+        if (journalType == "worn" or journalType == "bloody") and not args.noProfession then
+            if args.profession and args.professionName then
+                -- Specific or custom profession selected
+                data.profession = args.profession
+                data.professionName = args.professionName
+                if args.professionFlavorKey then
+                    data.flavorKey = args.professionFlavorKey
+                end
+                local profType = args.isCustomProfession and "Custom" or "Set"
+                BurdJournals.debugPrint("[BurdJournals] DEBUG Server spawn: " .. profType .. " profession: " .. args.professionName)
+            elseif args.randomProfession ~= false then
+                -- Random profession (default for worn/bloody)
+                local profId, profName, flavorKey = BurdJournals.getRandomProfession()
+                if profId then
+                    data.profession = profId
+                    data.professionName = profName
+                    data.flavorKey = flavorKey
+                    BurdJournals.debugPrint("[BurdJournals] DEBUG Server spawn: Random profession: " .. profName)
+                end
+            end
+        end
+        
+        -- Handle custom flavor text (overrides profession flavor)
+        if args.flavorText and args.flavorText ~= "" then
+            data.flavorText = args.flavorText
+            data.flavorKey = nil  -- Clear the key so custom text is used
+            BurdJournals.debugPrint("[BurdJournals] DEBUG Server spawn: Custom flavor text: " .. args.flavorText)
+        end
+        local skillJournalContext = data
+        if journalType == "filled" then
+            skillJournalContext = {isPlayerCreated = true}
+        end
+        
+        -- Add specified skills
+        if args.skills then
+            BurdJournals.debugPrint("[BurdJournals] DEBUG Server spawn: Processing " .. tostring(BurdJournals.tableCount and BurdJournals.tableCount(args.skills) or "?") .. " skills")
+            for skillName, skillData in pairs(args.skills) do
+                local enabledForJournal = not BurdJournals.isSkillEnabledForJournal or BurdJournals.isSkillEnabledForJournal(skillJournalContext, skillName)
+                if enabledForJournal then
+                    local xp = skillData.xp or 0
+                    local level = skillData.level or 0
+                    BurdJournals.debugPrint("[BurdJournals] DEBUG Server spawn: Skill " .. tostring(skillName) .. " received xp=" .. tostring(xp) .. ", level=" .. tostring(level))
+                    data.skills[skillName] = {
+                        xp = xp,
+                        level = level
+                    }
+                else
+                    BurdJournals.debugPrint("[BurdJournals] DEBUG Server spawn: Skipping disabled passive skill for journal type: " .. tostring(skillName))
+                end
+            end
+        else
+            BurdJournals.debugPrint("[BurdJournals] DEBUG Server spawn: No skills in args")
+        end
+        
+        -- Add specified traits
+        if args.traits then
+            for traitName, _ in pairs(args.traits) do
+                data.traits[traitName] = true
+            end
+        end
+        
+        -- Add specified recipes
+        if args.recipes then
+            for recipeName, _ in pairs(args.recipes) do
+                data.recipes[recipeName] = true
+            end
+        end
+
+        -- Add specified stats
+        if args.stats then
+            for statName, value in pairs(args.stats) do
+                local numValue = tonumber(value)
+                if numValue then
+                    data.stats[statName] = { value = numValue }
+                end
+            end
+        end
+
+        local requestedCondition = tonumber(args.conditionOverride or 0) or 0
+        if requestedCondition > 0 then
+            local cond = math.max(1, math.min(10, math.floor(requestedCondition)))
+            if item.setCondition then
+                item:setCondition(cond)
+            end
+            data.condition = cond
+        elseif item.getCondition then
+            data.condition = item:getCondition()
+        end
+        
+        BurdJournals.debugPrint("[BurdJournals] DEBUG Server spawn: Final journal data initialized with persistence fields")
+        BurdJournals.debugPrint("[BurdJournals] DEBUG Server spawn:   isWritten=" .. tostring(data.isWritten))
+        BurdJournals.debugPrint("[BurdJournals] DEBUG Server spawn:   sanitizedVersion=" .. tostring(data.sanitizedVersion))
+        BurdJournals.debugPrint("[BurdJournals] DEBUG Server spawn:   isPlayerCreated=" .. tostring(data.isPlayerCreated))
+        BurdJournals.debugPrint("[BurdJournals] DEBUG Server spawn:   ownerSteamId=" .. tostring(data.ownerSteamId))
+        
+        -- Update journal name and icon
+        if BurdJournals.updateJournalName then
+            BurdJournals.updateJournalName(item)
+        end
+        if BurdJournals.updateJournalIcon then
+            BurdJournals.updateJournalIcon(item)
+        end
+        
+        -- Transmit changes to ensure persistence
+        if item.transmitModData then
+            item:transmitModData()
+        end
+    end
+    
+    -- Sync inventory to client (required for MP)
+    if inventory.sync then
+        inventory:sync()
+    end
+    
+    -- Also try setDrawDirty to force UI update
+    if inventory.setDrawDirty then
+        inventory:setDrawDirty(true)
+    end
+    
+    -- Send inventory packet to client (various methods for compatibility)
+    if isServer() and player then
+        -- Try various inventory sync methods - not all exist in all PZ versions
+        if player.syncInventory then
+            player:syncInventory()
+        end
+        -- sendAddItemToContainer is more reliable
+        if sendAddItemToContainer then
+            sendAddItemToContainer(inventory, item)
+        end
+    end
+    
+    BurdJournals.debugPrint("[BurdJournals] DEBUG: Server spawned journal ID=" .. tostring(item:getID()) .. " type=" .. journalType)
+    BurdJournals.Server.sendToClient(player, "debugSuccess", {message = "Spawned " .. journalType .. " journal (check inventory)"})
+end
+
+-- Handle debug: Force dissolve any journal
+function BurdJournals.Server.handleDebugDissolveJournal(player, args)
+    if not BurdJournals.Server.isDebugAllowed(player) then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Debug commands not allowed"})
+        return
+    end
+    
+    local journalId = args.journalId
+    if not journalId then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "No journal ID specified"})
+        return
+    end
+    
+    BurdJournals.debugPrint("[BurdJournals] DEBUG: Force dissolve requested for ID=" .. tostring(journalId))
+    
+    -- Search for the journal
+    local journal = BurdJournals.findItemById(player, journalId)
+    if not journal then
+        -- Try direct inventory search
+        local inv = player:getInventory()
+        if inv then
+            local items = inv:getItems()
+            for i = 0, items:size() - 1 do
+                local item = items:get(i)
+                if item and item:getID() == journalId then
+                    journal = item
+                    break
+                end
+            end
+        end
+    end
+    
+    if not journal then
+        BurdJournals.Server.sendToClient(player, "debugError", {message = "Journal not found"})
+        return
+    end
+    
+    -- Force remove the journal (no restrictions)
+    BurdJournals.debugPrint("[BurdJournals] DEBUG: Force dissolving journal " .. tostring(journalId))
+    BurdJournals.Server.dissolveJournal(player, journal)
+    
+    BurdJournals.Server.sendToClient(player, "debugSuccess", {message = "Journal dissolved"})
+    BurdJournals.Server.sendToClient(player, "journalDissolved", {
+        message = "Debug dissolved",
+        journalId = journalId
+    })
+end
+
+BurdJournals.debugPrint("[BurdJournals] Registering OnClientCommand handler...")
+BurdJournals.debugPrint("[BurdJournals] Events table exists: " .. tostring(Events ~= nil))
+BurdJournals.debugPrint("[BurdJournals] Events.OnClientCommand exists: " .. tostring(Events and Events.OnClientCommand ~= nil))
+BurdJournals.debugPrint("[BurdJournals] BurdJournals.Server.onClientCommand exists: " .. tostring(BurdJournals.Server.onClientCommand ~= nil))
+
+if Events and Events.OnClientCommand and Events.OnClientCommand.Add and BurdJournals.Server.onClientCommand then
     Events.OnClientCommand.Add(BurdJournals.Server.onClientCommand)
-end)
-if ok then
-    print("[BurdJournals] OnClientCommand handler registered SUCCESSFULLY")
+    BurdJournals.debugPrint("[BurdJournals] OnClientCommand handler registered SUCCESSFULLY")
 else
-    print("[BurdJournals] ERROR registering OnClientCommand: " .. tostring(err))
+    print("[BurdJournals] ERROR registering OnClientCommand: Events.OnClientCommand.Add not available")
 end
 
 Events.OnServerStarted.Add(BurdJournals.Server.init)
 Events.EveryHours.Add(BurdJournals.Server.checkBaselineCleanup)
 
-print("[BurdJournals] Server module fully loaded!")
+-- Register for ModData initialization to ensure baseline cache is properly loaded
+if Events.OnInitGlobalModData then
+    Events.OnInitGlobalModData.Add(BurdJournals.Server.onInitGlobalModData)
+    BurdJournals.debugPrint("[BurdJournals] OnInitGlobalModData handler registered")
+else
+    print("[BurdJournals] WARNING: OnInitGlobalModData event not available")
+end
+
+BurdJournals.debugPrint("[BurdJournals] Server module fully loaded!")

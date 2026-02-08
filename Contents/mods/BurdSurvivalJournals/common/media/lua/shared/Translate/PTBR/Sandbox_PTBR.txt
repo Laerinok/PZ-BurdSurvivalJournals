@@ -16,7 +16,11 @@
     Sandbox_BurdJournals_XPRecoveryMode_tooltip = "Quanto de XP é recuperado ao ler um diário LIMPO. Não afeta diários desgastados/ensanguentados.",
     Sandbox_BurdJournals_XPRecoveryMode_option1 = "Recuperação Total (100%)",
     Sandbox_BurdJournals_XPRecoveryMode_option2 = "Retornos Decrescentes",
-
+    Sandbox_BurdJournals_DiminishingTrackingMode = "Diminishing Tracking Mode",
+    Sandbox_BurdJournals_DiminishingTrackingMode_tooltip = "How diminishing returns are tracked for CLEAN journal skill claims when Diminishing Returns is enabled.",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option1 = "Per Claim (Global)",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option2 = "Per Reading Session",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option3 = "Per Skill (Persistent)",
     Sandbox_BurdJournals_DiminishingFirstRead = "XP da Primeira Leitura %",
     Sandbox_BurdJournals_DiminishingFirstRead_tooltip = "Porcentagem de XP na primeira leitura (50-100%). Só se aplica com Retornos Decrescentes.",
 
@@ -72,8 +76,6 @@
     Sandbox_BurdJournals_EnableBaselineRestriction_tooltip = "Se ativado, os diários gravarão apenas o XP ganho jogando - ignorando bônus iniciais de profissão ou traços. Isso evita o 'farm' de habilidades criando vários personagens. Recomendado ativar para servidores multiplayer.",
 
     -- Recipe Recording
-    Sandbox_BurdJournals_EnableRecipeRecording = "Habilitar Registro de Receitas",
-    Sandbox_BurdJournals_EnableRecipeRecording_tooltip = "Permite que jogadores registrem receitas aprendidas em revistas nos diários. Receitas de revistas podem ser compartilhadas com outros.",
 
     Sandbox_BurdJournals_LearningTimePerRecipe = "Tempo de Aprendizado por Receita (seg)",
     Sandbox_BurdJournals_LearningTimePerRecipe_tooltip = "Tempo base em segundos para aprender cada receita de um diário.",
@@ -199,5 +201,37 @@
 
     Sandbox_BurdJournals_BatchTimeMultiplier = "Batch Time Multiplier",
     Sandbox_BurdJournals_BatchTimeMultiplier_tooltip = "Multiplier for batch action duration. Lower = faster batches. Example: 15 recipes at 0.8s each = 12s normally. With 0.25 multiplier = 3s. Only affects 'Record All' and 'Absorb All', not individual clicks. Default: 0.25 (4x faster)",
+    Sandbox_BurdJournals_AllowDebugCommands = "Permitir Comandos de Depuração",
+    Sandbox_BurdJournals_AllowDebugCommands_tooltip = "Habilita comandos de depuração (/bsjgive, /bsjdump, /bsjdebug, etc.) sem precisar do parâmetro de lançamento -debug. Em jogador único, todos podem usá-los. Em multiplayer, apenas administradores podem usá-los. Útil para testes de servidor e desenvolvimento.",
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes = "Habilitar Receitas em Diários Ensanguentados",
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes_tooltip = "Se ativado, receitas podem ser obtidas de diários ensanguentados. Se desativado, a aba de receitas será ocultada mas os dados existentes serão preservados.",
+    Sandbox_BurdJournals_EnableBloodyJournalTraits = "Habilitar Traços em Diários Ensanguentados",
+    Sandbox_BurdJournals_EnableBloodyJournalTraits_tooltip = "Se ativado, traços podem ser obtidos de diários ensanguentados. Se desativado, a aba de traços será ocultada mas os dados existentes serão preservados.",
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer = "Habilitar Registro de Receitas (Jogador)",
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer_tooltip = "Permite que jogadores registrem receitas de revistas em seus diários pessoais. Se desativado, a aba de receitas será ocultada mas os dados existentes serão preservados.",
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer = "Habilitar Registro de Traços (Jogador)",
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer_tooltip = "Permite que jogadores registrem traços em seus diários pessoais. Se desativado, a aba de traços será ocultada mas os dados existentes serão preservados.",
+    Sandbox_BurdJournals_EnableWornJournalRecipes = "Habilitar Receitas em Diários Desgastados",
+    Sandbox_BurdJournals_EnableWornJournalRecipes_tooltip = "Se ativado, receitas podem ser obtidas de diários desgastados. Se desativado, a aba de receitas será ocultada mas os dados existentes serão preservados.",
+    Sandbox_BurdJournals_EnableWornJournalTraits = "Habilitar Traços em Diários Desgastados",
+    Sandbox_BurdJournals_EnableWornJournalTraits_tooltip = "Se ativado, traços podem ser obtidos de diários desgastados. Se desativado, a aba de traços será ocultada mas os dados existentes serão preservados.",
+    Sandbox_BurdJournals_WornJournalMaxTraits = "Máx. de Traços por Desgastado",
+    Sandbox_BurdJournals_WornJournalMaxTraits_tooltip = "Número máximo de traços que podem aparecer em um diário desgastado (1-5).",
+    Sandbox_BurdJournals_WornJournalMinTraits = "Mín. de Traços por Desgastado",
+    Sandbox_BurdJournals_WornJournalMinTraits_tooltip = "Número mínimo de traços que podem aparecer em um diário desgastado (1-5).",
+    Sandbox_BurdJournals_WornJournalTraitChance = "Chance de Traço em Desgastado %",
+    Sandbox_BurdJournals_WornJournalTraitChance_tooltip = "Chance de diários desgastados conterem traços (0-100%). Defina como 0% (padrão) para o comportamento clássico onde apenas diários ensanguentados têm traços.",
+    Sandbox_BurdJournals_EnablePassiveSkillsLoot = "Enable Passive Skills (Loot)",
+    Sandbox_BurdJournals_EnablePassiveSkillsLoot_tooltip = "When enabled, Fitness/Strength can appear and be claimed on worn/bloody journals. When disabled, passive skill entries are hidden but preserved.",
+    Sandbox_BurdJournals_EnablePassiveSkillsPlayer = "Enable Passive Skills (Player)",
+    Sandbox_BurdJournals_EnablePassiveSkillsPlayer_tooltip = "When enabled, Fitness/Strength can be recorded and claimed from player journals. When disabled, passive skill entries are hidden but preserved.",
+    Sandbox_BurdJournals_RequireLightForJournalUse = "Require Light for Journal Use",
+    Sandbox_BurdJournals_RequireLightForJournalUse_tooltip = "When enabled, opening journals and reading/writing journal actions require enough light, following vanilla reading darkness rules.",
 }
+
+
+
+
+
+
 
