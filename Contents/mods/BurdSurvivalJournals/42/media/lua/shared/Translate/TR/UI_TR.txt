@@ -357,33 +357,33 @@
     UI_BurdJournals_TraitAlreadyKnownCount = "%d özellik zaten biliniyor",
 
     -- Restored Journal (v2.x)
-    UI_BurdJournals_RestoredJournalHeader = "RESTORED JOURNAL",
-    UI_BurdJournals_RestoredFlavor = "Salvaged knowledge given new life...",
+    UI_BurdJournals_RestoredJournalHeader = "ONARILMIŞ GÜNLÜK",
+    UI_BurdJournals_RestoredFlavor = "Yeni hayat verilen kurtarılmış bilgiler...",
 
     -- Dissolve Feature
-    UI_BurdJournals_BtnDissolve = "Dissolve",
-    UI_BurdJournals_ConfirmDissolve = "Dissolve this journal? All remaining contents will be lost forever.",
-    UI_BurdJournals_DissolveTitle = "Dissolve Journal",
+    UI_BurdJournals_BtnDissolve = "Parçala",
+    UI_BurdJournals_ConfirmDissolve = "Bu günlüğü parçalamak istediğinizden emin misiniz? Bu işlem geri alınamaz.",
+    UI_BurdJournals_DissolveTitle = "Günlüğü Parçala",
 
     -- Baseline Management
-    UI_BurdJournals_BtnClearMyBaseline = "Clear My Baseline",
+    UI_BurdJournals_BtnClearMyBaseline = "Temelimi Temizle",
 
     -- Batching
-    UI_BurdJournals_BtnBatching = "BATCH",
+    UI_BurdJournals_BtnBatching = "TOPLU",
 
     -- Complete Baseline Management
-    UI_BurdJournals_ClearMyBaselineTooltip = "Clears YOUR baseline - all skills/traits/recipes become recordable for this character.",
-    UI_BurdJournals_BtnClearAllBaselines = "Clear All (Server)",
-    UI_BurdJournals_ClearAllBaselinesTooltip = "ADMIN: Clears ALL player baseline caches on the server. Players will get fresh baselines on next character creation.",
-    UI_BurdJournals_BaselineBypassEnabled = "Baseline cleared! All skills/traits/recipes now recordable for this character.",
-    UI_BurdJournals_ClearingAllBaselines = "Clearing all baseline caches...",
-    UI_BurdJournals_AllBaselinesCleared = "Server baseline cache cleared!",
-    UI_BurdJournals_CmdBaselineBypassed = "[Journals] Baseline cleared! All skills/traits/recipes now recordable for this character.",
-    UI_BurdJournals_CmdBaselineHelp = "[Journals] Usage: /clearbaseline - Clears your skill baseline and allows recording everything.",
-    UI_BurdJournals_BtnClearBaselineCache = "Clear Baseline & Cache",
-    UI_BurdJournals_ClearBaselineCacheTooltip = "Clears your baseline data and server cache. Use to fix baseline issues or start fresh.",
-    UI_BurdJournals_BaselineCacheCleared = "Baseline & cache cleared! Fresh baseline captured.",
-    UI_BurdJournals_CmdBaselineCleared = "[Journals] Your baseline has been cleared and recaptured.",
+    UI_BurdJournals_ClearMyBaselineTooltip = "BAŞLANGIÇ verinizi temizler - tüm yetenek/özellik/tarifler bu karakter için kaydedilebilir hale gelir.",
+    UI_BurdJournals_BtnClearAllBaselines = "Hepsini Temizle (Sunucu)",
+    UI_BurdJournals_ClearAllBaselinesTooltip = "ADMİN: Sunucudaki TÜM oyuncu başlangıç önbelleklerini temizler.",
+    UI_BurdJournals_BaselineBypassEnabled = "Başlangıç verisi temizlendi! Tüm yetenekler/özellikler artık bu karakter için kaydedilebilir.",
+    UI_BurdJournals_ClearingAllBaselines = "Tüm başlangıç önbellekleri temizleniyor...",
+    UI_BurdJournals_AllBaselinesCleared = "Sunucu başlangıç önbelleği temizlendi!",
+    UI_BurdJournals_CmdBaselineBypassed = "[Günlükler] Başlangıç verisi temizlendi!",
+    UI_BurdJournals_CmdBaselineHelp = "[Günlükler] Kullanım: /clearbaseline - Başlangıç yetenek verinizi temizler.",
+    UI_BurdJournals_BtnClearBaselineCache = "Başlangıç ve Önbelleği Temizle",
+    UI_BurdJournals_ClearBaselineCacheTooltip = "Başlangıç verinizi ve sunucu önbelleğini temizler. Hataları düzeltmek için kullanın.",
+    UI_BurdJournals_BaselineCacheCleared = "Başlangıç ve önbellek temizlendi! Yeni başlangıç verisi kaydedildi.",
+    UI_BurdJournals_CmdBaselineCleared = "[Günlükler] Başlangıç veriniz temizlendi ve yeniden oluşturuldu.",
 
     -- Stat Claiming
     UI_BurdJournals_ClaimingStatMP = "%s talep ediliyor...",
@@ -442,6 +442,9 @@
     UI_BurdJournals_BtnCopy = "Copy",
     UI_BurdJournals_UUIDCopyButtonTooltip = "Copy journal UUID",
 }
+
+
+
 
 
 

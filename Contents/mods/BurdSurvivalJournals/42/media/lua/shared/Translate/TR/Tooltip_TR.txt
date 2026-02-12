@@ -1,4 +1,4 @@
-Tooltip_TR = {
+﻿Tooltip_TR = {
     -- Item Tooltips
     Tooltip_BlankSurvivalJournal = "Hayatta kalma bilginizi kaydetmeye hazır boş bir günlük.",
     Tooltip_FilledSurvivalJournal = "Kayıtlı hayatta kalma becerileri içeren bir günlük. Okumak için sağ tıklayın.",
@@ -113,5 +113,8 @@ Tooltip_TR = {
     Tooltip_BurdJournals_AgeToday = "Bugün",
     Tooltip_BurdJournals_Age1Day = "1 gün önce",
     Tooltip_BurdJournals_AgeDays = "%d gün önce",
-    Tooltip_BurdJournals_Contributors = "Contributors: %s",
+    Tooltip_BurdJournals_Contributors = "Katkıda Bulunanlar: %s",
 }
+
+
+
