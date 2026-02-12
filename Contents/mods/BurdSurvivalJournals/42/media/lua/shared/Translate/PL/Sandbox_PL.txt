@@ -1,0 +1,139 @@
+﻿Sandbox_PL = {
+    -- TAB NAMES
+    Sandbox_BurdJournals_Player = "Dzienniki - Gracz",
+    Sandbox_BurdJournals_Loot = "Dzienniki - Lup",
+    Sandbox_BurdJournals_OtherMods = "Dzienniki - Inne mody",
+    Sandbox_BurdJournals_Advanced = "Dzienniki - Zaawansowane",
+
+    -- Master Toggle
+    Sandbox_BurdJournals_EnableJournals = "Wlacz dzienniki przetrwania",
+    Sandbox_BurdJournals_EnableJournals_tooltip = "Glowny przelacznik calego systemu dziennikow przetrwania.",
+
+    -- Player Journals
+    Sandbox_BurdJournals_EnablePlayerJournals = "Wlacz dzienniki gracza",
+    Sandbox_BurdJournals_EnablePlayerJournals_tooltip = "Pozwala graczom tworzyc i uzywac dziennikow osobistych do zapisywania i odzyskiwania umiejetnosci.",
+
+    -- XP Recovery (Clean Journals)
+    Sandbox_BurdJournals_XPRecoveryMode = "Tryb odzyskiwania PD (czyste dzienniki)",
+    Sandbox_BurdJournals_XPRecoveryMode_tooltip = "Okresla ilosc PD odzyskiwana podczas czytania czystego dziennika (tryb SET).",
+    Sandbox_BurdJournals_XPRecoveryMode_option1 = "Pelne odzyskiwanie (100%)",
+    Sandbox_BurdJournals_XPRecoveryMode_option2 = "Malejace korzysci",
+
+    Sandbox_BurdJournals_DiminishingTrackingMode = "Tryb sledzenia malejacych korzysci",
+    Sandbox_BurdJournals_DiminishingTrackingMode_tooltip = "Jak malejace korzysci sa sledzone dla odbierania umiejetnosci z czystych dziennikow.",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option1 = "Na odebranie (globalnie)",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option2 = "Na sesje czytania",
+    Sandbox_BurdJournals_DiminishingTrackingMode_option3 = "Na umiejetnosc (trwale)",
+
+    Sandbox_BurdJournals_DiminishingFirstRead = "PD przy pierwszym czytaniu %",
+    Sandbox_BurdJournals_DiminishingFirstRead_tooltip = "Procent PD przy pierwszym czytaniu (50-100%).",
+    Sandbox_BurdJournals_DiminishingDecayRate = "Spadek PD na kazde czytanie %",
+    Sandbox_BurdJournals_DiminishingDecayRate_tooltip = "Redukcja PD przy kazdym kolejnym czytaniu (5-50%).",
+    Sandbox_BurdJournals_DiminishingMinimum = "Minimalny prog PD %",
+    Sandbox_BurdJournals_DiminishingMinimum_tooltip = "Minimalny procent PD, ponizej ktorego odzyskiwanie nie spadnie (0-50%).",
+
+    -- Multipliers
+    Sandbox_BurdJournals_JournalXPMultiplier = "Mnoznik PD z dziennikow",
+    Sandbox_BurdJournals_JournalXPMultiplier_tooltip = "Mnoznik PD uzyskiwanego z dziennikow.",
+    Sandbox_BurdJournals_SkillBookMultiplierForJournals = "Zastosuj mnozniki ksiazek umiejetnosci",
+    Sandbox_BurdJournals_SkillBookMultiplierForJournals_tooltip = "Po wlaczeniu mnozniki PD z ksiazek beda stosowane do pochlaniania z dziennikow zuzytych i zakrwawionych.",
+    Sandbox_BurdJournals_SkillBookMultiplierCap = "Limit mnoznika ksiazek umiejetnosci",
+    Sandbox_BurdJournals_SkillBookMultiplierCap_tooltip = "Maksymalny mnoznik PD z ksiazek umiejetnosci podczas pochlaniania z dziennikow.",
+
+    -- Writing Requirements
+    Sandbox_BurdJournals_RequirePenToWrite = "Wymagaj dlugopisu do pisania",
+    Sandbox_BurdJournals_RequirePenToWrite_tooltip = "Wymaga dlugopisu lub olowka do zapisywania postepow.",
+    Sandbox_BurdJournals_PenUsesPerLog = "Zuzycie dlugopisu na zapis",
+    Sandbox_BurdJournals_PenUsesPerLog_tooltip = "Ilosc trwalosci dlugopisu zuzywana przy zapisie.",
+    Sandbox_BurdJournals_RequireEraserToErase = "Wymagaj gumki do wymazywania",
+    Sandbox_BurdJournals_RequireEraserToErase_tooltip = "Wymaga gumki do wyczyszczenia zawartosci dziennika.",
+
+    -- Learning Time
+    Sandbox_BurdJournals_LearningTimePerSkill = "Czas nauki na umiejetnosc (sek.)",
+    Sandbox_BurdJournals_LearningTimePerSkill_tooltip = "Podstawowy czas potrzebny do nauczenia sie kazdej umiejetnosci z dziennika.",
+    Sandbox_BurdJournals_LearningTimePerTrait = "Czas nauki na ceche (sek.)",
+    Sandbox_BurdJournals_LearningTimePerTrait_tooltip = "Podstawowy czas potrzebny do przyswojenia kazdej cechy z dziennika.",
+    Sandbox_BurdJournals_LearningTimePerRecipe = "Czas nauki na recepture (sek.)",
+    Sandbox_BurdJournals_LearningTimePerRecipe_tooltip = "Podstawowy czas potrzebny do nauczenia sie kazdej receptury z dziennika.",
+    Sandbox_BurdJournals_LearningTimeMultiplier = "Mnoznik czasu nauki",
+    Sandbox_BurdJournals_LearningTimeMultiplier_tooltip = "Globalny mnoznik wszystkich czasow nauki.",
+
+    -- Baseline
+    Sandbox_BurdJournals_EnableBaselineRestriction = "Zapisuj tylko zdobyte postepy",
+    Sandbox_BurdJournals_EnableBaselineRestriction_tooltip = "Po wlaczeniu dzienniki zapisuja tylko PD zdobyte podczas rozgrywki, bez premii startowych.",
+
+    -- Player feature toggles
+    Sandbox_BurdJournals_EnablePassiveSkillsPlayer = "Wlacz umiejetnosci pasywne (gracz)",
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer = "Wlacz zapisywanie cech (gracz)",
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer_tooltip = "Pozwala graczom zapisywac cechy w dziennikach osobistych.",
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer = "Wlacz zapisywanie receptur (gracz)",
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer_tooltip = "Pozwala graczom zapisywac receptury w dziennikach osobistych.",
+
+    -- Player stats
+    Sandbox_BurdJournals_EnableStatRecording = "Wlacz zapisywanie statystyk",
+    Sandbox_BurdJournals_EnableStatRecording_tooltip = "Glowny przelacznik zapisywania statystyk gracza w dziennikach osobistych.",
+    Sandbox_BurdJournals_RecordZombieKills = "Zapisuj zabojstwa zombie",
+    Sandbox_BurdJournals_RecordZombieKills_tooltip = "Pozwala zapisywac liczbe zabitych zombie.",
+    Sandbox_BurdJournals_RecordHoursSurvived = "Zapisuj czas przetrwania",
+    Sandbox_BurdJournals_RecordHoursSurvived_tooltip = "Pozwala zapisywac czas przetrwania.",
+
+    -- Capacity limits
+    Sandbox_BurdJournals_MaxSkillsPerJournal = "Maks. umiejetnosci na dziennik",
+    Sandbox_BurdJournals_MaxSkillsPerJournal_tooltip = "Maksymalna liczba umiejetnosci, ktore mozna zapisac w jednym dzienniku. 0 = bez limitu.",
+    Sandbox_BurdJournals_MaxTraitsPerJournal = "Maks. cech na dziennik",
+    Sandbox_BurdJournals_MaxTraitsPerJournal_tooltip = "Maksymalna liczba cech, ktore mozna zapisac w jednym dzienniku. 0 = bez limitu.",
+    Sandbox_BurdJournals_MaxRecipesPerJournal = "Maks. receptur na dziennik",
+    Sandbox_BurdJournals_MaxRecipesPerJournal_tooltip = "Maksymalna liczba receptur, ktore mozna zapisac w jednym dzienniku. 0 = bez limitu.",
+
+    -- VHS
+    Sandbox_BurdJournals_AllowVhsSkillRecording = "Zezwol na zapisywanie PD z VHS",
+    Sandbox_BurdJournals_AllowVhsSkillRecording_tooltip = "Opcja zgodnosci dla PD umiejetnosci z nagran VHS. Po wylaczeniu (domyslnie) sledzone PD z VHS sa wykluczane z zapisu dziennika gracza.",
+
+    -- Loot settings
+    Sandbox_BurdJournals_EnableWornJournalSpawns = "Wlacz pojawianie sie zuzytych dziennikow",
+    Sandbox_BurdJournals_WornJournalSpawnChance = "Szansa pojawienia sie zuzytych %",
+    Sandbox_BurdJournals_WornJournalMinSkills = "Min. umiejetnosci (zuzyty)",
+    Sandbox_BurdJournals_WornJournalMaxSkills = "Maks. umiejetnosci (zuzyty)",
+    Sandbox_BurdJournals_WornJournalMinXP = "Min. PD / umiejetnosc (zuzyty)",
+    Sandbox_BurdJournals_WornJournalMaxXP = "Maks. PD / umiejetnosc (zuzyty)",
+    Sandbox_BurdJournals_WornJournalRecipeChance = "Szansa na receptury (zuzyty) %",
+    Sandbox_BurdJournals_WornJournalMaxRecipes = "Maks. receptur (zuzyty)",
+    Sandbox_BurdJournals_EnableWornJournalRecipes = "Wlacz receptury w zuzytych dziennikach",
+    Sandbox_BurdJournals_EnableWornJournalTraits = "Wlacz cechy w zuzytych dziennikach",
+    Sandbox_BurdJournals_WornJournalTraitChance = "Szansa na cechy (zuzyty) %",
+    Sandbox_BurdJournals_WornJournalMinTraits = "Min. cech (zuzyty)",
+    Sandbox_BurdJournals_WornJournalMaxTraits = "Maks. cech (zuzyty)",
+
+    Sandbox_BurdJournals_EnableBloodyJournalSpawns = "Wlacz zakrwawione dzienniki z zombie",
+    Sandbox_BurdJournals_BloodyJournalSpawnChance = "Szansa dropu zakrwawionego %",
+    Sandbox_BurdJournals_BloodyJournalMinSkills = "Min. umiejetnosci (zakrwawiony)",
+    Sandbox_BurdJournals_BloodyJournalMaxSkills = "Maks. umiejetnosci (zakrwawiony)",
+    Sandbox_BurdJournals_BloodyJournalMinXP = "Min. PD / umiejetnosc (zakrwawiony)",
+    Sandbox_BurdJournals_BloodyJournalMaxXP = "Maks. PD / umiejetnosc (zakrwawiony)",
+    Sandbox_BurdJournals_BloodyJournalTraitChance = "Szansa na rzadkie cechy %",
+    Sandbox_BurdJournals_BloodyJournalMaxTraits = "Maks. cech (zakrwawiony)",
+    Sandbox_BurdJournals_EnableBloodyJournalTraits = "Wlacz cechy w zakrwawionych dziennikach",
+    Sandbox_BurdJournals_BloodyJournalRecipeChance = "Szansa na receptury (zakrwawiony) %",
+    Sandbox_BurdJournals_BloodyJournalMaxRecipes = "Maks. receptur (zakrwawiony)",
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes = "Wlacz receptury w zakrwawionych dziennikach",
+
+    -- Advanced
+    Sandbox_BurdJournals_ReadingSkillAffectsSpeed = "Umiejetnosc czytania wplywa na szybkosc",
+    Sandbox_BurdJournals_ReadingSpeedBonus = "Bonus predkosci czytania",
+    Sandbox_BurdJournals_EraseTime = "Czas wymazywania (sekundy)",
+    Sandbox_BurdJournals_ConvertTime = "Czas konwersji (sekundy)",
+    Sandbox_BurdJournals_AllowOthersToOpenJournals = "Pozwol innym otwierac dzienniki osobiste",
+    Sandbox_BurdJournals_AllowOthersToClaimFromJournals = "Pozwol innym odbierac zawartosc dziennikow",
+    Sandbox_BurdJournals_AllowNegativeTraits = "Zezwol na negatywne cechy",
+    Sandbox_BurdJournals_AllowPlayerJournalDissolution = "Zezwol na znikanie odrestaurowanych dziennikow",
+    Sandbox_BurdJournals_RecordBatchSize = "Rozmiar partii zapisu",
+    Sandbox_BurdJournals_AbsorbBatchSize = "Rozmiar partii pochlaniania",
+    Sandbox_BurdJournals_BatchTimeMultiplier = "Mnoznik czasu partii",
+
+    -- Other mods
+    Sandbox_BurdJournals_AllowTraitPurchaseSkillRecording = "Zezwol na zapis umiejetnosci z Traits Purchase System",
+    Sandbox_BurdJournals_AllowAdaptiveTraitsManagedTraitRecording = "Zezwol na zapis cech zarzadzanych przez Adaptive Traits",
+
+    -- Debug
+    Sandbox_BurdJournals_AllowDebugCommands = "Zezwol na komendy debug",
+}

@@ -1,0 +1,117 @@
+﻿Tooltip_PL = {
+    -- Item Tooltips
+    Tooltip_BlankSurvivalJournal = "Pusty dziennik gotowy do zapisywania wiedzy o przetrwaniu.",
+    Tooltip_FilledSurvivalJournal = "Dziennik zawierajacy zapisane umiejetnosci przetrwania. Kliknij PPM, aby czytac.",
+
+    -- Skill Info
+    Tooltip_BurdJournals_ContainsSkills = "Zawiera zapisane umiejetnosci: %d",
+    Tooltip_BurdJournals_RewardsRemaining = "pozostale nagrody",
+    Tooltip_BurdJournals_SetModeDesc = "Czytanie USTAWI Twoje PD na poziomie zapisanym w dzienniku (jesli jest wyzszy).\n\n",
+
+    -- Tool Requirements
+    Tooltip_BurdJournals_NeedPen = "Wymaga dlugopisu lub olowka do pisania.",
+    Tooltip_BurdJournals_NeedEraser = "Wymaga gumki do wymazania zawartosci.",
+
+    -- Bloody Journal
+    Tooltip_BurdJournals_BloodyJournal = "Zakrwawiony dziennik",
+    Tooltip_BurdJournals_BloodyJournalDesc = "Dziennik nalezacy do poleglego ocalalego. Zawiera umiejetnosci i cechy, ktore mozna przyswoic.",
+    Tooltip_BurdJournals_BloodyDesc = "Rzadkie znalezisko! Moze zawierac cenne cechy.",
+    Tooltip_BurdJournals_ConvertBloodyToClean = "Przeksztalc w czysty dziennik",
+    Tooltip_BurdJournals_ConvertBloodyToCleanDesc = "Uzyj wytwarzania, aby przeksztalcic ten zakrwawiony dziennik w czysty dziennik osobisty.",
+
+    -- Worn Journal
+    Tooltip_BurdJournals_WornJournal = "Zuzyty dziennik",
+    Tooltip_BurdJournals_NeedsCleaning = "Ten dziennik jest zbyt zuzyty, aby go czytac.",
+    Tooltip_BurdJournals_NeedsCleaningDesc = "Uzyj mydla i szmaty, aby go wyczyscic; tasmy naprawczej, aby zalatac; lub paskow skory, aby ponownie go oprawic.",
+    Tooltip_BurdJournals_AbsorbAll = "Wchlon wszystko",
+    Tooltip_BurdJournals_AbsorbAllDesc = "Odbierz jednoczesnie wszystkie pozostale umiejetnosci i cechy.\nDziennik zniknie.",
+
+    -- Personal Journal (Clean)
+    Tooltip_BurdJournals_PersonalJournal = "Osobisty dziennik przetrwania",
+    Tooltip_BurdJournals_BlankJournal = "Pusty dziennik przetrwania",
+    Tooltip_BurdJournals_BlankJournalDesc = "Otwiera dziennik w celu zapisania postepow przetrwania.\nWymaga narzedzia do pisania.",
+    Tooltip_BurdJournals_RecordProgress = "Zapisz swoje postepy",
+    Tooltip_BurdJournals_RecordProgressDesc = "Otwiera dziennik, aby zapisac aktualne umiejetnosci i cechy.\nZapisane wartosci sa aktualizowane tylko wtedy, gdy Twoj obecny poziom jest wyzszy.",
+    Tooltip_BurdJournals_ClaimAll = "Odbierz wszystkie umiejetnosci",
+    Tooltip_BurdJournals_ClaimAllDesc = "Otwiera dziennik i odbiera wszystkie dostepne umiejetnosci.\nCzas trwania zalezy od szybkosci czytania.",
+    Tooltip_BurdJournals_Disassemble = "Rozloz dziennik",
+    Tooltip_BurdJournals_DisassembleDesc = "Rozedrzyj ten dziennik, aby odzyskac materialy.\n\nOtrzymasz:\n  2x Papier\n  1x Paski skory",
+
+    -- Tooltip Dynamic Text
+    Tooltip_BurdJournals_SkillsAvailable = "Umiejetnosci: %d/%d dostepne",
+    Tooltip_BurdJournals_TraitsAvailable = "Cechy: %d/%d dostepne",
+    Tooltip_BurdJournals_RecipesAvailable = "Receptury: %d/%d dostepne",
+    Tooltip_BurdJournals_NoRewardsFound = "Nie znaleziono nagrod",
+    Tooltip_BurdJournals_AbsorbAllRewards = "Wchlon wszystkie nagrody",
+    Tooltip_BurdJournals_AbsorbAllSkillsTraits = "Wchlon wszystko (%d umiejetnosci, %d cechy)",
+    Tooltip_BurdJournals_AbsorbAllSkills = "Wchlon wszystko (%d umiejetnosci)",
+    Tooltip_BurdJournals_CraftingRequired = "Wymagane wytwarzanie",
+    Tooltip_BurdJournals_ConvertBloodyDesc = "Otworz menu wytwarzania (B) i znajdz \"Wyczysc i przeksztalc zakrwawiony dziennik\".\nWymaga: mydlo, szmata, skora, nic, igla, Krawiectwo 1.\nOSTRZEZENIE: Niszczy wszelkie pozostale nagrody!",
+    Tooltip_BurdJournals_WrittenBy = "Autor: %s",
+    Tooltip_BurdJournals_RecordedItem = "Zawiera %d zapisany element",
+    Tooltip_BurdJournals_RecordedItems = "Zawiera %d zapisane elementy",
+    Tooltip_BurdJournals_ClaimableRewards = "Nagrody do odebrania:",
+    Tooltip_BurdJournals_SkillCount = " - %d umiejetnosc",
+    Tooltip_BurdJournals_SkillsCount = " - %d umiejetnosci",
+    Tooltip_BurdJournals_TraitCount = " - %d cecha",
+    Tooltip_BurdJournals_TraitsCount = " - %d cechy",
+    Tooltip_BurdJournals_ViewOnly = "Tylko podglad",
+    Tooltip_BurdJournals_CannotClaimDefault = "Nie mozna odebrac nagrod z tego dziennika.",
+    Tooltip_BurdJournals_NoNewRewards = "Brak nowych nagrod.",
+    Tooltip_BurdJournals_ClaimingInfo = "Odbieranie ustawia Twoje PD na poziomie zapisanym w dzienniku (jesli jest wyzszy).",
+    Tooltip_BurdJournals_UpdateRecords = "Zaktualizuj zapisy dziennika",
+    Tooltip_BurdJournals_UpdateRecordsDesc = "Otwiera dziennik w celu aktualizacji zapisanych umiejetnosci.\nZapisane wartosci sa aktualizowane tylko wtedy, gdy Twoj obecny poziom jest wyzszy.",
+    Tooltip_BurdJournals_CannotClaim = "Nie mozna odebrac",
+    Tooltip_BurdJournals_NoPermissionClaim = "Nie masz uprawnien do odebrania nagrod z tego dziennika.",
+    Tooltip_BurdJournals_AvailableSkill = "Dostepne: %d umiejetnosc",
+    Tooltip_BurdJournals_AvailableSkills = "Dostepne: %d umiejetnosci",
+    Tooltip_BurdJournals_AndTrait = ", %d cecha",
+    Tooltip_BurdJournals_AndTraits = ", %d cechy",
+    Tooltip_BurdJournals_ReadingSpeedNote = "Czas trwania zalezy od szybkosci czytania.",
+    Tooltip_BurdJournals_EraseContents = "Wymaz cala zawartosc",
+    Tooltip_BurdJournals_EraseContentsDesc = "Usuwa wszystkie zapisane dane, przywracajac dziennik do pustego stanu.\nWymaga gumki.",
+    Tooltip_BurdJournals_CannotOpen = "Nie mozna otworzyc",
+
+    -- Conversion
+    Tooltip_BurdJournals_ConvertToClean = "Opraw ponownie jako osobisty dziennik przetrwania",
+    Tooltip_BurdJournals_ConvertToCleanDesc = "Opraw ten zuzyty dziennik jako czysty, pusty dziennik przetrwania do uzytku osobistego. Wymaga materialow krawieckich.",
+    Tooltip_BurdJournals_CannotConvert = "Nie mozna przeksztalcic",
+    Tooltip_BurdJournals_NeedsConvertMaterials = "Wymaga: paski skory + nic + igla + Krawiectwo 1",
+
+    -- Materials
+    Tooltip_BurdJournals_MissingMaterials = "Brak materialow",
+    Tooltip_BurdJournals_NeedsSoapCloth = "Wymaga: mydlo + porwane przescieradla lub sciereczka",
+    Tooltip_BurdJournals_NeedsTape = "Wymaga: tasma naprawcza",
+    Tooltip_BurdJournals_NeedsLeatherBinding = "Wymaga: paski skory + nic + igla",
+    Tooltip_BurdJournals_NeedsGluePaper = "Wymaga: klej + kartka papieru",
+
+    -- Illiterate Trait Block
+    Tooltip_BurdJournals_IlliterateName = "Analfabeta",
+    Tooltip_BurdJournals_IlliterateDesc = "Nie potrafisz czytac ani pisac. Dzienniki sa dla Ciebie bezuzyteczne.",
+
+    -- Inventory Tooltip Labels
+    Tooltip_BurdJournals_Owner = "Wlasciciel: %s",
+    Tooltip_BurdJournals_OwnerYou = "(Ty)",
+    Tooltip_BurdJournals_Author = "Autor: %s",
+    Tooltip_BurdJournals_Contributors = "Wspolautorzy: %s",
+    Tooltip_BurdJournals_Profession = "Profesja: %s",
+    Tooltip_BurdJournals_SkillsLine = "Umiejetnosci: %d/%d",
+    Tooltip_BurdJournals_SkillsLineXP = "Umiejetnosci: %d/%d (%s PD)",
+    Tooltip_BurdJournals_AllClaimed = "(wszystko odebrane)",
+    Tooltip_BurdJournals_TraitsLine = "Cechy: %d/%d",
+    Tooltip_BurdJournals_RecipesLine = "Receptury: %d/%d",
+    Tooltip_BurdJournals_ConditionBloody = "Stan: Zakrwawiony",
+    Tooltip_BurdJournals_ConditionWorn = "Stan: Zuzyty",
+    Tooltip_BurdJournals_ConditionRestored = "Stan: Odrestaurowany",
+    Tooltip_BurdJournals_ConditionClean = "Stan: Czysty",
+    Tooltip_BurdJournals_OriginZombie = "Pochodzenie: odzyskany z zombie",
+    Tooltip_BurdJournals_OriginWorld = "Pochodzenie: znaleziony w swiecie",
+    Tooltip_BurdJournals_OriginCrafted = "Pochodzenie: wytworzony",
+    Tooltip_BurdJournals_OriginFound = "Pochodzenie: znaleziony",
+    Tooltip_BurdJournals_OriginPersonal = "Pochodzenie: osobisty",
+    Tooltip_BurdJournals_Created = "Utworzono: %s",
+    Tooltip_BurdJournals_LastUpdated = "Ostatnia aktualizacja: %s",
+    Tooltip_BurdJournals_AgeToday = "Dzisiaj",
+    Tooltip_BurdJournals_Age1Day = "1 dzien temu",
+    Tooltip_BurdJournals_AgeDays = "%d dni temu",
+}

@@ -66,8 +66,10 @@ This Cloudflare Worker handles GitHub OAuth token exchange for the translation t
 ### 4. Update GitHub OAuth App Callback URL
 
 1. Go back to your GitHub OAuth App settings
-2. Update the **Authorization callback URL** to match your worker URL:
-   `https://bsj-oauth.YOUR_SUBDOMAIN.workers.dev/callback`
+2. Ensure the **Authorization callback URL** points to your translation tool page (not the worker):
+   `https://theburd.github.io/PZ-BurdSurvivalJournals/docs/`
+
+> The app receives `code/state` at the docs URL, then exchanges the code with the worker via `POST /token`.
 
 ## Testing
 
@@ -87,6 +89,7 @@ This starts a local server at `http://localhost:8787` for testing.
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/token` | POST | Exchange OAuth code for access token |
+| `/revoke` | POST | Revoke OAuth authorization/token |
 | `/health` | GET | Health check |
 
 ## Security Notes

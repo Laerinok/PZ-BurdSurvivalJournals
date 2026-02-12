@@ -20,6 +20,7 @@ import {
     getLanguagesWithLocalWork,
     isLanguageInRepo,
     getAllSavedTranslationsForSubmission,
+    getFullMergedTranslationsForSubmission,
     forceSave
 } from './translation-manager.js';
 import {
@@ -354,7 +355,13 @@ function getCategoryFromKey(key) {
     if (key.startsWith('ContextMenu_')) return 'ContextMenu';
     if (key.startsWith('Tooltip_')) return 'Tooltip';
     if (key.startsWith('ItemName_')) return 'ItemName';
-    if (key.startsWith('Recipes_') || key.startsWith('Recipe_')) return 'Recipes';
+    if (
+        key.startsWith('Recipes_') ||
+        key.startsWith('Recipe_') ||
+        key.startsWith('Bind_') ||
+        key.startsWith('RestoreJournal_') ||
+        key === 'EraseFilledJournal'
+    ) return 'Recipes';
     if (key.startsWith('IG_UI_')) return 'IG_UI';
     return null;
 }
@@ -517,6 +524,8 @@ async function handleGitHubClick() {
 
 async function handleSubmitPR() {
     const allTranslations = getAllSavedTranslationsForSubmission();
+    // Also get the full merged translations (repo + user edits) for complete file generation
+    const fullMergedTranslations = getFullMergedTranslationsForSubmission();
 
     // Filter out EN (English is the baseline, not a translation to submit)
     // Also filter out any empty translation sets
@@ -538,15 +547,16 @@ async function handleSubmitPR() {
         return;
     }
 
-    // Show confirmation modal instead of immediately submitting
-    showPRConfirmationModal(submittableTranslations);
+    // Show confirmation modal - pass both changed translations and full merged translations
+    showPRConfirmationModal(submittableTranslations, fullMergedTranslations);
 }
 
 /**
  * Show PR confirmation modal with summary of what will be submitted
- * @param {Object} translationsByLang - Translations to submit by language code
+ * @param {Object} translationsByLang - Changed translations to submit by language code
+ * @param {Object} fullMergedTranslations - Full merged translations (repo + user edits) for complete files
  */
-function showPRConfirmationModal(translationsByLang) {
+function showPRConfirmationModal(translationsByLang, fullMergedTranslations = null) {
     const english = getEnglishBaseline();
     const englishKeyCount = Object.keys(english).length;
     const languages = Object.keys(translationsByLang);
@@ -701,7 +711,8 @@ function showPRConfirmationModal(translationsByLang) {
         await executePRSubmission(translationsByLang, {
             customTitle,
             customBody,
-            langNames
+            langNames,
+            fullTranslationsByLang: fullMergedTranslations
         });
     });
 
@@ -760,11 +771,11 @@ function renderSimpleMarkdown(markdown) {
 
 /**
  * Execute the actual PR submission after confirmation
- * @param {Object} translationsByLang - Translations to submit
- * @param {Object} options - Options including customTitle, customBody, langNames
+ * @param {Object} translationsByLang - Changed translations to submit
+ * @param {Object} options - Options including customTitle, customBody, langNames, fullTranslationsByLang
  */
 async function executePRSubmission(translationsByLang, options = {}) {
-    const { customTitle, customBody, langNames } = options;
+    const { customTitle, customBody, langNames, fullTranslationsByLang } = options;
 
     showLoadingOverlay('Submitting to GitHub...');
 
@@ -775,7 +786,8 @@ async function executePRSubmission(translationsByLang, options = {}) {
             },
             customTitle,
             customBody,
-            langNames
+            langNames,
+            fullTranslationsByLang
         });
 
         hideLoadingOverlay();

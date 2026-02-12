@@ -1,0 +1,11 @@
+﻿Items_PL = {
+    /* Blank Journals */
+    DisplayName_BlankSurvivalJournal = "Pusty dziennik przetrwania",
+    DisplayName_BlankSurvivalJournal_Worn = "Zuzyty pusty dziennik",
+    DisplayName_BlankSurvivalJournal_Bloody = "Zakrwawiony pusty dziennik",
+
+    /* Filled Journals */
+    DisplayName_FilledSurvivalJournal = "Wypelniony dziennik przetrwania",
+    DisplayName_FilledSurvivalJournal_Worn = "Zuzyty dziennik przetrwania",
+    DisplayName_FilledSurvivalJournal_Bloody = "Zakrwawiony dziennik przetrwania",
+}

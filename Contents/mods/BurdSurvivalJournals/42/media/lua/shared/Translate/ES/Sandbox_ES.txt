@@ -1,4 +1,4 @@
-﻿Sandbox_ES = {
+Sandbox_ES = {
     -- TAB NAMES
     Sandbox_BurdJournals_Player = "Diarios - Jugador",
     Sandbox_BurdJournals_Loot = "Diarios - Botin",
@@ -37,10 +37,10 @@
 
     -- Skill Book Multiplier
     Sandbox_BurdJournals_SkillBookMultiplierForJournals = "Aplicar Multiplicadores de Libros de Habilidad",
-    Sandbox_BurdJournals_SkillBookMultiplierForJournals_tooltip = "Cuando estÃ¡ activado, los multiplicadores de XP de los libros de habilidad se aplican ÃšNICAMENTE al XP absorbido de diarios desgastados y sangrientos. Los diarios personales no se ven afectados. El multiplicador estÃ¡ limitado por la configuraciÃ³n de abajo.",
+    Sandbox_BurdJournals_SkillBookMultiplierForJournals_tooltip = "Cuando está activado, los multiplicadores de XP de los libros de habilidad se aplican ÚNICAMENTE al XP absorbido de diarios desgastados y sangrientos. Los diarios personales no se ven afectados. El multiplicador está limitado por la configuración de abajo.",
     
-    Sandbox_BurdJournals_SkillBookMultiplierCap = "LÃ­mite del Multiplicador de Libros",
-    Sandbox_BurdJournals_SkillBookMultiplierCap_tooltip = "Multiplicador mÃ¡ximo de XP de libros al absorber habilidades de diarios desgastados y sangrientos. El valor predeterminado de 2x previene la progresiÃ³n excesiva al inicio. Establezca a 16 para permitir multiplicadores completos. No afecta los diarios personales.",
+    Sandbox_BurdJournals_SkillBookMultiplierCap = "Límite del Multiplicador de Libros",
+    Sandbox_BurdJournals_SkillBookMultiplierCap_tooltip = "Multiplicador máximo de XP de libros al absorber habilidades de diarios desgastados y sangrientos. El valor predeterminado de 2x previene la progresión excesiva al inicio. Establezca a 16 para permitir multiplicadores completos. No afecta los diarios personales.",
 
     -- Writing Requirements
     Sandbox_BurdJournals_RequirePenToWrite = "Requerir Boligrafo para Escribir",
@@ -240,7 +240,16 @@
     Sandbox_BurdJournals_EnablePassiveSkillsPlayer_tooltip = "When enabled, Fitness/Strength can be recorded and claimed from player journals. When disabled, passive skill entries are hidden but preserved.",
     Sandbox_BurdJournals_RequireLightForJournalUse = "Require Light for Journal Use",
     Sandbox_BurdJournals_RequireLightForJournalUse_tooltip = "When enabled, opening journals and reading/writing journal actions require enough light, following vanilla reading darkness rules.",
+    Sandbox_BurdJournals_AllowTraitPurchaseSkillRecording = "Allow Trait Purchase Skill Recording",
+    Sandbox_BurdJournals_AllowTraitPurchaseSkillRecording_tooltip = "Compatibility toggle for Traits Purchase System (Mod ID: TraitsPurchaseSystem). When disabled (default), its trait-currency skills (Traits/Traits1/Traits2/Traits3) are hidden from journal recording and claiming, while existing data remains preserved.",
+    Sandbox_BurdJournals_OtherMods = "Journals - Other Mods",
+    Sandbox_BurdJournals_AllowAdaptiveTraitsManagedTraitRecording = "Allow Adaptive Traits Managed Trait Recording",
+    Sandbox_BurdJournals_AllowAdaptiveTraitsManagedTraitRecording_tooltip = "Compatibility toggle for Adaptive Traits (Mod ID: AdaptiveTraits). When disabled (default), AdaptiveTraits-managed traits are hidden from player journal recording and claiming while existing journal data is preserved.",
+    Sandbox_BurdJournals_AllowVhsSkillRecording = "Allow VHS Skill Recording",
+    Sandbox_BurdJournals_AllowVhsSkillRecording_tooltip = "Compatibility toggle for recorded-media VHS skill XP. When disabled (default), tracked VHS-derived skill XP is excluded from player journal recording.",
 }
+
+
 
 
 

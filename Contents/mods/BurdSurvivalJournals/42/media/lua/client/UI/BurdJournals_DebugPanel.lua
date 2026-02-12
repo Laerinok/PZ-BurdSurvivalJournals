@@ -11,6 +11,7 @@ require "ISUI/ISTextEntryBox"
 require "ISUI/ISScrollingListBox"
 require "ISUI/ISTickBox"
 require "ISUI/ISComboBox"
+require "ISUI/ISModalDialog"
 
 BurdJournals = BurdJournals or {}
 BurdJournals.UI = BurdJournals.UI or {}
@@ -124,6 +125,22 @@ function BurdJournals.UI.DebugPanel.removePassiveSkillTraits(targetPlayer, skill
             end
         end
     end
+end
+
+function BurdJournals.UI.DebugPanel.isAdminPlayer(player)
+    if not player then return false end
+    if player.isAccessLevel and player:isAccessLevel("admin") then
+        return true
+    end
+    local accessLevel = player.getAccessLevel and player:getAccessLevel() or nil
+    return type(accessLevel) == "string" and string.lower(accessLevel) == "admin"
+end
+
+function BurdJournals.UI.DebugPanel:canTargetOtherPlayers()
+    if not (isClient and isClient()) then
+        return false
+    end
+    return BurdJournals.UI.DebugPanel.isAdminPlayer(self.player)
 end
 
 -- ============================================================================
@@ -308,6 +325,55 @@ function BurdJournals.UI.DebugPanel:showTab(tabId)
             btn.borderColor = {r=0.4, g=0.5, b=0.6, a=1}
         end
     end
+
+    if tabId == "journal" and self.refreshJournalPickerList then
+        self:refreshJournalPickerList(true)
+        if self.onJournalRefreshServerIndex then
+            self:onJournalRefreshServerIndex()
+        end
+    end
+end
+
+local function normalizeDebugSearchText(value)
+    local text = string.lower(tostring(value or ""))
+    if text == "" then
+        return ""
+    end
+
+    -- Strip common rich-text style tags and normalize punctuation/spacing.
+    text = string.gsub(text, "%[img=[^%]]-%]", " ")
+    text = string.gsub(text, "%[col=[^%]]-%]", " ")
+    text = string.gsub(text, "%[/col%]", " ")
+    text = string.gsub(text, "[%p_]+", " ")
+    text = string.gsub(text, "%s+", " ")
+    text = string.gsub(text, "^%s+", "")
+    text = string.gsub(text, "%s+$", "")
+    return text
+end
+
+local function debugSearchMatches(query, ...)
+    local normalizedQuery = normalizeDebugSearchText(query)
+    if normalizedQuery == "" then
+        return true
+    end
+
+    local compactQuery = string.gsub(normalizedQuery, "%s+", "")
+    for i = 1, select("#", ...) do
+        local haystack = normalizeDebugSearchText(select(i, ...))
+        if haystack ~= "" then
+            if string.find(haystack, normalizedQuery, 1, true) then
+                return true
+            end
+            if compactQuery ~= "" then
+                local compactHaystack = string.gsub(haystack, "%s+", "")
+                if string.find(compactHaystack, compactQuery, 1, true) then
+                    return true
+                end
+            end
+        end
+    end
+
+    return false
 end
 
 -- Clear trait discovery caches to force fresh lookup
@@ -1157,7 +1223,7 @@ function BurdJournals.UI.DebugPanel.filterSpawnSkillList(self)
     
     local searchText = ""
     if panel.spawnSkillSearch and panel.spawnSkillSearch.getText then
-        searchText = panel.spawnSkillSearch:getText():lower()
+        searchText = panel.spawnSkillSearch:getText()
     end
     
     for _, item in ipairs(panel.skillList.items) do
@@ -1172,9 +1238,7 @@ function BurdJournals.UI.DebugPanel.filterSpawnSkillList(self)
             if searchText == "" then
                 item.item.hidden = false
             else
-                local displayName = (item.item.displayName or item.item.name or ""):lower()
-                local name = (item.item.name or ""):lower()
-                item.item.hidden = not (displayName:find(searchText, 1, true) or name:find(searchText, 1, true))
+                item.item.hidden = not debugSearchMatches(searchText, item.item.displayName, item.item.name)
             end
         end
     end
@@ -1186,16 +1250,14 @@ function BurdJournals.UI.DebugPanel.filterSpawnTraitList(self)
     
     local searchText = ""
     if panel.spawnTraitSearch and panel.spawnTraitSearch.getText then
-        searchText = panel.spawnTraitSearch:getText():lower()
+        searchText = panel.spawnTraitSearch:getText()
     end
     
     for _, item in ipairs(panel.traitList.items) do
         if searchText == "" then
             item.item.hidden = false
         else
-            local displayName = (item.item.displayName or item.item.name or ""):lower()
-            local name = (item.item.name or ""):lower()
-            item.item.hidden = not (displayName:find(searchText, 1, true) or name:find(searchText, 1, true))
+            item.item.hidden = not debugSearchMatches(searchText, item.item.displayName, item.item.name)
         end
     end
 end
@@ -2060,8 +2122,8 @@ function BurdJournals.UI.DebugPanel:populateCharacterPlayerList()
     local currentName = self.player and self.player:getUsername() or "You"
     panel.targetPlayerCombo:addOptionWithData(currentName, self.player)
     
-    -- In multiplayer, add other online players
-    if isClient() then
+    -- In multiplayer, only admins can target other online players.
+    if self:canTargetOtherPlayers() then
         local onlinePlayers = getOnlinePlayers()
         if onlinePlayers then
             for i = 0, onlinePlayers:size() - 1 do
@@ -2086,6 +2148,13 @@ function BurdJournals.UI.DebugPanel:onCharacterTargetPlayerChange(combo)
     local selected = combo:getSelectedIndex()
     local data = combo.options[selected + 1]
     if data and data.data then
+        if data.data ~= self.player and not self:canTargetOtherPlayers() then
+            local currentName = self.player and self.player:getUsername() or "You"
+            combo:select(currentName)
+            panel.targetPlayer = self.player
+            self:setStatus(getText("UI_BurdJournals_AdminOnly") or "This command requires admin access.", {r=1, g=0.6, b=0.3})
+            return
+        end
         panel.targetPlayer = data.data
         self:refreshCharacterData()
         self:setStatus("Viewing: " .. (panel.targetPlayer:getUsername() or "Unknown"), {r=0.5, g=0.8, b=1})
@@ -2880,7 +2949,7 @@ function BurdJournals.UI.DebugPanel.filterCharacterSkillList(self)
     
     local searchText = ""
     if panel.skillSearchEntry and panel.skillSearchEntry.getText then
-        searchText = panel.skillSearchEntry:getText():lower()
+        searchText = panel.skillSearchEntry:getText()
     end
     
     -- If no search text, show all items
@@ -2891,10 +2960,7 @@ function BurdJournals.UI.DebugPanel.filterCharacterSkillList(self)
     else
         -- Filter items by name
         for _, item in ipairs(panel.charSkillList.items) do
-            local displayName = (item.item.displayName or item.item.name or ""):lower()
-            local name = (item.item.name or ""):lower()
-            local category = (item.item.category or ""):lower()
-            item.item.hidden = not (displayName:find(searchText, 1, true) or name:find(searchText, 1, true) or category:find(searchText, 1, true))
+            item.item.hidden = not debugSearchMatches(searchText, item.item.displayName, item.item.name, item.item.category)
         end
     end
 end
@@ -2906,7 +2972,7 @@ function BurdJournals.UI.DebugPanel.filterCharacterTraitList(self)
     
     local searchText = ""
     if panel.traitSearchEntry and panel.traitSearchEntry.getText then
-        searchText = panel.traitSearchEntry:getText():lower()
+        searchText = panel.traitSearchEntry:getText()
     end
     
     -- If no search text, show all items
@@ -2917,9 +2983,7 @@ function BurdJournals.UI.DebugPanel.filterCharacterTraitList(self)
     else
         -- Filter items by name
         for _, item in ipairs(panel.charTraitList.items) do
-            local displayName = (item.item.displayName or item.item.id or ""):lower()
-            local id = (item.item.id or ""):lower()
-            item.item.hidden = not (displayName:find(searchText, 1, true) or id:find(searchText, 1, true))
+            item.item.hidden = not debugSearchMatches(searchText, item.item.displayName, item.item.id)
         end
     end
 end
@@ -3473,8 +3537,8 @@ function BurdJournals.UI.DebugPanel:populateBaselinePlayerList()
     local currentName = self.player and self.player:getUsername() or "You"
     panel.targetPlayerCombo:addOptionWithData(currentName, self.player)
     
-    -- Add other online players if in multiplayer
-    if isClient() then
+    -- In multiplayer, only admins can target other online players.
+    if self:canTargetOtherPlayers() then
         local onlinePlayers = getOnlinePlayers()
         if onlinePlayers then
             for i = 0, onlinePlayers:size() - 1 do
@@ -3498,6 +3562,13 @@ function BurdJournals.UI.DebugPanel:onBaselineTargetPlayerChange(combo)
     local selected = combo:getSelectedIndex()
     local data = combo.options[selected + 1]
     if data and data.data then
+        if data.data ~= self.player and not self:canTargetOtherPlayers() then
+            local currentName = self.player and self.player:getUsername() or "You"
+            combo:select(currentName)
+            panel.targetPlayer = self.player
+            self:setStatus(getText("UI_BurdJournals_AdminOnly") or "This command requires admin access.", {r=1, g=0.6, b=0.3})
+            return
+        end
         panel.targetPlayer = data.data
         self:refreshBaselineData()
         self:setStatus("Viewing baseline for: " .. (panel.targetPlayer:getUsername() or "Unknown"), {r=0.5, g=0.8, b=1})
@@ -3883,17 +3954,14 @@ function BurdJournals.UI.DebugPanel.filterBaselineSkillList(self)
     
     local searchText = ""
     if panel.baselineSkillSearch and panel.baselineSkillSearch.getText then
-        searchText = panel.baselineSkillSearch:getText():lower()
+        searchText = panel.baselineSkillSearch:getText()
     end
     
     for _, item in ipairs(panel.baselineSkillList.items) do
         if searchText == "" then
             item.item.hidden = false
         else
-            local displayName = (item.item.displayName or item.item.name or ""):lower()
-            local name = (item.item.name or ""):lower()
-            local category = (item.item.category or ""):lower()
-            item.item.hidden = not (displayName:find(searchText, 1, true) or name:find(searchText, 1, true) or category:find(searchText, 1, true))
+            item.item.hidden = not debugSearchMatches(searchText, item.item.displayName, item.item.name, item.item.category)
         end
     end
 end
@@ -3904,16 +3972,14 @@ function BurdJournals.UI.DebugPanel.filterBaselineTraitList(self)
     
     local searchText = ""
     if panel.baselineTraitSearch and panel.baselineTraitSearch.getText then
-        searchText = panel.baselineTraitSearch:getText():lower()
+        searchText = panel.baselineTraitSearch:getText()
     end
     
     for _, item in ipairs(panel.baselineTraitList.items) do
         if searchText == "" then
             item.item.hidden = false
         else
-            local displayName = (item.item.displayName or item.item.id or ""):lower()
-            local id = (item.item.id or ""):lower()
-            item.item.hidden = not (displayName:find(searchText, 1, true) or id:find(searchText, 1, true))
+            item.item.hidden = not debugSearchMatches(searchText, item.item.displayName, item.item.id)
         end
     end
 end
@@ -4320,6 +4386,76 @@ function BurdJournals.UI.DebugPanel:createJournalPanel(startY, height)
     selectBtn.backgroundColor = {r=0.2, g=0.25, b=0.3, a=1}
     panel:addChild(selectBtn)
     y = y + 28
+
+    -- Journal picker dropdown: Name | Author | UUID
+    local pickerLabel = ISLabel:new(padding, y + 2, 16, "Journal:", 0.8, 0.8, 0.9, 1, UIFont.Small, true)
+    pickerLabel:initialise()
+    pickerLabel:instantiate()
+    panel:addChild(pickerLabel)
+
+    local pickerX = padding + 52
+    local pickerWidth = math.max(240, fullWidth - 185)
+    panel.journalSelectCombo = ISComboBox:new(pickerX, y - 2, pickerWidth, 22, self, BurdJournals.UI.DebugPanel.onJournalPickerChanged)
+    panel.journalSelectCombo:initialise()
+    panel.journalSelectCombo:instantiate()
+    panel.journalSelectCombo.font = UIFont.Small
+    panel.journalSelectCombo.borderColor = {r=0.35, g=0.45, b=0.55, a=1}
+    panel:addChild(panel.journalSelectCombo)
+
+    local pickerBtnX = pickerX + pickerWidth + 5
+    local refreshListBtn = ISButton:new(pickerBtnX, y - 2, 56, 22, "Refresh", self, BurdJournals.UI.DebugPanel.onJournalRefreshList)
+    refreshListBtn:initialise()
+    refreshListBtn:instantiate()
+    refreshListBtn.font = UIFont.Small
+    refreshListBtn.textColor = {r=1, g=1, b=1, a=1}
+    refreshListBtn.borderColor = {r=0.4, g=0.5, b=0.6, a=1}
+    refreshListBtn.backgroundColor = {r=0.2, g=0.25, b=0.3, a=1}
+    panel:addChild(refreshListBtn)
+
+    local useSelectedBtn = ISButton:new(pickerBtnX + 60, y - 2, 52, 22, "Use", self, BurdJournals.UI.DebugPanel.onJournalUseDropdownSelection)
+    useSelectedBtn:initialise()
+    useSelectedBtn:instantiate()
+    useSelectedBtn.font = UIFont.Small
+    useSelectedBtn.textColor = {r=1, g=1, b=1, a=1}
+    useSelectedBtn.borderColor = {r=0.35, g=0.55, b=0.4, a=1}
+    useSelectedBtn.backgroundColor = {r=0.2, g=0.3, b=0.25, a=1}
+    panel:addChild(useSelectedBtn)
+    y = y + 26
+
+    -- Server index picker (can include journals not currently nearby/open)
+    local serverPickerLabel = ISLabel:new(padding, y + 2, 16, "Server:", 0.8, 0.8, 0.9, 1, UIFont.Small, true)
+    serverPickerLabel:initialise()
+    serverPickerLabel:instantiate()
+    panel:addChild(serverPickerLabel)
+
+    local serverPickerX = padding + 52
+    local serverPickerWidth = math.max(240, fullWidth - 185)
+    panel.journalServerIndexCombo = ISComboBox:new(serverPickerX, y - 2, serverPickerWidth, 22, self, BurdJournals.UI.DebugPanel.onJournalServerIndexChanged)
+    panel.journalServerIndexCombo:initialise()
+    panel.journalServerIndexCombo:instantiate()
+    panel.journalServerIndexCombo.font = UIFont.Small
+    panel.journalServerIndexCombo.borderColor = {r=0.35, g=0.45, b=0.55, a=1}
+    panel:addChild(panel.journalServerIndexCombo)
+
+    local serverBtnX = serverPickerX + serverPickerWidth + 5
+    local refreshServerListBtn = ISButton:new(serverBtnX, y - 2, 56, 22, "Fetch", self, BurdJournals.UI.DebugPanel.onJournalRefreshServerIndex)
+    refreshServerListBtn:initialise()
+    refreshServerListBtn:instantiate()
+    refreshServerListBtn.font = UIFont.Small
+    refreshServerListBtn.textColor = {r=1, g=1, b=1, a=1}
+    refreshServerListBtn.borderColor = {r=0.4, g=0.5, b=0.6, a=1}
+    refreshServerListBtn.backgroundColor = {r=0.2, g=0.25, b=0.3, a=1}
+    panel:addChild(refreshServerListBtn)
+
+    local useServerSelectedBtn = ISButton:new(serverBtnX + 60, y - 2, 52, 22, "Use", self, BurdJournals.UI.DebugPanel.onJournalUseServerIndexSelection)
+    useServerSelectedBtn:initialise()
+    useServerSelectedBtn:instantiate()
+    useServerSelectedBtn.font = UIFont.Small
+    useServerSelectedBtn.textColor = {r=1, g=1, b=1, a=1}
+    useServerSelectedBtn.borderColor = {r=0.35, g=0.55, b=0.4, a=1}
+    useServerSelectedBtn.backgroundColor = {r=0.2, g=0.3, b=0.25, a=1}
+    panel:addChild(useServerSelectedBtn)
+    y = y + 26
     
     -- Journal info line
     panel.journalInfoLabel = ISLabel:new(padding, y, 16, "", 0.6, 0.6, 0.7, 1, UIFont.Small, true)
@@ -4327,6 +4463,66 @@ function BurdJournals.UI.DebugPanel:createJournalPanel(startY, height)
     panel.journalInfoLabel:instantiate()
     panel:addChild(panel.journalInfoLabel)
     y = y + 22
+
+    -- UUID tools (target stale/exploited journals directly)
+    local uuidLabel = ISLabel:new(padding, y, 16, "UUID:", 0.8, 0.8, 0.9, 1, UIFont.Small, true)
+    uuidLabel:initialise()
+    uuidLabel:instantiate()
+    panel:addChild(uuidLabel)
+
+    local uuidFieldX = padding + 42
+    local findUuidW, repairUuidW, restoreUuidW = 56, 62, 92
+    local uuidBtnGap = 4
+    local uuidButtonsTotal = findUuidW + repairUuidW + restoreUuidW + (uuidBtnGap * 2)
+    local uuidRowRight = padding + fullWidth
+    local uuidBtnX = uuidRowRight - uuidButtonsTotal
+    local uuidEntryWidth = math.max(150, uuidBtnX - uuidFieldX - 5)
+    panel.journalUUIDEntry = ISTextEntryBox:new("", uuidFieldX, y - 2, uuidEntryWidth, 20)
+    panel.journalUUIDEntry:initialise()
+    panel.journalUUIDEntry:instantiate()
+    panel.journalUUIDEntry.font = UIFont.Small
+    panel.journalUUIDEntry:setTooltip("Paste a journal UUID to locate or repair it.")
+    panel:addChild(panel.journalUUIDEntry)
+
+    local findUuidBtn = ISButton:new(uuidBtnX, y - 2, findUuidW, 20, "Find", self, BurdJournals.UI.DebugPanel.onJournalFindByUUID)
+    findUuidBtn:initialise()
+    findUuidBtn:instantiate()
+    findUuidBtn.font = UIFont.Small
+    findUuidBtn.textColor = {r=1, g=1, b=1, a=1}
+    findUuidBtn.borderColor = {r=0.35, g=0.5, b=0.65, a=1}
+    findUuidBtn.backgroundColor = {r=0.18, g=0.27, b=0.35, a=1}
+    panel:addChild(findUuidBtn)
+
+    local repairUuidBtnX = uuidBtnX + findUuidW + uuidBtnGap
+    local repairUuidBtn = ISButton:new(repairUuidBtnX, y - 2, repairUuidW, 20, "Repair", self, BurdJournals.UI.DebugPanel.onJournalRepairByUUID)
+    repairUuidBtn:initialise()
+    repairUuidBtn:instantiate()
+    repairUuidBtn.font = UIFont.Small
+    repairUuidBtn.textColor = {r=1, g=1, b=1, a=1}
+    repairUuidBtn.borderColor = {r=0.35, g=0.55, b=0.4, a=1}
+    repairUuidBtn.backgroundColor = {r=0.16, g=0.32, b=0.22, a=1}
+    panel:addChild(repairUuidBtn)
+
+    local restoreUuidBtnX = repairUuidBtnX + repairUuidW + uuidBtnGap
+    local restoreUuidBtn = ISButton:new(restoreUuidBtnX, y - 2, restoreUuidW, 20, "Mark Restored", self, BurdJournals.UI.DebugPanel.onJournalMarkRestoredByUUID)
+    restoreUuidBtn:initialise()
+    restoreUuidBtn:instantiate()
+    restoreUuidBtn.font = UIFont.Small
+    restoreUuidBtn.textColor = {r=1, g=1, b=1, a=1}
+    restoreUuidBtn.borderColor = {r=0.55, g=0.45, b=0.3, a=1}
+    restoreUuidBtn.backgroundColor = {r=0.32, g=0.24, b=0.15, a=1}
+    panel:addChild(restoreUuidBtn)
+
+    local deleteUuidBtn = ISButton:new(padding + fullWidth - 74, y + 22, 70, 20, "Delete", self, BurdJournals.UI.DebugPanel.onJournalDeleteByUUIDPrompt)
+    deleteUuidBtn:initialise()
+    deleteUuidBtn:instantiate()
+    deleteUuidBtn.font = UIFont.Small
+    deleteUuidBtn.textColor = {r=1, g=1, b=1, a=1}
+    deleteUuidBtn.borderColor = {r=0.7, g=0.35, b=0.35, a=1}
+    deleteUuidBtn.backgroundColor = {r=0.38, g=0.16, b=0.16, a=1}
+    deleteUuidBtn:setTooltip("Delete live journal item by UUID and purge debug/index cache records.")
+    panel:addChild(deleteUuidBtn)
+    y = y + 48
     
     -- Skills section header with search field and Add Skill button
     local skillsLabel = ISLabel:new(padding, y, 18, "Skills (Click squares to set level):", 0.9, 0.9, 0.7, 1, UIFont.Small, true)
@@ -4461,17 +4657,7 @@ function BurdJournals.UI.DebugPanel:createJournalPanel(startY, height)
     panel:addChild(incDRBtn)
     panel.journalDRIncBtn = incDRBtn
 
-    local previewDRBtn = ISButton:new(padding + 250, y - 2, 36, 20, "x3", self, BurdJournals.UI.DebugPanel.onJournalPreviewDRClaims)
-    previewDRBtn:initialise()
-    previewDRBtn:instantiate()
-    previewDRBtn.font = UIFont.Small
-    previewDRBtn.textColor = {r=1, g=1, b=1, a=1}
-    previewDRBtn.borderColor = {r=0.3, g=0.45, b=0.4, a=1}
-    previewDRBtn.backgroundColor = {r=0.18, g=0.28, b=0.22, a=1}
-    panel:addChild(previewDRBtn)
-    panel.journalDRPreviewBtn = previewDRBtn
-
-    local resetDRBtn = ISButton:new(padding + 290, y - 2, 56, 20, "Reset", self, BurdJournals.UI.DebugPanel.onJournalResetDR)
+    local resetDRBtn = ISButton:new(padding + 250, y - 2, 56, 20, "Reset", self, BurdJournals.UI.DebugPanel.onJournalResetDR)
     resetDRBtn:initialise()
     resetDRBtn:instantiate()
     resetDRBtn.font = UIFont.Small
@@ -4481,7 +4667,7 @@ function BurdJournals.UI.DebugPanel:createJournalPanel(startY, height)
     panel:addChild(resetDRBtn)
     panel.journalDRResetBtn = resetDRBtn
 
-    panel.journalDRHintLabel = ISLabel:new(padding + 352, y, 16, "", 0.55, 0.62, 0.72, 1, UIFont.Small, true)
+    panel.journalDRHintLabel = ISLabel:new(padding + 312, y, 16, "", 0.55, 0.62, 0.72, 1, UIFont.Small, true)
     panel.journalDRHintLabel:initialise()
     panel.journalDRHintLabel:instantiate()
     panel:addChild(panel.journalDRHintLabel)
@@ -4605,15 +4791,12 @@ function BurdJournals.UI.DebugPanel.filterJournalSkillList(self)
     local panel = self.journalPanel
     if not panel or not panel.journalSkillSearchEntry or not panel.journalSkillList then return end
     
-    local searchText = string.lower(panel.journalSkillSearchEntry:getText() or "")
+    local searchText = panel.journalSkillSearchEntry:getText() or ""
     
     for _, itemData in ipairs(panel.journalSkillList.items) do
         if itemData.item then
-            local displayName = string.lower(itemData.item.displayName or "")
-            local skillName = string.lower(itemData.item.name or "")
-            itemData.item.hidden = searchText ~= "" and 
-                not string.find(displayName, searchText, 1, true) and
-                not string.find(skillName, searchText, 1, true)
+            itemData.item.hidden = searchText ~= "" and
+                not debugSearchMatches(searchText, itemData.item.displayName, itemData.item.name)
         end
     end
 end
@@ -4623,15 +4806,12 @@ function BurdJournals.UI.DebugPanel.filterJournalAvailTraitList(self)
     local panel = self.journalPanel
     if not panel or not panel.journalAvailTraitSearchEntry or not panel.journalAvailTraitList then return end
     
-    local searchText = string.lower(panel.journalAvailTraitSearchEntry:getText() or "")
+    local searchText = panel.journalAvailTraitSearchEntry:getText() or ""
     
     for _, itemData in ipairs(panel.journalAvailTraitList.items) do
         if itemData.item then
-            local displayName = string.lower(itemData.item.displayName or "")
-            local traitId = string.lower(itemData.item.id or "")
-            itemData.item.hidden = searchText ~= "" and 
-                not string.find(displayName, searchText, 1, true) and
-                not string.find(traitId, searchText, 1, true)
+            itemData.item.hidden = searchText ~= "" and
+                not debugSearchMatches(searchText, itemData.item.displayName, itemData.item.id)
         end
     end
 end
@@ -4641,56 +4821,754 @@ function BurdJournals.UI.DebugPanel.filterJournalInTraitList(self)
     local panel = self.journalPanel
     if not panel or not panel.journalInTraitSearchEntry or not panel.journalInTraitList then return end
     
-    local searchText = string.lower(panel.journalInTraitSearchEntry:getText() or "")
+    local searchText = panel.journalInTraitSearchEntry:getText() or ""
     
     for _, itemData in ipairs(panel.journalInTraitList.items) do
         if itemData.item then
-            local displayName = string.lower(itemData.item.displayName or "")
-            local traitId = string.lower(itemData.item.id or "")
-            itemData.item.hidden = searchText ~= "" and 
-                not string.find(displayName, searchText, 1, true) and
-                not string.find(traitId, searchText, 1, true)
+            itemData.item.hidden = searchText ~= "" and
+                not debugSearchMatches(searchText, itemData.item.displayName, itemData.item.id)
         end
     end
 end
 
--- Select a journal from player inventory
-function BurdJournals.UI.DebugPanel:onJournalSelectFromInventory()
-    local player = self.player
-    if not player then return end
-    
-    -- Find first filled journal in inventory
-    local inventory = player:getInventory()
-    if not inventory then 
-        self:setStatus("No inventory found", {r=1, g=0.5, b=0.5})
-        return 
+local function getJournalAuthorForPicker(journalData)
+    if not journalData or type(journalData) ~= "table" then
+        return "Unknown"
     end
-    
-    local items = inventory:getItems()
+    return tostring(
+        journalData.ownerCharacterName
+        or journalData.author
+        or journalData.ownerUsername
+        or journalData.restoredBy
+        or "Unknown"
+    )
+end
+
+local function addJournalPickerEntry(entries, seenKeys, item)
+    if not item or not item.getFullType then return end
+
+    local fullType = item:getFullType()
+    if not fullType then return end
+    if not (
+        string.find(fullType, "SurvivalJournal")
+        or string.find(fullType, "BloodyJournal")
+        or string.find(fullType, "WornJournal")
+    ) then
+        return
+    end
+
+    local journalData = BurdJournals.getJournalData and BurdJournals.getJournalData(item) or nil
+    if type(journalData) ~= "table" then
+        return
+    end
+
+    local uuid = tostring(journalData.uuid or "")
+    local key
+    if uuid ~= "" then
+        key = "uuid:" .. uuid
+    elseif item.getID then
+        key = "id:" .. tostring(item:getID())
+    else
+        key = "item:" .. tostring(item)
+    end
+    if seenKeys[key] then
+        return
+    end
+    seenKeys[key] = true
+
+    local journalName = tostring((item.getName and item:getName()) or "Journal")
+    local author = getJournalAuthorForPicker(journalData)
+    local uuidDisplay = (uuid ~= "" and uuid) or "No UUID"
+    local display = journalName .. " | " .. author .. " | " .. uuidDisplay
+
+    table.insert(entries, {
+        journal = item,
+        uuid = uuid,
+        name = journalName,
+        author = author,
+        display = display
+    })
+end
+
+local function collectJournalsFromContainer(container, entries, seenKeys)
+    if not container then return end
+    local items = container.getItems and container:getItems() or nil
+    if not items then return end
+
     for i = 0, items:size() - 1 do
         local item = items:get(i)
-        if item and item.getFullType then
-            local itemType = item:getFullType()
-            if itemType and (string.find(itemType, "SurvivalJournal") or 
-                             string.find(itemType, "BloodyJournal") or 
-                             string.find(itemType, "WornJournal")) then
-                local journalData = BurdJournals.getJournalData(item)
-                if journalData then
-                    -- Use safe countTable to check for filled journal (handles Java-backed ModData)
-                    local hasSkills = journalData.skills and BurdJournals.countTable(journalData.skills) > 0
-                    local hasTraits = journalData.traits and BurdJournals.countTable(journalData.traits) > 0
-                    if hasSkills or hasTraits then
-                        self.editingJournal = item
-                        self:refreshJournalEditorData()
-                        self:setStatus("Selected: " .. (item:getName() or "Journal"), {r=0.5, g=1, b=0.5})
-                        return
+        if item then
+            addJournalPickerEntry(entries, seenKeys, item)
+            if item.getInventory then
+                local childInventory = item:getInventory()
+                if childInventory then
+                    collectJournalsFromContainer(childInventory, entries, seenKeys)
+                end
+            end
+        end
+    end
+end
+
+function BurdJournals.UI.DebugPanel.collectSelectableJournals(player)
+    local entries = {}
+    local seenKeys = {}
+    if not player then
+        return entries
+    end
+
+    local inventory = player:getInventory()
+    if inventory then
+        collectJournalsFromContainer(inventory, entries, seenKeys)
+    end
+
+    if getPlayerLoot and not isServer() then
+        local playerNum = player:getPlayerNum()
+        if playerNum then
+            local lootPanel = getPlayerLoot(playerNum)
+            if lootPanel and lootPanel.inventoryPane and lootPanel.inventoryPane.inventories then
+                for i = 1, #lootPanel.inventoryPane.inventories do
+                    local containerInfo = lootPanel.inventoryPane.inventories[i]
+                    if containerInfo and containerInfo.inventory then
+                        collectJournalsFromContainer(containerInfo.inventory, entries, seenKeys)
                     end
                 end
             end
         end
     end
-    
-    self:setStatus("No filled journals found in inventory", {r=1, g=0.5, b=0.5})
+
+    local square = player:getCurrentSquare()
+    if square and getCell then
+        for dx = -1, 1 do
+            for dy = -1, 1 do
+                local nearSquare = getCell():getGridSquare(square:getX() + dx, square:getY() + dy, square:getZ())
+                if nearSquare then
+                    local objects = nearSquare:getObjects()
+                    if objects then
+                        for i = 0, objects:size() - 1 do
+                            local obj = objects:get(i)
+                            if obj and obj.getContainer then
+                                local container = obj:getContainer()
+                                if container then
+                                    collectJournalsFromContainer(container, entries, seenKeys)
+                                end
+                            end
+                            if obj and obj.getInventory then
+                                local inv = obj:getInventory()
+                                if inv then
+                                    collectJournalsFromContainer(inv, entries, seenKeys)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    table.sort(entries, function(a, b)
+        return string.lower(a.display) < string.lower(b.display)
+    end)
+    return entries
+end
+
+function BurdJournals.UI.DebugPanel:refreshJournalPickerList(keepSelection)
+    local panel = self.journalPanel
+    if not panel or not panel.journalSelectCombo then return end
+
+    local selectedUuid = nil
+    if keepSelection and panel.journalSelectCombo.selected and panel.journalSelectCombo.selected > 1 then
+        local selectedData = panel.journalSelectCombo:getOptionData(panel.journalSelectCombo.selected)
+        selectedUuid = selectedData and selectedData.uuid or nil
+    end
+    if (not selectedUuid or selectedUuid == "") and self.editingJournal and BurdJournals.getJournalData then
+        local currentData = BurdJournals.getJournalData(self.editingJournal)
+        if currentData and currentData.uuid then
+            selectedUuid = tostring(currentData.uuid)
+        end
+    end
+
+    local entries = BurdJournals.UI.DebugPanel.collectSelectableJournals(self.player)
+    panel.journalPickerEntries = entries
+
+    panel.journalSelectCombo:clear()
+    panel.journalSelectCombo:addOptionWithData("Select journal...", nil)
+
+    local selectedIndex = 1
+    for i, entry in ipairs(entries) do
+        panel.journalSelectCombo:addOptionWithData(entry.display, entry)
+        if selectedUuid and selectedUuid ~= "" and entry.uuid == selectedUuid then
+            selectedIndex = i + 1
+        end
+    end
+    panel.journalSelectCombo.selected = selectedIndex
+
+    if panel.journalSelectCombo.selected and panel.journalSelectCombo.selected > 1 then
+        BurdJournals.UI.DebugPanel.onJournalPickerChanged(self, panel.journalSelectCombo)
+    end
+end
+
+function BurdJournals.UI.DebugPanel:onJournalRefreshList()
+    self:refreshJournalPickerList(true)
+    local panel = self.journalPanel
+    local count = panel and panel.journalPickerEntries and #panel.journalPickerEntries or 0
+    self:setStatus("Journal list refreshed (" .. tostring(count) .. " found)", {r=0.5, g=0.8, b=1})
+end
+
+function BurdJournals.UI.DebugPanel:onJournalPickerChanged(combo)
+    local panel = self.journalPanel
+    if not panel or not panel.journalUUIDEntry or not combo then return end
+    local selectedData = combo.selected and combo.selected > 1 and combo:getOptionData(combo.selected) or nil
+    panel.journalUUIDEntry:setText(selectedData and tostring(selectedData.uuid or "") or "")
+end
+
+function BurdJournals.UI.DebugPanel:onJournalUseDropdownSelection()
+    local panel = self.journalPanel
+    if not panel or not panel.journalSelectCombo then return end
+
+    local selectedIndex = panel.journalSelectCombo.selected or 0
+    if selectedIndex <= 1 then
+        self:setStatus("Select a journal from the dropdown first", {r=1, g=0.6, b=0.3})
+        return
+    end
+
+    local selectedData = panel.journalSelectCombo:getOptionData(selectedIndex)
+    if not selectedData then
+        self:setStatus("Selected journal entry is unavailable", {r=1, g=0.6, b=0.3})
+        return
+    end
+
+    if selectedData.journal then
+        self.editingJournal = selectedData.journal
+        self:refreshJournalEditorData()
+        self:setStatus("Selected: " .. tostring(selectedData.name or "Journal"), {r=0.3, g=1, b=0.5})
+        return
+    end
+
+    if selectedData.uuid and selectedData.uuid ~= "" then
+        panel.journalUUIDEntry:setText(selectedData.uuid)
+        self:onJournalFindByUUID()
+        return
+    end
+
+    self:setStatus("Selected entry cannot be resolved", {r=1, g=0.6, b=0.3})
+end
+
+local function getServerIndexDisplayName(entry)
+    local itemName = entry and entry.itemName
+    if type(itemName) == "string" and itemName ~= "" then
+        return itemName
+    end
+
+    local itemType = tostring(entry and entry.itemType or "")
+    if itemType:find("_Bloody") or entry.wasFromBloody then
+        return "Bloody Journal"
+    end
+    if itemType:find("_Worn") or entry.wasFromWorn then
+        return "Worn Journal"
+    end
+    if entry and entry.isPlayerCreated == true then
+        return "Personal Journal"
+    end
+    if itemType ~= "" then
+        local short = itemType:match("^.+%.(.+)$")
+        if short and short ~= "" then
+            return short
+        end
+    end
+    return "Journal"
+end
+
+local function getServerIndexDisplayText(entry)
+    local name = getServerIndexDisplayName(entry)
+    local author = tostring((entry and (entry.ownerCharacterName or entry.ownerUsername)) or "Unknown")
+    local uuid = tostring((entry and entry.uuid) or "No UUID")
+    return name .. " | " .. author .. " | " .. uuid
+end
+
+function BurdJournals.UI.DebugPanel:applyServerJournalIndexList(entries, meta)
+    local panel = self.journalPanel
+    if not panel or not panel.journalServerIndexCombo then return end
+
+    local selectedUuid = nil
+    if panel.journalServerIndexCombo.selected and panel.journalServerIndexCombo.selected > 1 then
+        local selectedData = panel.journalServerIndexCombo:getOptionData(panel.journalServerIndexCombo.selected)
+        selectedUuid = selectedData and selectedData.uuid or nil
+    end
+    if (not selectedUuid or selectedUuid == "") and panel.journalUUIDEntry then
+        selectedUuid = tostring(panel.journalUUIDEntry:getText() or "")
+    end
+
+    local normalizedEntries = entries
+    if type(normalizedEntries) ~= "table" and BurdJournals.normalizeTable then
+        normalizedEntries = BurdJournals.normalizeTable(normalizedEntries)
+    end
+    if type(normalizedEntries) ~= "table" then
+        normalizedEntries = {}
+    end
+
+    panel.journalServerIndexEntries = {}
+    for _, entry in pairs(normalizedEntries) do
+        if type(entry) == "table" and entry.uuid then
+            entry.display = getServerIndexDisplayText(entry)
+            table.insert(panel.journalServerIndexEntries, entry)
+        end
+    end
+
+    table.sort(panel.journalServerIndexEntries, function(a, b)
+        local ats = tonumber(a.lastSeenTs) or 0
+        local bts = tonumber(b.lastSeenTs) or 0
+        if ats ~= bts then return ats > bts end
+        return tostring(a.uuid or "") < tostring(b.uuid or "")
+    end)
+
+    panel.journalServerIndexCombo:clear()
+    panel.journalServerIndexCombo:addOptionWithData("Server index...", nil)
+
+    local selectedIndex = 1
+    for i, entry in ipairs(panel.journalServerIndexEntries) do
+        panel.journalServerIndexCombo:addOptionWithData(entry.display, entry)
+        if selectedUuid and selectedUuid ~= "" and tostring(entry.uuid) == tostring(selectedUuid) then
+            selectedIndex = i + 1
+        end
+    end
+    panel.journalServerIndexCombo.selected = selectedIndex
+
+    if meta then
+        local count = tonumber(meta.count) or #panel.journalServerIndexEntries
+        local total = tonumber(meta.total) or count
+        if meta.truncated then
+            self:setStatus("Server index loaded " .. tostring(count) .. "/" .. tostring(total) .. " (truncated)", {r=0.95, g=0.8, b=0.35})
+        else
+            self:setStatus("Server index loaded (" .. tostring(count) .. " entries)", {r=0.5, g=0.8, b=1})
+        end
+    end
+end
+
+function BurdJournals.UI.DebugPanel:onJournalRefreshServerIndex()
+    if sendClientCommand and isClient and isClient() then
+        sendClientCommand("BurdJournals", "debugListJournalUUIDIndex", {maxEntries = 500})
+        self:setStatus("Fetching server journal index...", {r=0.5, g=0.8, b=1})
+        return
+    end
+
+    local cache = ModData.getOrCreate and ModData.getOrCreate("BurdJournals_JournalUUIDIndex") or nil
+    local journals = cache and cache.journals or {}
+    if type(journals) ~= "table" and BurdJournals.normalizeTable then
+        journals = BurdJournals.normalizeTable(journals) or {}
+    end
+
+    local entries = {}
+    for uuid, entry in pairs(journals or {}) do
+        if type(entry) == "table" then
+            local normalized = {}
+            for k, v in pairs(entry) do normalized[k] = v end
+            normalized.uuid = normalized.uuid or uuid
+            table.insert(entries, normalized)
+        end
+    end
+    self:applyServerJournalIndexList(entries, {count = #entries, total = #entries, truncated = false})
+end
+
+function BurdJournals.UI.DebugPanel:onJournalServerIndexChanged(combo)
+    local panel = self.journalPanel
+    if not panel or not panel.journalUUIDEntry or not combo then return end
+    local selectedData = combo.selected and combo.selected > 1 and combo:getOptionData(combo.selected) or nil
+    panel.journalUUIDEntry:setText(selectedData and tostring(selectedData.uuid or "") or "")
+end
+
+local function getCachedDebugBackupByUUID(uuid)
+    local trimmed = tostring(uuid or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if trimmed == "" then
+        return nil
+    end
+
+    local cache = ModData.getOrCreate and ModData.getOrCreate("BurdJournals_DebugJournalCache") or nil
+    local journals = cache and cache.journals or nil
+    if type(journals) ~= "table" and BurdJournals.normalizeTable then
+        journals = BurdJournals.normalizeTable(journals)
+    end
+    if type(journals) ~= "table" then
+        return nil
+    end
+
+    local direct = journals[trimmed]
+    if type(direct) == "table" then
+        return direct
+    end
+
+    for key, entry in pairs(journals) do
+        if type(entry) == "table" then
+            local entryUUID = tostring(entry.uuid or key or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if entryUUID == trimmed then
+                return entry
+            end
+        end
+    end
+
+    return nil
+end
+
+function BurdJournals.UI.DebugPanel:onJournalUseServerIndexSelection()
+    local panel = self.journalPanel
+    if not panel or not panel.journalServerIndexCombo then return end
+    local selectedIndex = panel.journalServerIndexCombo.selected or 0
+    if selectedIndex <= 1 then
+        self:setStatus("Select a server-index journal first", {r=1, g=0.6, b=0.3})
+        return
+    end
+
+    local selectedData = panel.journalServerIndexCombo:getOptionData(selectedIndex)
+    local uuid = selectedData and tostring(selectedData.uuid or "") or ""
+    if uuid == "" then
+        self:setStatus("Selected server-index entry has no UUID", {r=1, g=0.6, b=0.3})
+        return
+    end
+
+    panel.journalUUIDEntry:setText(uuid)
+    local localJournal = BurdJournals.findJournalByUUID and BurdJournals.findJournalByUUID(self.player, uuid) or nil
+    if localJournal then
+        self.editingJournal = localJournal
+        self:refreshJournalEditorData()
+        self:setStatus("Selected from server index", {r=0.3, g=1, b=0.5})
+        return
+    end
+
+    if BurdJournals.UI and BurdJournals.UI.DebugPanel and BurdJournals.UI.DebugPanel.createServerJournalProxy then
+        local cachedBackup = getCachedDebugBackupByUUID(uuid)
+        local proxy = BurdJournals.UI.DebugPanel.createServerJournalProxy(uuid, selectedData, cachedBackup)
+        if proxy then
+            self.editingJournal = proxy
+            self:refreshJournalEditorData()
+            self:setStatus("Loaded server-index snapshot; checking for live item...", {r=0.95, g=0.8, b=0.35})
+        end
+    end
+
+    self:onJournalFindByUUID()
+end
+
+function BurdJournals.UI.DebugPanel.createServerJournalProxy(uuid, indexEntry, backupData)
+    local resolvedUUID = tostring(uuid or "")
+    if resolvedUUID == "" then
+        return nil
+    end
+
+    local normalized = BurdJournals.normalizeJournalData and BurdJournals.normalizeJournalData(backupData) or backupData
+    if type(normalized) ~= "table" then
+        normalized = {}
+    end
+
+    normalized.skills = normalized.skills or {}
+    normalized.traits = normalized.traits or {}
+    normalized.recipes = normalized.recipes or {}
+    normalized.stats = normalized.stats or {}
+    normalized.skillReadCounts = normalized.skillReadCounts or {}
+
+    normalized.uuid = normalized.uuid or resolvedUUID
+    normalized.isDebugSpawned = true
+    normalized.isDebugEdited = normalized.isDebugEdited == true
+    if normalized.isPlayerCreated == nil then
+        normalized.isPlayerCreated = true
+    end
+    normalized.sanitizedVersion = normalized.sanitizedVersion or (BurdJournals.SANITIZE_VERSION or 1)
+    normalized.isWritten = true
+
+    if indexEntry and type(indexEntry) == "table" then
+        normalized.itemType = normalized.itemType or indexEntry.itemType
+        normalized.itemName = normalized.itemName or indexEntry.itemName
+        normalized.ownerUsername = normalized.ownerUsername or indexEntry.ownerUsername
+        normalized.ownerSteamId = normalized.ownerSteamId or indexEntry.ownerSteamId
+        normalized.ownerCharacterName = normalized.ownerCharacterName or indexEntry.ownerCharacterName
+        normalized.wasFromWorn = normalized.wasFromWorn == true or indexEntry.wasFromWorn == true
+        normalized.wasFromBloody = normalized.wasFromBloody == true or indexEntry.wasFromBloody == true
+        normalized.wasRestored = normalized.wasRestored == true or indexEntry.wasRestored == true
+    end
+
+    local itemType = normalized.itemType or "BurdJournals.FilledSurvivalJournal"
+    local itemName = normalized.itemName or "Server Journal"
+    local itemId = tonumber(indexEntry and indexEntry.itemId) or -1
+
+    local proxy = {
+        __bsjServerProxy = true,
+        __bsjUUID = resolvedUUID,
+        __bsjIndexEntry = indexEntry,
+        __bsjmodData = {BurdJournals = normalized},
+        __bsjItemType = itemType,
+        __bsjItemName = itemName,
+        __bsjItemId = itemId,
+        __bsjDirty = false,
+    }
+
+    function proxy:getModData()
+        return self.__bsjmodData
+    end
+
+    function proxy:getID()
+        return self.__bsjItemId
+    end
+
+    function proxy:getFullType()
+        return self.__bsjItemType
+    end
+
+    function proxy:getName()
+        return self.__bsjItemName
+    end
+
+    function proxy:transmitModData()
+        return
+    end
+
+    return proxy
+end
+
+-- Select a journal from the dropdown list (fallback picks first match)
+function BurdJournals.UI.DebugPanel:onJournalSelectFromInventory()
+    self:refreshJournalPickerList(true)
+    local panel = self.journalPanel
+    if not panel or not panel.journalPickerEntries or #panel.journalPickerEntries == 0 then
+        self:setStatus("No journals found nearby or in inventory", {r=1, g=0.5, b=0.5})
+        return
+    end
+
+    if not panel.journalSelectCombo.selected or panel.journalSelectCombo.selected <= 1 then
+        panel.journalSelectCombo.selected = 2
+    end
+    self:onJournalUseDropdownSelection()
+end
+
+local function getJournalUUIDInput(panel)
+    if not panel or not panel.journalPanel or not panel.journalPanel.journalUUIDEntry then
+        return nil
+    end
+    local raw = panel.journalPanel.journalUUIDEntry:getText()
+    if not raw then return nil end
+    local uuid = tostring(raw):gsub("^%s+", ""):gsub("%s+$", "")
+    if uuid == "" then
+        return nil
+    end
+    return uuid
+end
+
+function BurdJournals.UI.DebugPanel:onJournalFindByUUID()
+    local uuid = getJournalUUIDInput(self)
+    if not uuid then
+        self:setStatus("Enter a journal UUID first", {r=1, g=0.6, b=0.3})
+        return
+    end
+
+    local panel = self.journalPanel
+    if panel and panel.journalServerIndexCombo and panel.journalServerIndexEntries then
+        for i, entry in ipairs(panel.journalServerIndexEntries) do
+            if tostring(entry.uuid or "") == tostring(uuid) then
+                panel.journalServerIndexCombo.selected = i + 1
+                break
+            end
+        end
+    end
+
+    if sendClientCommand and isClient and isClient() then
+        sendClientCommand("BurdJournals", "debugLookupJournalByUUID", {uuid = uuid})
+        self:setStatus("Looking up UUID on server...", {r=0.5, g=0.8, b=1})
+        return
+    end
+
+    -- SP/local fallback
+    local journal = BurdJournals.findJournalByUUID and BurdJournals.findJournalByUUID(self.player, uuid)
+    if not journal then
+        self:setStatus("UUID not found locally. Move closer to the container and retry.", {r=1, g=0.6, b=0.3})
+        return
+    end
+
+    self.editingJournal = journal
+    self:refreshJournalEditorData()
+    self:setStatus("Selected journal by UUID", {r=0.3, g=1, b=0.5})
+end
+
+function BurdJournals.UI.DebugPanel:onJournalRepairByUUID()
+    local uuid = getJournalUUIDInput(self)
+    if not uuid then
+        self:setStatus("Enter a journal UUID first", {r=1, g=0.6, b=0.3})
+        return
+    end
+
+    if sendClientCommand and isClient and isClient() then
+        sendClientCommand("BurdJournals", "debugRepairJournalByUUID", {uuid = uuid})
+        self:setStatus("Repair request sent for UUID...", {r=0.5, g=0.8, b=1})
+        return
+    end
+
+    -- SP/local fallback
+    local journal = BurdJournals.findJournalByUUID and BurdJournals.findJournalByUUID(self.player, uuid)
+    if not journal then
+        self:setStatus("UUID not found locally. Move closer and retry.", {r=1, g=0.6, b=0.3})
+        return
+    end
+
+    if BurdJournals.migrateJournalIfNeeded then
+        BurdJournals.migrateJournalIfNeeded(journal, self.player)
+    end
+    if BurdJournals.sanitizeJournalData then
+        BurdJournals.sanitizeJournalData(journal, self.player)
+    end
+    if BurdJournals.compactJournalData then
+        BurdJournals.compactJournalData(journal)
+    end
+    if BurdJournals.UI and BurdJournals.UI.DebugPanel and BurdJournals.UI.DebugPanel.finalizeJournalEdit then
+        BurdJournals.UI.DebugPanel.finalizeJournalEdit(journal)
+    elseif journal.transmitModData then
+        journal:transmitModData()
+    end
+
+    self.editingJournal = journal
+    self:refreshJournalEditorData()
+    self:setStatus("Local UUID repair complete", {r=0.3, g=1, b=0.5})
+end
+
+function BurdJournals.UI.DebugPanel:onJournalMarkRestoredByUUID()
+    local uuid = getJournalUUIDInput(self)
+    if not uuid then
+        self:setStatus("Enter a journal UUID first", {r=1, g=0.6, b=0.3})
+        return
+    end
+
+    if sendClientCommand and isClient and isClient() then
+        sendClientCommand("BurdJournals", "debugRepairJournalByUUID", {uuid = uuid, markRestored = true})
+        self:setStatus("Mark-restored request sent...", {r=0.5, g=0.8, b=1})
+        return
+    end
+
+    -- SP/local fallback
+    local journal = BurdJournals.findJournalByUUID and BurdJournals.findJournalByUUID(self.player, uuid)
+    if not journal then
+        self:setStatus("UUID not found locally. Move closer and retry.", {r=1, g=0.6, b=0.3})
+        return
+    end
+
+    local modData = journal:getModData()
+    modData.BurdJournals = modData.BurdJournals or {}
+    local data = modData.BurdJournals
+    data.isPlayerCreated = true
+    data.wasRestored = true
+    if data.wasFromWorn ~= true and data.wasFromBloody ~= true then
+        data.wasFromWorn = true
+    end
+    data.restoredBy = data.restoredBy or (self.player and self.player:getUsername()) or "Admin"
+    data.isWorn = false
+    data.isBloody = false
+
+    if BurdJournals.UI and BurdJournals.UI.DebugPanel and BurdJournals.UI.DebugPanel.finalizeJournalEdit then
+        BurdJournals.UI.DebugPanel.finalizeJournalEdit(journal)
+    elseif journal.transmitModData then
+        journal:transmitModData()
+    end
+
+    self.editingJournal = journal
+    self:refreshJournalEditorData()
+    self:setStatus("Marked journal as restored", {r=0.3, g=1, b=0.5})
+end
+
+function BurdJournals.UI.DebugPanel:onJournalDeleteByUUID()
+    local uuid = getJournalUUIDInput(self)
+    if not uuid then
+        self:setStatus("Enter a journal UUID first", {r=1, g=0.6, b=0.3})
+        return
+    end
+
+    if sendClientCommand and isClient and isClient() then
+        sendClientCommand("BurdJournals", "debugDeleteJournalByUUID", {uuid = uuid})
+        self:setStatus("Delete request sent for UUID...", {r=0.95, g=0.8, b=0.35})
+        return
+    end
+
+    local removedLive = false
+    local journal = BurdJournals.findJournalByUUID and BurdJournals.findJournalByUUID(self.player, uuid)
+    if journal then
+        local container = journal.getContainer and journal:getContainer() or nil
+        if container then
+            container:Remove(journal)
+            removedLive = true
+        end
+    end
+
+    local removedIndexEntries = 0
+    local indexCache = ModData.getOrCreate and ModData.getOrCreate("BurdJournals_JournalUUIDIndex") or nil
+    local indexTable = indexCache and indexCache.journals or nil
+    if type(indexTable) ~= "table" and BurdJournals.normalizeTable then
+        indexTable = BurdJournals.normalizeTable(indexTable)
+        if indexCache then indexCache.journals = indexTable end
+    end
+    if type(indexTable) == "table" then
+        for key, entry in pairs(indexTable) do
+            local entryUUID = tostring((type(entry) == "table" and entry.uuid) or key or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if entryUUID == uuid then
+                indexTable[key] = nil
+                removedIndexEntries = removedIndexEntries + 1
+            end
+        end
+    end
+
+    local removedBackupEntries = 0
+    local backupCache = ModData.getOrCreate and ModData.getOrCreate("BurdJournals_DebugJournalCache") or nil
+    local backupTable = backupCache and backupCache.journals or nil
+    if type(backupTable) ~= "table" and BurdJournals.normalizeTable then
+        backupTable = BurdJournals.normalizeTable(backupTable)
+        if backupCache then backupCache.journals = backupTable end
+    end
+    if type(backupTable) == "table" then
+        for key, entry in pairs(backupTable) do
+            local entryUUID = tostring((type(entry) == "table" and entry.uuid) or key or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if entryUUID == uuid then
+                backupTable[key] = nil
+                removedBackupEntries = removedBackupEntries + 1
+            end
+        end
+    end
+
+    if ModData.transmit then
+        ModData.transmit("BurdJournals_JournalUUIDIndex")
+        ModData.transmit("BurdJournals_DebugJournalCache")
+    end
+
+    self.editingJournal = nil
+    self:refreshJournalEditorData()
+    self:refreshJournalPickerList(true)
+    self:onJournalRefreshServerIndex()
+
+    if removedLive or removedIndexEntries > 0 or removedBackupEntries > 0 then
+        self:setStatus("Deleted UUID data (live=" .. tostring(removedLive) .. ", index=" .. tostring(removedIndexEntries) .. ", backup=" .. tostring(removedBackupEntries) .. ")", {r=0.3, g=1, b=0.5})
+    else
+        self:setStatus("No live/cached journal data found for UUID", {r=1, g=0.6, b=0.3})
+    end
+end
+
+function BurdJournals.UI.DebugPanel:onJournalDeleteByUUIDPrompt()
+    local uuid = getJournalUUIDInput(self)
+    if not uuid then
+        self:setStatus("Enter a journal UUID first", {r=1, g=0.6, b=0.3})
+        return
+    end
+
+    if not ISModalDialog then
+        self:onJournalDeleteByUUID()
+        return
+    end
+
+    local text = "Delete journal UUID:\n" .. tostring(uuid)
+        .. "\n\nThis permanently removes the live journal item (if found) and purges cached UUID records."
+        .. "\n\nAre you sure?"
+
+    local w = 520
+    local h = 190
+    local x = (getCore():getScreenWidth() - w) / 2
+    local y = (getCore():getScreenHeight() - h) / 2
+    local panel = self
+    local modal = ISModalDialog:new(x, y, w, h, text, true, nil, function(_target, button)
+        if button and button.internal == "YES" and panel and panel.onJournalDeleteByUUID then
+            panel:onJournalDeleteByUUID()
+        end
+    end)
+    modal:initialise()
+    modal:addToUIManager()
 end
 
 -- Helper: normalize trait IDs for consistent comparisons (strip base prefixes)
@@ -4783,6 +5661,9 @@ function BurdJournals.UI.DebugPanel:refreshJournalEditorData()
 
     -- Update header with journal name
     local journalName = journal:getName() or "Unknown Journal"
+    if journal.__bsjServerProxy then
+        journalName = journalName .. " [Server Snapshot]"
+    end
     panel.journalHeaderLabel:setName(journalName)
 
     -- Get journal data
@@ -4792,6 +5673,31 @@ function BurdJournals.UI.DebugPanel:refreshJournalEditorData()
         panel.journalFocusedSkill = nil
         BurdJournals.UI.DebugPanel.updateJournalSkillLabel(self)
         return
+    end
+    if panel.journalUUIDEntry then
+        panel.journalUUIDEntry:setText(tostring(journalData.uuid or ""))
+    end
+    if panel.journalSelectCombo and panel.journalPickerEntries then
+        local selectedIndex = panel.journalSelectCombo.selected or 1
+        local targetUuid = tostring(journalData.uuid or "")
+        for i, entry in ipairs(panel.journalPickerEntries) do
+            if (entry.journal and entry.journal == journal) or (targetUuid ~= "" and entry.uuid == targetUuid) then
+                selectedIndex = i + 1
+                break
+            end
+        end
+        panel.journalSelectCombo.selected = selectedIndex
+    end
+    if panel.journalServerIndexCombo and panel.journalServerIndexEntries then
+        local selectedIndex = panel.journalServerIndexCombo.selected or 1
+        local targetUuid = tostring(journalData.uuid or "")
+        for i, entry in ipairs(panel.journalServerIndexEntries) do
+            if targetUuid ~= "" and tostring(entry.uuid or "") == targetUuid then
+                selectedIndex = i + 1
+                break
+            end
+        end
+        panel.journalServerIndexCombo.selected = selectedIndex
     end
     
     -- Update info line
@@ -4804,6 +5710,35 @@ function BurdJournals.UI.DebugPanel:refreshJournalEditorData()
     elseif journalData.isDebugSpawned then
         infoText = infoText .. " [Debug Spawned]"
     end
+    if journal.__bsjServerProxy then
+        infoText = infoText .. " [No live item]"
+    end
+
+    -- Compatibility status note for Adaptive Traits filtering on player journals.
+    if journalData.isPlayerCreated
+        and BurdJournals.isAdaptiveTraitsModActive
+        and BurdJournals.isAdaptiveTraitsModActive() then
+        local adaptiveAllowed = BurdJournals.isAdaptiveTraitsManagedTraitRecordingEnabled
+            and BurdJournals.isAdaptiveTraitsManagedTraitRecordingEnabled()
+        if adaptiveAllowed then
+            infoText = infoText .. " [AdaptiveTraits: Allowed]"
+        else
+            local filteredCount = 0
+            if type(journalData.traits) == "table" and BurdJournals.isAdaptiveManagedTrait then
+                for traitId, _ in pairs(journalData.traits) do
+                    if BurdJournals.isAdaptiveManagedTrait(traitId) then
+                        filteredCount = filteredCount + 1
+                    end
+                end
+            end
+            if filteredCount > 0 then
+                infoText = infoText .. " [AdaptiveTraits: Filtered " .. tostring(filteredCount) .. "]"
+            else
+                infoText = infoText .. " [AdaptiveTraits: Filtered]"
+            end
+        end
+    end
+
     panel.journalInfoLabel:setName(infoText)
     
     -- Populate skills from journal (normalized for Java-backed ModData safety)
@@ -4940,9 +5875,16 @@ function BurdJournals.UI.DebugPanel.drawJournalSkillItem(self, y, item, alt)
     local journalPanel = parentPanel and parentPanel.journalPanel
     local isSelected = journalPanel and journalPanel.journalFocusedSkill == data.name
     
-    -- Ensure level and xp are valid numbers (ModData can have unexpected types)
+    -- Ensure level/xp are valid numbers (prefer XP-derived level to avoid stale level fields)
+    local currentXP = math.max(0, tonumber(data.xp) or 0)
     local currentLevel = tonumber(data.level) or 0
-    local currentXP = tonumber(data.xp) or 0
+    if BurdJournals.getSkillLevelFromXP then
+        local derivedLevel = BurdJournals.getSkillLevelFromXP(currentXP, data.name)
+        if tonumber(derivedLevel) then
+            currentLevel = tonumber(derivedLevel) or currentLevel
+        end
+    end
+    currentLevel = math.max(0, math.min(10, math.floor(currentLevel)))
     local displayName = tostring(data.displayName or data.name or "Unknown")
     
     -- Background (check item.index exists)
@@ -4963,19 +5905,26 @@ function BurdJournals.UI.DebugPanel.drawJournalSkillItem(self, y, item, alt)
     self:drawText(levelText, 140, y + 4, 0.8, 0.8, 0.5, 1, UIFont.Small)
 
     -- Level squares (0-10) - show current level + partial progress
+    -- Use shared threshold helpers so editor math matches set/get XP behavior.
     local squaresX = 185
     local squareSize = 12
     local squareSpacing = 2
     local progress = 0
     if currentLevel < 10 then
-        local perk = BurdJournals.getPerkByName and BurdJournals.getPerkByName(data.name)
-        if perk and perk.getTotalXpForLevel then
-            local levelStartXP = currentLevel > 0 and (perk:getTotalXpForLevel(currentLevel - 1) or 0) or 0
-            local levelEndXP = perk:getTotalXpForLevel(currentLevel) or (levelStartXP + 150)
-            local xpRange = levelEndXP - levelStartXP
-            if xpRange > 0 then
-                progress = math.max(0, math.min(1, (currentXP - levelStartXP) / xpRange))
-            end
+        local levelStartXP = 0
+        local levelEndXP = 0
+        if BurdJournals.getXPThresholdForLevel then
+            levelStartXP = tonumber(BurdJournals.getXPThresholdForLevel(data.name, currentLevel)) or 0
+            levelEndXP = tonumber(BurdJournals.getXPThresholdForLevel(data.name, currentLevel + 1)) or levelStartXP
+        end
+        if levelEndXP < levelStartXP then
+            levelEndXP = levelStartXP
+        end
+        local xpRange = levelEndXP - levelStartXP
+        if xpRange > 0 then
+            progress = math.max(0, math.min(1, (currentXP - levelStartXP) / xpRange))
+        elseif currentXP > levelStartXP then
+            progress = 1
         end
     end
 
@@ -5179,7 +6128,6 @@ function BurdJournals.UI.DebugPanel.updateJournalDiminishingControlsVisibility(s
         panel.journalDRSetBtn,
         panel.journalDRDecBtn,
         panel.journalDRIncBtn,
-        panel.journalDRPreviewBtn,
         panel.journalDRResetBtn,
         panel.journalDRHintLabel,
         panel.journalDRPreviewLabel,
@@ -5373,14 +6321,17 @@ end
 -- Call this AFTER modifying journal data to ensure persistence
 function BurdJournals.UI.DebugPanel.finalizeJournalEdit(journal)
     if not journal then return end
+    local isServerProxy = journal.__bsjServerProxy == true
 
     -- Ensure critical flags are set before transmitting
     local modData = journal:getModData()
+    local journalUUID = nil
     if modData and modData.BurdJournals then
         if not modData.BurdJournals.uuid then
             modData.BurdJournals.uuid = (BurdJournals.generateUUID and BurdJournals.generateUUID())
                 or ("debug-" .. tostring(getTimestampMs and getTimestampMs() or os.time()) .. "-" .. tostring(journal:getID()))
         end
+        journalUUID = modData.BurdJournals.uuid
 
         -- Always ensure these flags are set for proper behavior
         modData.BurdJournals.isDebugSpawned = true
@@ -5393,7 +6344,7 @@ function BurdJournals.UI.DebugPanel.finalizeJournalEdit(journal)
     end
 
     -- Transmit the item's ModData to server (critical for MP persistence)
-    if journal.transmitModData then
+    if journal.transmitModData and not isServerProxy then
         journal:transmitModData()
         BurdJournals.debugPrint("[BurdJournals] Transmitted journal ModData to server")
     end
@@ -5402,13 +6353,25 @@ function BurdJournals.UI.DebugPanel.finalizeJournalEdit(journal)
     local journalKey, backupData = BurdJournals.UI.DebugPanel.backupJournalToGlobalCache(journal)
 
     -- MP authoritative persist: push edited journal payload to server-side item modData.
+    -- For server proxies, this queues deferred apply immediately (pendingApply=true on server)
+    -- when the live journal is not currently loaded.
     local player = getPlayer()
     if player and backupData and isClient and isClient() then
-        sendClientCommand(player, "BurdJournals", "debugApplyJournalEdits", {
-            journalId = journal:getID(),
+        local payload = {
+            journalUUID = journalUUID,
             journalKey = journalKey,
             journalData = backupData
-        })
+        }
+        if not isServerProxy then
+            payload.journalId = journal:getID()
+        end
+
+        sendClientCommand(player, "BurdJournals", "debugApplyJournalEdits", payload)
+        if isServerProxy then
+            journal.__bsjDirty = true
+        end
+    elseif isServerProxy then
+        journal.__bsjDirty = true
     end
 end
 
@@ -5687,22 +6650,29 @@ function BurdJournals.UI.DebugPanel.setJournalSkillLevel(self, skillName, level)
     local skillsTable = modData.BurdJournals.skills
     local skillKey = BurdJournals.UI.DebugPanel.resolveSkillKey(skillsTable, skillName)
     
-    -- Calculate XP for level using thresholds
+    local targetLevel = math.floor(tonumber(level) or 0)
+    if targetLevel < 0 then targetLevel = 0 end
+    if targetLevel > 10 then targetLevel = 10 end
+
+    -- Calculate XP for level using shared thresholds
     local xp = 0
-    local isPassive = BurdJournals.isPassiveSkill and BurdJournals.isPassiveSkill(skillKey) or false
-    
-    if level > 0 then
-        if isPassive then
-            xp = BurdJournals.PASSIVE_XP_THRESHOLDS and BurdJournals.PASSIVE_XP_THRESHOLDS[level] or (level * 7500)
+    if targetLevel > 0 then
+        if BurdJournals.getXPThresholdForLevel then
+            xp = tonumber(BurdJournals.getXPThresholdForLevel(skillKey, targetLevel)) or 0
         else
-            xp = BurdJournals.STANDARD_XP_THRESHOLDS and BurdJournals.STANDARD_XP_THRESHOLDS[level] or (level * 150)
+            local isPassive = BurdJournals.isPassiveSkill and BurdJournals.isPassiveSkill(skillKey) or false
+            if isPassive then
+                xp = BurdJournals.PASSIVE_XP_THRESHOLDS and BurdJournals.PASSIVE_XP_THRESHOLDS[targetLevel] or (targetLevel * 7500)
+            else
+                xp = BurdJournals.STANDARD_XP_THRESHOLDS and BurdJournals.STANDARD_XP_THRESHOLDS[targetLevel] or (targetLevel * 150)
+            end
         end
     end
     
     -- Keep skill at level 0 with 0 XP (don't auto-remove)
     skillsTable[skillKey] = {
-        xp = xp,
-        level = level
+        xp = math.max(0, tonumber(xp) or 0),
+        level = targetLevel
     }
 
     -- Finalize edit: transmit and backup to global cache
@@ -5733,7 +6703,7 @@ function BurdJournals.UI.DebugPanel:onJournalSetXP()
     BurdJournals.UI.DebugPanel.markJournalAsDebugEdited(journal)
     
     local xpText = panel.journalXPEntry:getText() or "0"
-    local xp = tonumber(xpText) or 0
+    local xp = math.max(0, tonumber(xpText) or 0)
     
     local modData = journal:getModData()
     if not modData.BurdJournals then modData.BurdJournals = {} end
@@ -5744,27 +6714,31 @@ function BurdJournals.UI.DebugPanel:onJournalSetXP()
     local skillsTable = modData.BurdJournals.skills
     local skillKey = BurdJournals.UI.DebugPanel.resolveSkillKey(skillsTable, focusedSkill)
     
-    -- Calculate level from XP
+    -- Calculate level from XP using shared helper
     local level = 0
-    local isPassive = BurdJournals.isPassiveSkill and BurdJournals.isPassiveSkill(skillKey) or false
-    
-    if isPassive then
-        local thresholds = BurdJournals.PASSIVE_XP_THRESHOLDS or {}
-        for l = 10, 1, -1 do
-            if xp >= (thresholds[l] or (l * 7500)) then
-                level = l
-                break
-            end
-        end
+    if BurdJournals.getSkillLevelFromXP then
+        level = tonumber(BurdJournals.getSkillLevelFromXP(xp, skillKey)) or 0
     else
-        local thresholds = BurdJournals.STANDARD_XP_THRESHOLDS or {}
-        for l = 10, 1, -1 do
-            if xp >= (thresholds[l] or (l * 150)) then
-                level = l
-                break
+        local isPassive = BurdJournals.isPassiveSkill and BurdJournals.isPassiveSkill(skillKey) or false
+        if isPassive then
+            local thresholds = BurdJournals.PASSIVE_XP_THRESHOLDS or {}
+            for l = 10, 1, -1 do
+                if xp >= (thresholds[l] or (l * 7500)) then
+                    level = l
+                    break
+                end
+            end
+        else
+            local thresholds = BurdJournals.STANDARD_XP_THRESHOLDS or {}
+            for l = 10, 1, -1 do
+                if xp >= (thresholds[l] or (l * 150)) then
+                    level = l
+                    break
+                end
             end
         end
     end
+    level = math.max(0, math.min(10, math.floor(tonumber(level) or 0)))
     
     -- Keep skill even at 0 XP (don't auto-remove, use Remove button instead)
     skillsTable[skillKey] = {
@@ -6196,6 +7170,8 @@ end
 
 -- Refresh button handler
 function BurdJournals.UI.DebugPanel:onJournalRefresh()
+    self:refreshJournalPickerList(true)
+    self:onJournalRefreshServerIndex()
     self:refreshJournalEditorData()
     self:setStatus("Journal data refreshed", {r=0.5, g=0.8, b=1})
 end
@@ -6265,8 +7241,10 @@ function BurdJournals.UI.DebugPanel:onJournalAddSkillPopup()
     popup:addChild(titleLabel)
     
     -- Close button (X)
-    local closeBtn = ISButton:new(popupWidth - 30, 5, 22, 22, "X", self, function(btn)
-        btn.parent:close()
+    local closeBtn = ISButton:new(popupWidth - 30, 5, 22, 22, "X", self, function()
+        if popup and popup.close then
+            popup:close()
+        end
     end)
     closeBtn:initialise()
     closeBtn:instantiate()
@@ -6353,15 +7331,12 @@ end
 function BurdJournals.UI.DebugPanel.filterAddSkillPopupList(self, popup)
     if not popup or not popup.skillSearchEntry or not popup.skillList then return end
     
-    local searchText = string.lower(popup.skillSearchEntry:getText() or "")
+    local searchText = popup.skillSearchEntry:getText() or ""
     
     for _, itemData in ipairs(popup.skillList.items) do
         if itemData.item then
-            local displayName = string.lower(itemData.item.displayName or "")
-            local skillName = string.lower(itemData.item.name or "")
-            itemData.item.hidden = searchText ~= "" and 
-                not string.find(displayName, searchText, 1, true) and
-                not string.find(skillName, searchText, 1, true)
+            itemData.item.hidden = searchText ~= "" and
+                not debugSearchMatches(searchText, itemData.item.displayName, itemData.item.name)
         end
     end
 end
@@ -6512,6 +7487,7 @@ function BurdJournals.UI.DebugPanel:createDiagnosticsPanel(startY, height)
         {name = "Run Full Diagnostics", cmd = "fulldiag"},
         {name = "Run Self Tests", cmd = "runselftests"},
         {name = "Scan Inventory for Journals", cmd = "scanjournals"},
+        {name = "Audit Unknown Mod Sources", cmd = "auditunknownsources"},
         {name = "Check Selected Journal Persistence", cmd = "journalpersist"},
         {name = "Check Sandbox Options", cmd = "checksandbox"},
         {name = "Check Mod State", cmd = "checkmodstate"},
@@ -6556,8 +7532,68 @@ function BurdJournals.UI.DebugPanel:createDiagnosticsPanel(startY, height)
     verboseOffBtn.borderColor = {r=0.6, g=0.4, b=0.3, a=1}
     verboseOffBtn.backgroundColor = {r=0.35, g=0.2, b=0.15, a=1}
     panel:addChild(verboseOffBtn)
+
+    y = y + btnHeight + 12
+
+    local unknownLabel = ISLabel:new(padding, y, 20, "Unknown Source Results:", 1, 1, 1, 1, UIFont.Small, true)
+    unknownLabel:initialise()
+    unknownLabel:instantiate()
+    panel:addChild(unknownLabel)
+    y = y + 20
+
+    local listHeight = math.max(120, panel.height - y - 10)
+    panel.unknownSourceList = ISScrollingListBox:new(padding, y, panel.width - padding * 2, listHeight)
+    panel.unknownSourceList:initialise()
+    panel.unknownSourceList:instantiate()
+    panel.unknownSourceList.itemheight = 20
+    panel.unknownSourceList.font = UIFont.Small
+    panel.unknownSourceList.backgroundColor = {r=0.08, g=0.08, b=0.1, a=0.9}
+    panel.unknownSourceList.borderColor = {r=0.35, g=0.42, b=0.5, a=0.9}
+    panel:addChild(panel.unknownSourceList)
+    panel.unknownSourceList:addItem("Run 'Audit Unknown Mod Sources' to populate results.", nil)
     
     self.diagPanel = panel
+end
+
+local function appendUnknownSourceDiagnostics(rows, category, name, context)
+    if not BurdJournals or not BurdJournals.diagnoseModSource then
+        return
+    end
+    local diag = BurdJournals.diagnoseModSource(category, name, context)
+    if not diag or diag.source ~= "Modded" then
+        return
+    end
+
+    local detailParts = {}
+    if diag.details then
+        for k, v in pairs(diag.details) do
+            table.insert(detailParts, tostring(k) .. "=" .. tostring(v))
+        end
+    end
+    table.sort(detailParts)
+
+    local suffix = (#detailParts > 0) and (" | " .. table.concat(detailParts, ", ")) or ""
+    table.insert(rows, "[" .. category .. "] " .. tostring(name) .. " -> reason=" .. tostring(diag.reason) .. suffix)
+end
+
+local function updateUnknownSourceDiagnosticsList(self, rows)
+    local panel = self and self.diagPanel
+    local list = panel and panel.unknownSourceList
+    if not list then
+        return
+    end
+
+    list:clear()
+
+    if not rows or #rows == 0 then
+        list:addItem("No unknown-source entries found.", nil)
+        return
+    end
+
+    list:addItem("Unknown-source entries: " .. tostring(#rows), nil)
+    for _, row in ipairs(rows) do
+        list:addItem(row, nil)
+    end
 end
 
 function BurdJournals.UI.DebugPanel:onDiagCmd(button)
@@ -6642,6 +7678,72 @@ function BurdJournals.UI.DebugPanel:onDiagCmd(button)
         end
         BurdJournals.debugPrint("=========================================")
         self:setStatus("Journal scan complete", {r=0.5, g=0.8, b=1})
+    elseif cmd == "auditunknownsources" then
+        local rows = {}
+
+        -- Inspect selected journal payload first.
+        local journal = self.editingJournal
+        local journalData = journal and BurdJournals.getJournalData and BurdJournals.getJournalData(journal) or nil
+        if journalData then
+            for skillName, _ in pairs(journalData.skills or {}) do
+                appendUnknownSourceDiagnostics(rows, "skills", skillName)
+            end
+            for traitId, _ in pairs(journalData.traits or {}) do
+                appendUnknownSourceDiagnostics(rows, "traits", traitId)
+            end
+            for recipeName, recipeData in pairs(journalData.recipes or {}) do
+                local magazineSource = (type(recipeData) == "table" and recipeData.source) or (BurdJournals.getMagazineForRecipe and BurdJournals.getMagazineForRecipe(recipeName))
+                appendUnknownSourceDiagnostics(rows, "recipes", recipeName, {magazineSource = magazineSource})
+            end
+        end
+
+        -- Inspect player's currently known/active data for unknown classification.
+        if self.player then
+            local allowedSkills = BurdJournals.getAllowedSkills and BurdJournals.getAllowedSkills() or {}
+            for _, skillName in ipairs(allowedSkills) do
+                local perk = BurdJournals.getPerkByName and BurdJournals.getPerkByName(skillName)
+                if perk then
+                    local xpObj = self.player.getXp and self.player:getXp() or nil
+                    local currentXP = (xpObj and xpObj.getXP and xpObj:getXP(perk)) or 0
+                    local currentLevel = (self.player.getPerkLevel and self.player:getPerkLevel(perk)) or 0
+                    if currentXP > 0 or currentLevel > 0 then
+                        appendUnknownSourceDiagnostics(rows, "skills", skillName)
+                    end
+                end
+            end
+
+            local playerTraits = BurdJournals.collectPlayerTraits and BurdJournals.collectPlayerTraits(self.player, false) or {}
+            for traitId, _ in pairs(playerTraits or {}) do
+                appendUnknownSourceDiagnostics(rows, "traits", traitId)
+            end
+
+            local playerRecipes = BurdJournals.collectPlayerMagazineRecipes and BurdJournals.collectPlayerMagazineRecipes(self.player) or {}
+            for recipeName, recipeData in pairs(playerRecipes or {}) do
+                local magazineSource = (type(recipeData) == "table" and recipeData.source) or (BurdJournals.getMagazineForRecipe and BurdJournals.getMagazineForRecipe(recipeName))
+                appendUnknownSourceDiagnostics(rows, "recipes", recipeName, {magazineSource = magazineSource})
+            end
+        end
+
+        local dedup = {}
+        local uniqueRows = {}
+        BurdJournals.debugPrint("[BSJ DEBUG] === UNKNOWN SOURCE DIAGNOSTICS ===")
+        for _, row in ipairs(rows) do
+            if not dedup[row] then
+                dedup[row] = true
+                table.insert(uniqueRows, row)
+                BurdJournals.debugPrint("  " .. row)
+            end
+        end
+        local count = #uniqueRows
+        BurdJournals.debugPrint("Total unknown-source entries: " .. tostring(count))
+        BurdJournals.debugPrint("========================================")
+        updateUnknownSourceDiagnosticsList(self, uniqueRows)
+
+        if count > 0 then
+            self:setStatus("Unknown-source diagnostics dumped (" .. tostring(count) .. ")", {r=0.9, g=0.8, b=0.4})
+        else
+            self:setStatus("No unknown-source entries found", {r=0.3, g=1, b=0.5})
+        end
     elseif cmd == "journalpersist" then
         local journal = self.editingJournal
         if not journal then

@@ -1,0 +1,47 @@
+﻿ContextMenu_PL = {
+    -- Journal Actions
+    ContextMenu_BurdJournals_OpenJournal = "Otworz dziennik...",
+    ContextMenu_BurdJournals_Read = "Czytaj dziennik",
+    ContextMenu_BurdJournals_Rename = "Zmien nazwe",
+    ContextMenu_BurdJournals_EraseJournal = "Wymaz dziennik",
+    ContextMenu_BurdJournals_RecordProgress = "Zapisz postepy",
+    ContextMenu_BurdJournals_UpdateRecords = "Zaktualizuj zapisy",
+    ContextMenu_BurdJournals_ClaimAll = "Odbierz wszystkie umiejetnosci",
+
+    -- Bind Journal (Context Menu Crafting)
+    ContextMenu_BurdJournals_BindAsSurvivalJournal = "Opraw jako dziennik przetrwania",
+    ContextMenu_BurdJournals_BindAsSurvivalJournal_Missing = "Opraw jako dziennik przetrwania (brak materialow)",
+    ContextMenu_BurdJournals_BindAsSurvivalJournal_NoTailoring = "Opraw jako dziennik przetrwania (wymaga Krawiectwa 1)",
+
+    -- Bloody Journal
+    ContextMenu_BurdJournals_BloodyBlank = "Zakrwawiony pusty dziennik",
+    ContextMenu_BurdJournals_ConvertViaCrafting = "Przeksztalc w dziennik osobisty (wytwarzanie)",
+
+    -- Worn Journal
+    ContextMenu_BurdJournals_WornBlank = "Zuzyty pusty dziennik",
+    ContextMenu_BurdJournals_AbsorbAll = "Wchlon wszystkie nagrody",
+    ContextMenu_BurdJournals_ConvertToClean = "Ponownie opraw jako dziennik osobisty",
+
+    -- Absorb All Dynamic Labels (for context menu)
+    ContextMenu_BurdJournals_AbsorbAllFormat = "Wchlon wszystko (%s)",
+    ContextMenu_BurdJournals_SkillCount = "%d umiejetnosc",
+    ContextMenu_BurdJournals_SkillsCount = "%d umiejetnosci",
+    ContextMenu_BurdJournals_TraitCount = "%d cecha",
+    ContextMenu_BurdJournals_TraitsCount = "%d cechy",
+    ContextMenu_BurdJournals_RecipeCount = "%d receptura",
+    ContextMenu_BurdJournals_RecipesCount = "%d receptury",
+
+    -- Personal Journal (Clean)
+    ContextMenu_BurdJournals_RecordAll = "Zapisz wszystkie postepy",
+    ContextMenu_BurdJournals_Disassemble = "Rozloz dziennik",
+
+    -- Illiterate Trait Block
+    ContextMenu_BurdJournals_CannotRead = "Nie potrafi czytac (Analfabeta)",
+
+    -- Legacy (keeping for compatibility)
+    ContextMenu_BurdJournals_CleanRepair = "Wyczysc / napraw",
+    ContextMenu_BurdJournals_CleanSoap = "Wyczysc mydlem i szmata",
+    ContextMenu_BurdJournals_RepairTape = "Zalataj tasma naprawcza",
+    ContextMenu_BurdJournals_RepairLeather = "Opraw ponownie skora",
+    ContextMenu_BurdJournals_RepairGlue = "Sklej strony",
+}

@@ -1,0 +1,87 @@
+﻿IG_UI_PL = {
+    -- Context Menu - Main Options
+    ContextMenu_BurdJournals_OpenJournal = "Otworz dziennik...",
+    ContextMenu_BurdJournals_Read = "Czytaj",
+    ContextMenu_BurdJournals_Rename = "Zmien nazwe",
+    ContextMenu_BurdJournals_EraseJournal = "Wymaz dziennik",
+    ContextMenu_BurdJournals_RecordProgress = "Zapisz postepy",
+
+    -- Context Menu - Clean/Repair
+    ContextMenu_BurdJournals_CleanRepair = "Wyczysc / napraw",
+    ContextMenu_BurdJournals_CleanSoap = "Wyczysc mydlem i szmata",
+    ContextMenu_BurdJournals_RepairTape = "Zalataj tasma naprawcza",
+    ContextMenu_BurdJournals_RepairLeather = "Opraw ponownie skora",
+    ContextMenu_BurdJournals_RepairGlue = "Sklej strony",
+
+    -- UI Panel Titles
+    UI_BurdJournals_BlankJournal = "Pusty dziennik przetrwania",
+    UI_BurdJournals_FilledJournal = "Wypelniony dziennik przetrwania",
+    UI_BurdJournals_WornJournal = "Zuzyty dziennik przetrwania",
+
+    -- Data Category Headers
+    UI_BurdJournals_CategoryCharacter = "Informacje o postaci",
+    UI_BurdJournals_CategorySurvival = "Zapis przetrwania",
+    UI_BurdJournals_CategoryKills = "Liczba zabojstw",
+    UI_BurdJournals_CategoryTraits = "Cechy osobowosci",
+    UI_BurdJournals_CategorySkills = "Poznane umiejetnosci",
+
+    -- UI Panel Labels
+    UI_BurdJournals_Author = "Autor",
+    UI_BurdJournals_Written = "Zapisano",
+    UI_BurdJournals_TimesRead = "Liczba odczytow",
+    UI_BurdJournals_Condition = "Stan",
+    UI_BurdJournals_NeedsCleaning = "Wymaga czyszczenia",
+
+    -- UI Buttons
+    UI_BurdJournals_SelectAll = "Zaznacz wszystko",
+    UI_BurdJournals_DeselectAll = "Odznacz wszystko",
+    UI_BurdJournals_Log = "Zapisz umiejetnosci",
+    UI_BurdJournals_Learn = "Ucz sie",
+    UI_BurdJournals_Update = "Aktualizuj",
+    UI_BurdJournals_Erase = "Wymaz",
+    UI_BurdJournals_Close = "Zamknij",
+
+    -- Confirmation Dialogs
+    UI_BurdJournals_ConfirmErase = "Czy na pewno chcesz wymazac ten dziennik? Wszystkie zapisane umiejetnosci zostana utracone bezpowrotnie.",
+    UI_BurdJournals_ConfirmOverwrite = "Spowoduje to nadpisanie zawartosci dziennika Twoimi aktualnymi umiejetnosciami. Czy na pewno?",
+    UI_BurdJournals_RenamePrompt = "Wprowadz nowa nazwe dziennika:",
+    UI_BurdJournals_NoSkillsSelected = "Najpierw wybierz co najmniej jedna umiejetnosc.",
+    UI_BurdJournals_NoSkillsInJournal = "Ten dziennik nie zawiera umiejetnosci do nauki.",
+
+    -- Condition States
+    UI_BurdJournals_ConditionPristine = "Nienaruszony",
+    UI_BurdJournals_ConditionGood = "Dobry",
+    UI_BurdJournals_ConditionWorn = "Zuzyty",
+    UI_BurdJournals_ConditionDamaged = "Uszkodzony",
+    UI_BurdJournals_ConditionCritical = "Krytyczny",
+
+    -- Inspect Messages
+    UI_BurdJournals_InspectBlank = "Pusty dziennik w stanie: %1.",
+    UI_BurdJournals_InspectFilled = "Dziennik autorstwa: %1. Stan: %2",
+
+    -- Tooltips - Journal Info
+    Tooltip_BlankSurvivalJournal = "Pusty dziennik gotowy do zapisywania wiedzy o przetrwaniu.",
+    Tooltip_FilledSurvivalJournal = "Dziennik zawierajacy zapisane umiejetnosci przetrwania. Kliknij PPM, aby czytac.",
+    Tooltip_BurdJournals_ContainsSkills = "Zawiera zapisane umiejetnosci: %1",
+
+    -- Tooltips - Requirements
+    Tooltip_BurdJournals_NeedPen = "Wymaga dlugopisu lub olowka do pisania.",
+    Tooltip_BurdJournals_NeedEraser = "Wymaga gumki do wymazania zawartosci.",
+    Tooltip_BurdJournals_NeedsCleaning = "Ten dziennik jest zbyt zuzyty, aby go czytac.",
+    Tooltip_BurdJournals_NeedsCleaningDesc = "Uzyj mydla i szmaty, aby go wyczyscic; tasmy naprawczej, aby zalatac; lub paskow skory, aby ponownie go oprawic.",
+
+    -- Tooltips - Cleaning Materials
+    Tooltip_BurdJournals_MissingMaterials = "Brak materialow",
+    Tooltip_BurdJournals_NeedsSoapCloth = "Wymaga: mydlo + porwane przescieradla lub sciereczka",
+    Tooltip_BurdJournals_NeedsTape = "Wymaga: tasma naprawcza",
+    Tooltip_BurdJournals_NeedsLeatherBinding = "Wymaga: paski skory + nic + igla",
+    Tooltip_BurdJournals_NeedsGluePaper = "Wymaga: klej + kartka papieru",
+
+    -- Feedback Messages
+    UI_BurdJournals_SkillsLogged = "Umiejetnosci zapisane w dzienniku.",
+    UI_BurdJournals_SkillsLearned = "Wiedza z dziennika zostala przyswojona!",
+    UI_BurdJournals_JournalErased = "Zawartosc dziennika zostala wymazana.",
+    UI_BurdJournals_JournalCleaned = "Dziennik zostal wyczyszczony i jest teraz czytelny.",
+    UI_BurdJournals_JournalUpdated = "Zaktualizowano umiejetnosci w dzienniku.",
+    UI_BurdJournals_JournalRenamed = "Zmieniono nazwe dziennika.",
+}

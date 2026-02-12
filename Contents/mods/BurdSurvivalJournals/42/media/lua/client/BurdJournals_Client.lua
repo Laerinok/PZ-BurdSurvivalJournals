@@ -10,6 +10,24 @@ BurdJournals.Client.BASELINE_VERSION = 4  -- v4: Clear recipe baseline for exist
 BurdJournals.Client._activeTickHandlers = {}
 BurdJournals.Client._tickHandlerIdCounter = 0
 
+-- Shared client->server wrapper used by UI code paths (MainPanel, Debug UI, etc.).
+function BurdJournals.Client.sendToServer(command, args, playerObj)
+    if type(command) ~= "string" or command == "" then
+        return false
+    end
+    if not sendClientCommand then
+        return false
+    end
+
+    local player = playerObj or getPlayer() or getSpecificPlayer(0)
+    if not player then
+        return false
+    end
+
+    sendClientCommand(player, "BurdJournals", command, args or {})
+    return true
+end
+
 function BurdJournals.Client.registerTickHandler(handlerFunc, debugName)
     BurdJournals.Client._tickHandlerIdCounter = BurdJournals.Client._tickHandlerIdCounter + 1
     local handlerId = BurdJournals.Client._tickHandlerIdCounter
@@ -85,6 +103,28 @@ function BurdJournals.Client.init()
 
     local player = getPlayer()
     if player then
+        if BurdJournals.compactPlayerBurdJournalsData then
+            local changed, removedLegacy, removedTransient, removedSkills, removedTraits, removedRecipes =
+                BurdJournals.compactPlayerBurdJournalsData(player, true)
+            if changed then
+                BurdJournals.debugPrint("[BurdJournals] Compacted player BurdJournals data on init: removed legacy="
+                    .. tostring(removedLegacy)
+                    .. ", transient=" .. tostring(removedTransient)
+                    .. ", skills=" .. tostring(removedSkills)
+                    .. ", traits=" .. tostring(removedTraits)
+                    .. ", recipes=" .. tostring(removedRecipes))
+            end
+        end
+
+        if BurdJournals.compactPlayerJournalDRCache then
+            local changed, removedJournals, removedAliases = BurdJournals.compactPlayerJournalDRCache(player, true)
+            if changed then
+                BurdJournals.debugPrint("[BurdJournals] Compacted player DR cache on init: removed "
+                    .. tostring(removedJournals) .. " journals, "
+                    .. tostring(removedAliases) .. " aliases")
+            end
+        end
+
         local hoursAlive = player:getHoursSurvived() or 0
 
         if BurdJournals.getPlayerCharacterId then
@@ -312,12 +352,16 @@ function BurdJournals.Client.onServerCommand(module, command, args)
         -- Also refresh main panel if open (for claiming traits from debug-spawned player journals)
         if BurdJournals.UI and BurdJournals.UI.MainPanel and BurdJournals.UI.MainPanel.instance then
             local panel = BurdJournals.UI.MainPanel.instance
+            local normalizedTraitId = BurdJournals.normalizeTraitId and BurdJournals.normalizeTraitId(traitId) or traitId
+            local traitSessionKey = string.lower(tostring(normalizedTraitId or traitId))
             -- Track this trait as claimed in session
             if not panel.sessionClaimedTraits then panel.sessionClaimedTraits = {} end
             panel.sessionClaimedTraits[traitId] = true
+            panel.sessionClaimedTraits[traitSessionKey] = true
             -- Clear pending
             if panel.pendingClaims and panel.pendingClaims.traits then
                 panel.pendingClaims.traits[traitId] = nil
+                panel.pendingClaims.traits[traitSessionKey] = nil
             end
             -- Refresh appropriate list
             if panel.refreshJournalData then
@@ -465,6 +509,18 @@ function BurdJournals.Client.onServerCommand(module, command, args)
     elseif command == "debugJournalBackupResponse" then
         -- Server responded to our backup request (for restoration)
         BurdJournals.Client.handleDebugJournalBackupResponse(player, args)
+
+    elseif command == "debugJournalUUIDLookupResult" then
+        BurdJournals.Client.handleDebugJournalUUIDLookupResult(player, args)
+
+    elseif command == "debugJournalUUIDRepairResult" then
+        BurdJournals.Client.handleDebugJournalUUIDRepairResult(player, args)
+
+    elseif command == "debugJournalUUIDIndexList" then
+        BurdJournals.Client.handleDebugJournalUUIDIndexList(player, args)
+
+    elseif command == "debugJournalUUIDDeleteResult" then
+        BurdJournals.Client.handleDebugJournalUUIDDeleteResult(player, args)
     end
 end
 
@@ -777,6 +833,21 @@ function BurdJournals.Client.handleAbsorbSuccess(player, args)
         if BurdJournals.safeAddTrait then
             BurdJournals.safeAddTrait(player, args.traitId)
         end
+
+        -- Mirror skill behavior: mark trait claimed in-session immediately so UI doesn't
+        -- flicker back to claimable before player trait sync/journal sync is visible.
+        if BurdJournals.UI and BurdJournals.UI.MainPanel and BurdJournals.UI.MainPanel.instance then
+            local panel = BurdJournals.UI.MainPanel.instance
+            local normalizedTraitId = BurdJournals.normalizeTraitId and BurdJournals.normalizeTraitId(args.traitId) or args.traitId
+            local traitSessionKey = string.lower(tostring(normalizedTraitId or args.traitId))
+            if not panel.sessionClaimedTraits then panel.sessionClaimedTraits = {} end
+            panel.sessionClaimedTraits[args.traitId] = true
+            panel.sessionClaimedTraits[traitSessionKey] = true
+            if panel.pendingClaims and panel.pendingClaims.traits then
+                panel.pendingClaims.traits[args.traitId] = nil
+                panel.pendingClaims.traits[traitSessionKey] = nil
+            end
+        end
     elseif args.recipeName then
         local displayName = BurdJournals.getRecipeDisplayName(args.recipeName)
         local message = "+" .. displayName
@@ -957,6 +1028,19 @@ function BurdJournals.Client.handleClaimSuccess(player, args)
         if BurdJournals.safeAddTrait then
             BurdJournals.safeAddTrait(player, args.traitId)
         end
+
+        if BurdJournals.UI and BurdJournals.UI.MainPanel and BurdJournals.UI.MainPanel.instance then
+            local panel = BurdJournals.UI.MainPanel.instance
+            local normalizedTraitId = BurdJournals.normalizeTraitId and BurdJournals.normalizeTraitId(args.traitId) or args.traitId
+            local traitSessionKey = string.lower(tostring(normalizedTraitId or args.traitId))
+            if not panel.sessionClaimedTraits then panel.sessionClaimedTraits = {} end
+            panel.sessionClaimedTraits[args.traitId] = true
+            panel.sessionClaimedTraits[traitSessionKey] = true
+            if panel.pendingClaims and panel.pendingClaims.traits then
+                panel.pendingClaims.traits[args.traitId] = nil
+                panel.pendingClaims.traits[traitSessionKey] = nil
+            end
+        end
     elseif args.recipeName then
         local displayName = BurdJournals.getRecipeDisplayName(args.recipeName)
         local message = "+" .. displayName
@@ -1028,6 +1112,12 @@ function BurdJournals.Client.handleClaimSuccess(player, args)
         -- Clear this skill from pending claims so UI shows updated state
         if args.skillName and panel.pendingClaims and panel.pendingClaims.skills then
             panel.pendingClaims.skills[args.skillName] = nil
+        end
+        if args.traitId and panel.pendingClaims and panel.pendingClaims.traits then
+            local normalizedTraitId = BurdJournals.normalizeTraitId and BurdJournals.normalizeTraitId(args.traitId) or args.traitId
+            local traitSessionKey = string.lower(tostring(normalizedTraitId or args.traitId))
+            panel.pendingClaims.traits[args.traitId] = nil
+            panel.pendingClaims.traits[traitSessionKey] = nil
         end
 
         -- Skip UI refresh if batch processing is still active - the processor will refresh when done
@@ -1206,13 +1296,23 @@ function BurdJournals.Client.handleGrantTrait(player, args)
 
         local journal = BurdJournals.findItemById(player, args.journalId)
         if journal then
-            BurdJournals.claimTrait(journal, traitId)
+            local data = BurdJournals.getJournalData and BurdJournals.getJournalData(journal)
+            if data then
+                BurdJournals.markTraitClaimedByCharacter(data, player, traitId)
+            else
+                BurdJournals.claimTrait(journal, traitId)
+            end
         end
 
         if BurdJournals.UI and BurdJournals.UI.MainPanel and BurdJournals.UI.MainPanel.instance then
             local panel = BurdJournals.UI.MainPanel.instance
             if panel.journal and panel.journal:getID() == args.journalId then
-                BurdJournals.claimTrait(panel.journal, traitId)
+                local panelData = BurdJournals.getJournalData and BurdJournals.getJournalData(panel.journal)
+                if panelData then
+                    BurdJournals.markTraitClaimedByCharacter(panelData, player, traitId)
+                else
+                    BurdJournals.claimTrait(panel.journal, traitId)
+                end
             end
         end
     end
@@ -1518,7 +1618,10 @@ function BurdJournals.Client.captureBaseline(player, isNewCharacter)
                 BurdJournals.debugPrint("[BurdJournals] Existing character - updating version flag and clearing recipe baseline")
                 modData.BurdJournals.baselineVersion = BurdJournals.Client.BASELINE_VERSION
                 modData.BurdJournals.recipeBaseline = {}  -- Clear incorrectly captured recipe baseline
-                if player.transmitModData then
+                modData.BurdJournals.mediaSkillBaseline = BurdJournals.getPlayerVhsSkillXPMapCopy and BurdJournals.getPlayerVhsSkillXPMapCopy(player) or {}
+                if player.transmitModData
+                    and BurdJournals.shouldPersistPlayerBaselineModData
+                    and BurdJournals.shouldPersistPlayerBaselineModData() then
                     player:transmitModData()
                 end
                 return
@@ -1529,6 +1632,7 @@ function BurdJournals.Client.captureBaseline(player, isNewCharacter)
             modData.BurdJournals.skillBaseline = nil
             modData.BurdJournals.traitBaseline = nil
             modData.BurdJournals.recipeBaseline = nil
+            modData.BurdJournals.mediaSkillBaseline = nil
         end
     end
 
@@ -1567,6 +1671,7 @@ function BurdJournals.Client.captureBaseline(player, isNewCharacter)
         for recipeName, _ in pairs(recipes) do
             modData.BurdJournals.recipeBaseline[recipeName] = true
         end
+        modData.BurdJournals.mediaSkillBaseline = BurdJournals.getPlayerVhsSkillXPMapCopy and BurdJournals.getPlayerVhsSkillXPMapCopy(player) or {}
     else
 
         BurdJournals.debugPrint("[BurdJournals] Calculating baseline for EXISTING save (retroactive)")
@@ -1575,6 +1680,7 @@ function BurdJournals.Client.captureBaseline(player, isNewCharacter)
         modData.BurdJournals.traitBaseline = calcTraits
 
         modData.BurdJournals.recipeBaseline = {}
+        modData.BurdJournals.mediaSkillBaseline = BurdJournals.getPlayerVhsSkillXPMapCopy and BurdJournals.getPlayerVhsSkillXPMapCopy(player) or {}
     end
 
     modData.BurdJournals.baselineCaptured = true
@@ -1600,7 +1706,9 @@ function BurdJournals.Client.captureBaseline(player, isNewCharacter)
         BurdJournals.debugPrint("[BurdJournals]   Baseline recipe: " .. recipeName)
     end
 
-    if player.transmitModData then
+    if player.transmitModData
+        and BurdJournals.shouldPersistPlayerBaselineModData
+        and BurdJournals.shouldPersistPlayerBaselineModData() then
         player:transmitModData()
         BurdJournals.debugPrint("[BurdJournals] Player modData transmitted for persistence")
     end
@@ -1620,6 +1728,7 @@ function BurdJournals.Client.forceRecalculateBaseline()
         modData.BurdJournals.baselineCaptured = nil
         modData.BurdJournals.skillBaseline = nil
         modData.BurdJournals.traitBaseline = nil
+        modData.BurdJournals.mediaSkillBaseline = nil
     end
 
     BurdJournals.debugPrint("[BurdJournals] Baseline cleared, recalculating...")
@@ -1666,6 +1775,7 @@ function BurdJournals.Client.registerBaselineWithServer(player)
         steamId = steamId,
         characterName = characterName,
         skillBaseline = modData.BurdJournals.skillBaseline or {},
+        mediaSkillBaseline = modData.BurdJournals.mediaSkillBaseline or {},
         traitBaseline = modData.BurdJournals.traitBaseline or {},
         recipeBaseline = modData.BurdJournals.recipeBaseline or {}
     })
@@ -1687,6 +1797,7 @@ function BurdJournals.Client.handleBaselineResponse(player, args)
         if not modData.BurdJournals then modData.BurdJournals = {} end
 
         modData.BurdJournals.skillBaseline = args.skillBaseline or {}
+        modData.BurdJournals.mediaSkillBaseline = args.mediaSkillBaseline or {}
         modData.BurdJournals.traitBaseline = args.traitBaseline or {}
         modData.BurdJournals.recipeBaseline = args.recipeBaseline or {}
         modData.BurdJournals.baselineCaptured = true
@@ -1706,7 +1817,9 @@ function BurdJournals.Client.handleBaselineResponse(player, args)
             BurdJournals.debugPrint("[BurdJournals]   Cached trait: " .. traitId)
         end
 
-        if player.transmitModData then
+        if player.transmitModData
+            and BurdJournals.shouldPersistPlayerBaselineModData
+            and BurdJournals.shouldPersistPlayerBaselineModData() then
             player:transmitModData()
         end
     else
@@ -1840,6 +1953,201 @@ function BurdJournals.Client.requestDebugJournalBackup(journal, journalKey)
     end
 end
 
+function BurdJournals.Client.handleDebugJournalUUIDLookupResult(player, args)
+    if not args then return end
+
+    local panel = BurdJournals.UI and BurdJournals.UI.DebugPanel and BurdJournals.UI.DebugPanel.instance or nil
+    local uuid = tostring(args.uuid or "")
+
+    if args.found and args.live then
+        local journal = nil
+        if args.journalId then
+            journal = BurdJournals.findItemById(player, args.journalId)
+        end
+        if not journal and uuid ~= "" and BurdJournals.findJournalByUUID then
+            journal = BurdJournals.findJournalByUUID(player, uuid)
+        end
+
+        if panel and panel.journalPanel and panel.journalPanel.journalUUIDEntry then
+            panel.journalPanel.journalUUIDEntry:setText(uuid)
+        end
+
+        local pendingProxy = panel and panel.editingJournal or nil
+        local shouldApplyProxyEdits = pendingProxy
+            and pendingProxy.__bsjServerProxy == true
+            and pendingProxy.__bsjDirty == true
+            and tostring(pendingProxy.__bsjUUID or "") == uuid
+            and pendingProxy.getModData
+            and pendingProxy:getModData()
+            and pendingProxy:getModData().BurdJournals
+        local pendingProxyData = shouldApplyProxyEdits and pendingProxy:getModData().BurdJournals or nil
+
+        if panel and journal then
+            if shouldApplyProxyEdits and pendingProxyData and isClient and isClient() then
+                sendClientCommand(player, "BurdJournals", "debugApplyJournalEdits", {
+                    journalId = journal:getID(),
+                    journalUUID = uuid,
+                    journalKey = uuid,
+                    journalData = pendingProxyData
+                })
+                pendingProxy.__bsjDirty = false
+            end
+            panel.editingJournal = journal
+            if panel.refreshJournalEditorData then
+                panel:refreshJournalEditorData()
+            end
+            if shouldApplyProxyEdits then
+                panel:setStatus("UUID found; applied cached edits to live journal", {r=0.3, g=1, b=0.5})
+            else
+                panel:setStatus("UUID found and selected", {r=0.3, g=1, b=0.5})
+            end
+        elseif panel then
+            local owner = tostring(args.ownerUsername or "Unknown")
+            local indexEntry = args.indexEntry
+            if type(indexEntry) ~= "table" then
+                indexEntry = {
+                    uuid = uuid,
+                    itemId = args.journalId,
+                    itemType = args.itemType,
+                    itemName = args.itemName,
+                    ownerUsername = args.ownerUsername,
+                    ownerSteamId = args.ownerSteamId,
+                    ownerCharacterName = args.ownerCharacterName,
+                    isPlayerCreated = args.isPlayerCreated == true,
+                    wasRestored = args.isRestored == true,
+                    wasFromWorn = args.wasFromWorn == true,
+                    wasFromBloody = args.wasFromBloody == true,
+                    skillCount = args.skillCount,
+                    traitCount = args.traitCount,
+                    recipeCount = args.recipeCount,
+                    statCount = args.statCount,
+                }
+            end
+
+            local snapshotData = args.snapshotData or args.backupData
+            local proxy = nil
+            if BurdJournals.UI
+                and BurdJournals.UI.DebugPanel
+                and BurdJournals.UI.DebugPanel.createServerJournalProxy then
+                proxy = BurdJournals.UI.DebugPanel.createServerJournalProxy(uuid, indexEntry, snapshotData)
+            end
+
+            local appliedRemoteEdits = false
+            if shouldApplyProxyEdits and pendingProxyData and isClient and isClient() then
+                sendClientCommand(player, "BurdJournals", "debugApplyJournalEdits", {
+                    journalId = args.journalId,
+                    journalUUID = uuid,
+                    journalKey = uuid,
+                    journalData = pendingProxyData
+                })
+                pendingProxy.__bsjDirty = false
+                appliedRemoteEdits = true
+            end
+
+            if proxy then
+                panel.editingJournal = proxy
+                if panel.refreshJournalEditorData then
+                    panel:refreshJournalEditorData()
+                end
+                if appliedRemoteEdits then
+                    panel:setStatus("UUID found on server; loaded remote snapshot and applied cached edits.", {r=0.3, g=1, b=0.5})
+                else
+                    panel:setStatus("UUID found on server; loaded remote snapshot.", {r=0.95, g=0.8, b=0.35})
+                end
+            elseif appliedRemoteEdits then
+                panel:setStatus("UUID found on server (owner " .. owner .. "). Cached edits applied remotely.", {r=0.3, g=1, b=0.5})
+            else
+                panel:setStatus("UUID found on server (owner " .. owner .. "). Move closer to edit.", {r=0.95, g=0.8, b=0.35})
+            end
+        end
+    else
+        if panel then
+            local hasCached = args.hasIndex or args.hasBackup
+            if hasCached and BurdJournals.UI
+                and BurdJournals.UI.DebugPanel
+                and BurdJournals.UI.DebugPanel.createServerJournalProxy then
+                local proxy = BurdJournals.UI.DebugPanel.createServerJournalProxy(uuid, args.indexEntry, args.snapshotData or args.backupData)
+                if proxy then
+                    panel.editingJournal = proxy
+                    if panel.journalPanel and panel.journalPanel.journalUUIDEntry then
+                        panel.journalPanel.journalUUIDEntry:setText(uuid)
+                    end
+                    if panel.refreshJournalEditorData then
+                        panel:refreshJournalEditorData()
+                    end
+                    panel:setStatus("Loaded cached server snapshot (no live item). Edits will sync when journal is live.", {r=0.95, g=0.8, b=0.35})
+                    return
+                end
+            end
+
+            panel:setStatus(args.message or "UUID not found", {r=1, g=0.6, b=0.3})
+        end
+    end
+
+    if args.message then
+        BurdJournals.debugPrint("[BurdJournals] UUID lookup: " .. tostring(args.message))
+    end
+end
+
+function BurdJournals.Client.handleDebugJournalUUIDRepairResult(player, args)
+    if not args then return end
+
+    local panel = BurdJournals.UI and BurdJournals.UI.DebugPanel and BurdJournals.UI.DebugPanel.instance or nil
+    local ok = args.found == true
+    local message = args.message or (ok and "UUID repair complete" or "UUID repair failed")
+
+    if panel then
+        panel:setStatus(message, ok and {r=0.3, g=1, b=0.5} or {r=1, g=0.6, b=0.3})
+    end
+
+    if ok and panel and args.journalId then
+        local journal = BurdJournals.findItemById(player, args.journalId)
+        if journal then
+            panel.editingJournal = journal
+            if panel.refreshJournalEditorData then
+                panel:refreshJournalEditorData()
+            end
+        end
+    end
+
+    BurdJournals.debugPrint("[BurdJournals] UUID repair: " .. tostring(message))
+end
+
+function BurdJournals.Client.handleDebugJournalUUIDIndexList(player, args)
+    if not args then return end
+    local panel = BurdJournals.UI and BurdJournals.UI.DebugPanel and BurdJournals.UI.DebugPanel.instance or nil
+    if panel and panel.applyServerJournalIndexList then
+        panel:applyServerJournalIndexList(args.entries, args)
+    end
+    BurdJournals.debugPrint("[BurdJournals] UUID index list received: count=" .. tostring(args.count or 0) .. ", total=" .. tostring(args.total or 0))
+end
+
+function BurdJournals.Client.handleDebugJournalUUIDDeleteResult(player, args)
+    if not args then return end
+
+    local panel = BurdJournals.UI and BurdJournals.UI.DebugPanel and BurdJournals.UI.DebugPanel.instance or nil
+    local message = args.message or "UUID delete processed"
+    local ok = args.found == true
+
+    if panel then
+        if ok then
+            panel.editingJournal = nil
+            if panel.refreshJournalEditorData then
+                panel:refreshJournalEditorData()
+            end
+            if panel.refreshJournalPickerList then
+                panel:refreshJournalPickerList(true)
+            end
+            if panel.onJournalRefreshServerIndex then
+                panel:onJournalRefreshServerIndex()
+            end
+        end
+        panel:setStatus(message, ok and {r=0.3, g=1, b=0.5} or {r=1, g=0.6, b=0.3})
+    end
+
+    BurdJournals.debugPrint("[BurdJournals] UUID delete: " .. tostring(message))
+end
+
 function BurdJournals.Client.onCreatePlayer(playerIndex)
     local player = getSpecificPlayer(playerIndex)
     if player then
@@ -1960,7 +2268,8 @@ function BurdJournals.Client.onPlayerDeath(player)
             BurdJournals.debugPrint("[BurdJournals] Notifying server to delete cached baseline for: " .. characterId)
             if sendClientCommand then
                 sendClientCommand(player, "BurdJournals", "deleteBaseline", {
-                    characterId = characterId
+                    characterId = characterId,
+                    reason = "death"
                 })
             end
         else
@@ -2721,6 +3030,20 @@ function BurdJournals.Client.Debug.cmdDump(player, args)
                     local recipeCount = 0
                     for _ in pairs(bj.recipeBaseline) do recipeCount = recipeCount + 1 end
                     BurdJournals.debugPrint(string.format("  Recipe Baselines: %d entries", recipeCount))
+                end
+
+                if bj.journalDRCache then
+                    local drJournalCount = 0
+                    local drAliasCount = 0
+                    local drJournals = bj.journalDRCache.journals
+                    local drAliases = bj.journalDRCache.aliases
+                    if type(drJournals) == "table" then
+                        for _ in pairs(drJournals) do drJournalCount = drJournalCount + 1 end
+                    end
+                    if type(drAliases) == "table" then
+                        for _ in pairs(drAliases) do drAliasCount = drAliasCount + 1 end
+                    end
+                    BurdJournals.debugPrint(string.format("  DR Cache: %d journals, %d aliases", drJournalCount, drAliasCount))
                 end
             else
                 BurdJournals.debugPrint("  No BurdJournals modData found")

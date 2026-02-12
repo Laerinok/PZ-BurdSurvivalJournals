@@ -248,7 +248,13 @@ export function getCategoryFromKey(key) {
     if (key.startsWith('ContextMenu_')) return 'ContextMenu';
     if (key.startsWith('Tooltip_')) return 'Tooltip';
     if (key.startsWith('ItemName_')) return 'ItemName';
-    if (key.startsWith('Recipes_') || key.startsWith('Recipe_')) return 'Recipes';
+    if (
+        key.startsWith('Recipes_') ||
+        key.startsWith('Recipe_') ||
+        key.startsWith('Bind_') ||
+        key.startsWith('RestoreJournal_') ||
+        key === 'EraseFilledJournal'
+    ) return 'Recipes';
     if (key.startsWith('IG_UI_')) return 'IG_UI';
     return null;
 }

@@ -396,6 +396,88 @@ local function getClaimPreviewForSkill(journalData, skillName, recordedXP, readO
     }
 end
 
+local function getClaimTargetXPForPlayer(journalData, player, skillName, effectiveXP)
+    local targetXP = math.max(0, tonumber(effectiveXP) or 0)
+    local baselineXP = 0
+    local baselineSuppressed = false
+
+    local playerModData = player and player.getModData and player:getModData() or nil
+    if playerModData and playerModData.BurdJournals and playerModData.BurdJournals.debugModified == true then
+        baselineSuppressed = true
+    end
+
+    if journalData
+        and journalData.isPlayerCreated
+        and journalData.recordedWithBaseline
+        and BurdJournals.getSkillBaseline
+        and not baselineSuppressed
+    then
+        baselineXP = math.max(0, tonumber(BurdJournals.getSkillBaseline(player, skillName)) or 0)
+        targetXP = targetXP + baselineXP
+    end
+
+    return targetXP, baselineXP, baselineSuppressed
+end
+
+local function getSkillVhsBreakdown(skillData, fallbackNetXP)
+    local netXP = math.max(0, tonumber((skillData and skillData.xp) or fallbackNetXP) or 0)
+    local rawXP = tonumber(skillData and skillData.rawXP)
+    if rawXP == nil then
+        rawXP = netXP
+    else
+        rawXP = math.max(netXP, rawXP)
+    end
+    local excludedXP = tonumber(skillData and skillData.vhsExcludedXP)
+    if excludedXP == nil then
+        excludedXP = math.max(0, rawXP - netXP)
+    else
+        excludedXP = math.max(0, excludedXP)
+    end
+    if excludedXP > rawXP then
+        excludedXP = rawXP
+    end
+    if rawXP < (netXP + excludedXP) then
+        rawXP = netXP + excludedXP
+    end
+    return netXP, rawXP, excludedXP
+end
+
+local function formatXPWithVhsBreakdown(netXP, rawXP, excludedXP)
+    local fmtNet = BurdJournals.formatXP(math.max(0, tonumber(netXP) or 0))
+    local fmtRaw = BurdJournals.formatXP(math.max(0, tonumber(rawXP) or 0))
+    local fmtExcluded = BurdJournals.formatXP(math.max(0, tonumber(excludedXP) or 0))
+    if (tonumber(excludedXP) or 0) > 0 and (tonumber(rawXP) or 0) > (tonumber(netXP) or 0) then
+        return fmtNet .. "/" .. fmtRaw .. " XP (VHS -" .. fmtExcluded .. ")"
+    end
+    return fmtNet .. " XP"
+end
+
+local function buildSkillVhsTooltip(skillData, claimableXP, claimPercent)
+    local netXP, rawXP, excludedXP = getSkillVhsBreakdown(skillData)
+    local hasVhsDelta = excludedXP > 0 and rawXP > netXP
+    local hasClaimDelta = claimableXP ~= nil and netXP > 0 and math.max(0, tonumber(claimableXP) or 0) < netXP
+    if not hasVhsDelta and not hasClaimDelta then
+        return nil
+    end
+
+    local lines = {
+        "Recorded net XP: " .. BurdJournals.formatXP(netXP)
+    }
+    if hasVhsDelta then
+        table.insert(lines, "Recorded raw XP: " .. BurdJournals.formatXP(rawXP))
+        table.insert(lines, "VHS excluded at record: -" .. BurdJournals.formatXP(excludedXP))
+    end
+    if hasClaimDelta then
+        local claimable = math.max(0, tonumber(claimableXP) or 0)
+        local line = "Current claimable: " .. BurdJournals.formatXP(claimable)
+        if claimPercent and claimPercent < 100 then
+            line = line .. " (" .. tostring(claimPercent) .. "%)"
+        end
+        table.insert(lines, line)
+    end
+    return table.concat(lines, "\n")
+end
+
 local function calculateLevelProgress(skillName, totalXP)
     local currentLevel = 0
     local xpForCurrentLevel = 0
@@ -674,7 +756,7 @@ function BurdJournals.UI.MainPanel:rebuildFilterTabBar()
 
     self:cleanupFilterTabBar()
 
-    local filterBarY = self.filterBarY
+    local filterBarY = self.filterBaseY or self.filterBarY
     if not filterBarY and self.tabBarY then
         filterBarY = self.tabBarY + 32
     elseif not filterBarY then
@@ -683,8 +765,43 @@ function BurdJournals.UI.MainPanel:rebuildFilterTabBar()
 
     if self.tabThemeColors then
         local newY = self:createFilterTabBar(filterBarY, self.tabThemeColors)
-
+        self:updateTopControlsLayout(newY)
     end
+end
+
+function BurdJournals.UI.MainPanel:updateTopControlsLayout(filterEndY)
+    if not self.skillList then return end
+
+    local y = filterEndY
+    if not y then
+        y = self.filterBaseY or self.filterBarY or self.skillList:getY()
+        if self.filterBarVisible then
+            local filterHeight = BurdJournals.UI.FILTER_TAB_HEIGHT or 22
+            y = y + filterHeight + 4
+        end
+    end
+
+    local searchHeight = 24
+    if self.searchEntry then
+        self.searchBarY = y
+        self.searchEntry:setY(y)
+        if self.searchClearBtn then
+            local clearSize = self.searchClearBtn:getHeight() or 16
+            self.searchClearBtn:setY(y + (searchHeight - clearSize) / 2)
+        end
+        y = y + searchHeight + 6
+    else
+        self.searchBarY = nil
+    end
+
+    local bottomY = self.listBottomY
+    if not bottomY then
+        bottomY = self.skillList:getY() + self.skillList:getHeight()
+        self.listBottomY = bottomY
+    end
+
+    self.skillList:setY(y)
+    self.skillList:setHeight(math.max(80, bottomY - y))
 end
 
 function BurdJournals.UI.MainPanel:updateTabStyles()
@@ -832,6 +949,9 @@ function BurdJournals.UI.MainPanel:createFilterTabBar(startY, themeColors)
     if #sources <= 2 then
 
         self.filterBarVisible = false
+        self.filterTotalTabWidth = 0
+        self.filterAvailableWidth = 0
+        self.filterScrollMax = 0
         self:cleanupFilterTabBar()
         return startY
     end
@@ -856,6 +976,10 @@ function BurdJournals.UI.MainPanel:createFilterTabBar(startY, themeColors)
 
     local needsScrolling = totalTabWidth > availableWidth
     self.filterNeedsScrolling = needsScrolling
+    self.filterTotalTabWidth = totalTabWidth
+    self.filterAvailableWidth = availableWidth
+    self.filterScrollMax = math.max(0, totalTabWidth - availableWidth)
+    self.filterScrollOffset = math.max(0, math.min(tonumber(self.filterScrollOffset) or 0, self.filterScrollMax))
 
     if needsScrolling then
 
@@ -897,6 +1021,20 @@ function BurdJournals.UI.MainPanel:createFilterTabBar(startY, themeColors)
     end
 
     local currentFilter = self.filterState[currentTab].current or "all"
+    local filterExists = (currentFilter == "all")
+    if not filterExists then
+        for _, sourceData in ipairs(sources) do
+            local sourceId = sourceData.sourceId or string.lower(sourceData.source or "")
+            if sourceId == currentFilter then
+                filterExists = true
+                break
+            end
+        end
+    end
+    if not filterExists then
+        currentFilter = "all"
+        self.filterState[currentTab].current = "all"
+    end
     local btnX = tabX - self.filterScrollOffset
 
     for i, sourceData in ipairs(sources) do
@@ -907,12 +1045,13 @@ function BurdJournals.UI.MainPanel:createFilterTabBar(startY, themeColors)
         local textWidth = getTextManager():MeasureStringX(UIFont.Small, label)
         local btnWidth = textWidth + filterPadding * 2
 
-        local isActive = string.lower(sourceData.source) == string.lower(currentFilter)
+        local sourceId = sourceData.sourceId or string.lower(sourceData.source or "")
+        local isActive = sourceId == currentFilter
 
         local btn = ISButton:new(btnX, startY, btnWidth, filterHeight, label, self, BurdJournals.UI.MainPanel.onFilterTabClick)
         btn:initialise()
         btn:instantiate()
-        btn.internal = string.lower(sourceData.source)
+        btn.internal = sourceId
         btn.filterIndex = i
         btn.font = UIFont.Small
 
@@ -932,6 +1071,7 @@ function BurdJournals.UI.MainPanel:createFilterTabBar(startY, themeColors)
         btnX = btnX + btnWidth + filterSpacing
     end
 
+    self:updateFilterTabPositions()
     return startY + filterHeight + 4
 end
 
@@ -972,12 +1112,14 @@ function BurdJournals.UI.MainPanel:updateFilterTabStyles()
 end
 
 function BurdJournals.UI.MainPanel:onFilterScrollLeft()
-    self.filterScrollOffset = math.max(0, self.filterScrollOffset - 50)
+    local maxOffset = math.max(0, tonumber(self.filterScrollMax) or 0)
+    self.filterScrollOffset = math.max(0, math.min(maxOffset, (tonumber(self.filterScrollOffset) or 0) - 50))
     self:updateFilterTabPositions()
 end
 
 function BurdJournals.UI.MainPanel:onFilterScrollRight()
-    self.filterScrollOffset = self.filterScrollOffset + 50
+    local maxOffset = math.max(0, tonumber(self.filterScrollMax) or 0)
+    self.filterScrollOffset = math.max(0, math.min(maxOffset, (tonumber(self.filterScrollOffset) or 0) + 50))
     self:updateFilterTabPositions()
 end
 
@@ -988,12 +1130,24 @@ function BurdJournals.UI.MainPanel:updateFilterTabPositions()
     local arrowWidth = BurdJournals.UI.FILTER_ARROW_WIDTH or 20
     local filterSpacing = BurdJournals.UI.FILTER_TAB_SPACING or 2
 
-    local tabX = padding + arrowWidth - self.filterScrollOffset
+    local needsScrolling = self.filterNeedsScrolling == true
+    local leftEdge = padding + (needsScrolling and arrowWidth or 0)
+    local rightEdge = self.width - padding - (needsScrolling and arrowWidth or 0)
+    local tabX = leftEdge - (tonumber(self.filterScrollOffset) or 0)
 
     for _, btn in ipairs(self.filterTabButtons) do
         btn:setX(tabX)
+        if needsScrolling then
+            local btnRight = tabX + btn:getWidth()
+            btn:setVisible(tabX >= leftEdge and btnRight <= rightEdge)
+        else
+            btn:setVisible(true)
+        end
         tabX = tabX + btn:getWidth() + filterSpacing
     end
+
+    local maxOffset = math.max(0, tonumber(self.filterScrollMax) or 0)
+    self.filterScrollOffset = math.max(0, math.min(maxOffset, tonumber(self.filterScrollOffset) or 0))
 end
 
 function BurdJournals.UI.MainPanel:cleanupFilterTabBar()
@@ -1025,7 +1179,13 @@ function BurdJournals.UI.MainPanel:passesFilter(modSource)
         return true
     end
 
-    return string.lower(modSource or "Vanilla") == currentFilter
+    local normalizedSource = nil
+    if BurdJournals.normalizeFilterSourceId then
+        normalizedSource = BurdJournals.normalizeFilterSourceId(modSource)
+    else
+        normalizedSource = string.lower(modSource or "Vanilla")
+    end
+    return normalizedSource == currentFilter
 end
 
 function BurdJournals.UI.MainPanel:refreshCurrentList()
@@ -1038,7 +1198,97 @@ function BurdJournals.UI.MainPanel:refreshCurrentList()
     end
 end
 
+function BurdJournals.UI.MainPanel:getHeaderJournalUUID()
+    if self.mode ~= "log" and self.mode ~= "view" then
+        return nil
+    end
+    if not self.journal then
+        return nil
+    end
+
+    local journalData = BurdJournals.getJournalData and BurdJournals.getJournalData(self.journal) or nil
+    if not journalData or journalData.isPlayerCreated ~= true then
+        return nil
+    end
+
+    local uuid = tostring(journalData.uuid or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if uuid == "" then
+        return nil
+    end
+    return uuid
+end
+
+function BurdJournals.UI.MainPanel:updateHeaderUUIDTooltip()
+    local uuid = self:getHeaderJournalUUID()
+    self.headerJournalUUID = uuid
+
+    local tooltipTemplate = getText("UI_BurdJournals_UUIDTooltip") or "Journal UUID: %s"
+    local tooltip = uuid and string.format(tooltipTemplate, uuid) or nil
+
+    if self.headerUuidBadgeBtn then
+        self.headerUuidBadgeBtn.tooltip = tooltip
+        self.headerUuidBadgeBtn:setVisible(uuid ~= nil)
+    end
+end
+
+function BurdJournals.UI.MainPanel:onHeaderCopyUUID()
+    local uuid = self.headerJournalUUID or self:getHeaderJournalUUID()
+    if not uuid then
+        self:showFeedback(getText("UI_BurdJournals_UUIDMissing") or "No journal UUID available", {r=1, g=0.6, b=0.3})
+        return
+    end
+
+    local copied = false
+    uuid = tostring(uuid)
+    if Clipboard and Clipboard.setClipboard then
+        Clipboard.setClipboard(uuid)
+        copied = true
+    end
+
+    if not copied then
+        local core = getCore and getCore() or nil
+        if core and core.setClipboard then
+            core:setClipboard(uuid)
+            copied = true
+        end
+    end
+
+    if copied then
+        self:showFeedback(getText("UI_BurdJournals_UUIDCopied") or "Journal UUID copied", {r=0.3, g=1, b=0.5})
+    else
+        local fallbackTemplate = getText("UI_BurdJournals_UUIDCopyUnavailable") or "Clipboard unavailable. UUID: %s"
+        self:showFeedback(string.format(fallbackTemplate, uuid), {r=0.95, g=0.8, b=0.35})
+    end
+end
+
 function BurdJournals.UI.MainPanel:createHeaderRefreshButton(rightMargin, y)
+    local function removeControl(control)
+        if not control then return end
+        if self.removeChild then
+            self:removeChild(control)
+        end
+        if control.removeFromUIManager then
+            control:removeFromUIManager()
+        end
+    end
+
+    removeControl(self.headerRefreshBtn)
+    removeControl(self.headerCopyUuidBtn)
+    removeControl(self.headerUuidBadgeBtn)
+    self.headerRefreshBtn = nil
+    self.headerCopyUuidBtn = nil
+    self.headerUuidBadgeBtn = nil
+
+    -- Backward cleanup for any stale controls left behind by older UI builds.
+    if self.children and type(self.children) == "table" then
+        for i = #self.children, 1, -1 do
+            local child = self.children[i]
+            if child and child.bsjHeaderControl then
+                removeControl(child)
+            end
+        end
+    end
+
     local margin = tonumber(rightMargin) or 10
     local btnY = tonumber(y) or 15
     local refreshText = getText("UI_BurdJournals_BtnRefresh") or "Refresh"
@@ -1054,10 +1304,34 @@ function BurdJournals.UI.MainPanel:createHeaderRefreshButton(rightMargin, y)
     self.headerRefreshBtn.backgroundColor = {r=0.12, g=0.26, b=0.34, a=0.85}
     self.headerRefreshBtn.textColor = {r=0.9, g=0.98, b=1, a=1}
     self.headerRefreshBtn.tooltip = getText("UI_BurdJournals_RefreshTooltip") or "Refresh journal data"
+    self.headerRefreshBtn.bsjHeaderControl = true
     self:addChild(self.headerRefreshBtn)
 
-    self.headerRightInset = refreshW + 12
-    return margin + refreshW + 8
+    local inset = refreshW + 12
+
+    local uuid = self:getHeaderJournalUUID()
+    if uuid then
+        local badgeText = getText("UI_BurdJournals_UUIDBadge") or "UUID"
+        local spacing = 6
+
+        local badgeW = math.max(42, getTextManager():MeasureStringX(UIFont.Small, badgeText) + 16)
+        local badgeX = refreshX - spacing - badgeW
+        self.headerUuidBadgeBtn = ISButton:new(badgeX, btnY, badgeW, refreshH, badgeText, self, BurdJournals.UI.MainPanel.onHeaderCopyUUID)
+        self.headerUuidBadgeBtn:initialise()
+        self.headerUuidBadgeBtn:instantiate()
+        self.headerUuidBadgeBtn.font = UIFont.Small
+        self.headerUuidBadgeBtn.borderColor = {r=0.4, g=0.5, b=0.62, a=1}
+        self.headerUuidBadgeBtn.backgroundColor = {r=0.12, g=0.2, b=0.3, a=0.85}
+        self.headerUuidBadgeBtn.textColor = {r=0.85, g=0.95, b=1, a=1}
+        self.headerUuidBadgeBtn.bsjHeaderControl = true
+        self:addChild(self.headerUuidBadgeBtn)
+
+        inset = refreshW + badgeW + (spacing * 2) + 8
+    end
+
+    self.headerRightInset = inset
+    self:updateHeaderUUIDTooltip()
+    return margin + inset
 end
 
 function BurdJournals.UI.MainPanel:onHeaderRefresh()
@@ -1066,6 +1340,7 @@ function BurdJournals.UI.MainPanel:onHeaderRefresh()
     -- Match close/reopen behavior: clear transient UI session state.
     self.pendingClaims = {skills = {}, traits = {}, recipes = {}}
     self.sessionClaimedSkills = {}
+    self.sessionClaimedTraits = {}
     if self.learningState then
         self.learningState.claimSessionId = nil
     end
@@ -1195,9 +1470,17 @@ function BurdJournals.UI.MainPanel:createChildren()
         if isClient() and not isServer() then
             -- MP: Request server to sanitize and check dissolution
             if BurdJournals.Client and BurdJournals.Client.sendToServer then
+                local journalId = self.journal:getID()
                 BurdJournals.Client.sendToServer("sanitizeJournal", {
-                    journalId = self.journal:getID()
+                    journalId = journalId
                 })
+                -- Keep any filled-journal open in sync with deferred UUID edits and update server UUID index/cache.
+                local shouldSync = journalId and BurdJournals.isFilledJournal and BurdJournals.isFilledJournal(self.journal)
+                if shouldSync then
+                    BurdJournals.Client.sendToServer("syncJournalData", {
+                        journalId = journalId
+                    })
+                end
             end
             -- Server will send back result if journal was dissolved
         else
@@ -1354,6 +1637,8 @@ function BurdJournals.UI.MainPanel:refreshJournalData()
             end
         end
     end
+
+    self:updateHeaderUUIDTooltip()
 end
 
 function BurdJournals.UI.MainPanel:createAbsorptionUI()
@@ -1495,6 +1780,7 @@ function BurdJournals.UI.MainPanel:createAbsorptionUI()
         y = self:createTabs(tabs, y, tabThemeColors)
     end
 
+    self.filterBaseY = y
     y = self:createFilterTabBar(y, tabThemeColors)
 
     local maxItemCount = math.max(totalSkillCount, totalTraitCount, totalRecipeCount)
@@ -1512,6 +1798,7 @@ function BurdJournals.UI.MainPanel:createAbsorptionUI()
     self.skillList.itemheight = 52
     self.skillList.doDrawItem = BurdJournals.UI.MainPanel.doDrawAbsorptionItem
     self.skillList.mainPanel = self
+    self.listBottomY = self.skillList:getY() + self.skillList:getHeight()
 
     self.skillList.onMouseUp = function(listbox, x, y)
         if listbox.vscroll then
@@ -2488,7 +2775,7 @@ function BurdJournals.UI.MainPanel:populateAbsorptionList()
                     hasSkills = true
                     local isClaimed = BurdJournals.hasCharacterClaimedSkill(journalData, self.player, skillName)
                     local displayName = BurdJournals.getPerkDisplayName(skillName)
-                    local modSource = BurdJournals.getSkillModSource(skillName)
+                    local modSource = BurdJournals.getSkillModId(skillName)
 
                     if self:matchesSearch(displayName) and self:passesFilter(modSource) then
                         matchCount = matchCount + 1
@@ -2533,7 +2820,7 @@ function BurdJournals.UI.MainPanel:populateAbsorptionList()
                 local traitName = safeGetTraitName(traitId)
                 local traitTexture = getTraitTexture(traitId)
                 local isPositive = isTraitPositive(traitId)
-                local modSource = BurdJournals.getTraitModSource(traitId)
+                local modSource = BurdJournals.getTraitModId(traitId)
 
                 if self:matchesSearch(traitName) and self:passesFilter(modSource) then
                     matchCount = matchCount + 1
@@ -2568,7 +2855,7 @@ function BurdJournals.UI.MainPanel:populateAbsorptionList()
                 local alreadyKnown = BurdJournals.playerKnowsRecipe(self.player, recipeName)
                 local displayName = BurdJournals.getRecipeDisplayName(recipeName)
                 local magazineSource = (type(recipeData) == "table" and recipeData.source) or BurdJournals.getMagazineForRecipe(recipeName)
-                local modSource = BurdJournals.getRecipeModSource(recipeName, magazineSource)
+                local modSource = BurdJournals.getRecipeModId(recipeName, magazineSource)
 
                 if self:matchesSearch(displayName) and self:passesFilter(modSource) then
                     matchCount = matchCount + 1
@@ -2880,18 +3167,11 @@ function BurdJournals.UI.MainPanel:startLearningAll()
                 local preview = getClaimPreviewForSkill(journalData, skillName, recordedXP, 0, getClaimSessionIdForPanel(self, false))
 
                 if isPlayerJournal then
-                    -- Check if claiming this skill would benefit the player
-                    -- Logic depends on how the journal was recorded:
-                    if journalData.recordedWithBaseline then
-                        -- Delta XP: any positive effective claim is useful
-                        shouldInclude = preview.effectiveXP > 0
-                    else
-                        local perk = BurdJournals.getPerkByName(skillName)
-                        if perk then
-                            -- Absolute XP: player benefits if their current XP is less than this read's effective target
-                            local playerXP = self.player:getXp():getXP(perk)
-                            shouldInclude = playerXP < preview.effectiveXP
-                        end
+                    local perk = BurdJournals.getPerkByName(skillName)
+                    if perk then
+                        local playerXP = self.player:getXp():getXP(perk)
+                        local claimTargetXP = getClaimTargetXPForPlayer(journalData, self.player, skillName, preview.effectiveXP)
+                        shouldInclude = playerXP < claimTargetXP
                     end
                 else
                     -- For non-player journals, check per-character claim status
@@ -3032,15 +3312,12 @@ function BurdJournals.UI.MainPanel:startLearningTab(tabId)
                     local preview = getClaimPreviewForSkill(journalData, skillName, recordedXP, 0, getClaimSessionIdForPanel(self, false))
 
                     if isPlayerJournal then
-                        if journalData.recordedWithBaseline then
-                            shouldInclude = preview.effectiveXP > 0
-                        else
-                            local perk = BurdJournals.getPerkByName(skillName)
-                            if perk then
-                                local playerXP = self.player:getXp():getXP(perk)
-                                if playerXP < preview.effectiveXP then
-                                    shouldInclude = true
-                                end
+                        local perk = BurdJournals.getPerkByName(skillName)
+                        if perk then
+                            local playerXP = self.player:getXp():getXP(perk)
+                            local claimTargetXP = getClaimTargetXPForPlayer(journalData, self.player, skillName, preview.effectiveXP)
+                            if playerXP < claimTargetXP then
+                                shouldInclude = true
                             end
                         end
                     else
@@ -4512,18 +4789,19 @@ function BurdJournals.UI.MainPanel:sendClaimSkill(skillName, recordedXP, skipDis
             claimMultiplier = BurdJournals.consumeJournalClaimRead(journalData, skillName, claimSessionId)
         end
         local effectiveRecordedXP = math.max(0, math.floor((tonumber(recordedXP) or 0) * claimMultiplier))
+        local claimTargetXP, baselineXP = getClaimTargetXPForPlayer(journalData, self.player, skillName, effectiveRecordedXP)
         local effectiveRecordedLevel = recordedLevel
         if BurdJournals.getSkillLevelFromXP then
-            effectiveRecordedLevel = BurdJournals.getSkillLevelFromXP(effectiveRecordedXP, skillName) or recordedLevel
+            effectiveRecordedLevel = BurdJournals.getSkillLevelFromXP(claimTargetXP, skillName) or recordedLevel
         end
         local journalSnapshot = journalData
         if BurdJournals.normalizeJournalData then
             journalSnapshot = BurdJournals.normalizeJournalData(journalData) or journalData
         end
-        BurdJournals.debugPrint("[BurdJournals CLAIM DEBUG]   Sending effectiveXP=" .. tostring(effectiveRecordedXP) .. ", effectiveLevel=" .. tostring(effectiveRecordedLevel) .. ", claimMultiplier=" .. tostring(claimMultiplier))
+        BurdJournals.debugPrint("[BurdJournals CLAIM DEBUG]   Sending effectiveXP=" .. tostring(effectiveRecordedXP) .. ", targetXP=" .. tostring(claimTargetXP) .. ", baselineXP=" .. tostring(baselineXP) .. ", effectiveLevel=" .. tostring(effectiveRecordedLevel) .. ", claimMultiplier=" .. tostring(claimMultiplier))
         sendClientCommand(self.player, "BurdJournals", "debugSetSkillXP", {
             skillName = skillName,
-            targetXP = effectiveRecordedXP,
+            targetXP = claimTargetXP,
             targetLevel = effectiveRecordedLevel,
             journalId = journalId,
             journalUUID = journalData and journalData.uuid,
@@ -4559,7 +4837,7 @@ function BurdJournals.UI.MainPanel:sendClaimSkill(skillName, recordedXP, skipDis
     end
 end
 
-function BurdJournals.UI.MainPanel:sendClaimTrait(traitId)
+function BurdJournals.UI.MainPanel:sendClaimTrait(traitId, skipDissolutionCheck)
     local journalId = self.journal:getID()
     local journalData = BurdJournals.getJournalData(self.journal)
 
@@ -4570,9 +4848,13 @@ function BurdJournals.UI.MainPanel:sendClaimTrait(traitId)
         BurdJournals.debugPrint("[BurdJournals] journalData.isDebugSpawned: " .. tostring(journalData.isDebugSpawned))
     end
     BurdJournals.debugPrint("[BurdJournals] isClient(): " .. tostring(isClient()) .. ", isServer(): " .. tostring(isServer()))
+    BurdJournals.debugPrint("[BurdJournals] skipDissolutionCheck: " .. tostring(skipDissolutionCheck))
 
     if not self.pendingClaims then self.pendingClaims = {skills = {}, traits = {}} end
+    local normalizedTraitId = BurdJournals.normalizeTraitId and BurdJournals.normalizeTraitId(traitId) or traitId
+    local traitSessionKey = string.lower(tostring(normalizedTraitId or traitId))
     self.pendingClaims.traits[traitId] = true
+    self.pendingClaims.traits[traitSessionKey] = true
 
     -- For debug-spawned journals in MP, use the debug command to add trait
     -- (normal claim flow fails because server can't find client-spawned items)
@@ -4597,7 +4879,7 @@ function BurdJournals.UI.MainPanel:sendClaimTrait(traitId)
             traitId = traitId
         })
     else
-        self:applyTraitDirectly(traitId)
+        self:applyTraitDirectly(traitId, skipDissolutionCheck)
     end
 end
 
@@ -4695,11 +4977,12 @@ function BurdJournals.UI.MainPanel:applySkillXPSetMode(skillName, recordedXP, cl
         claimMultiplier = BurdJournals.consumeJournalClaimRead(journalData, skillName, claimSessionId)
     end
     local effectiveRecordedXP = math.max(0, math.floor((tonumber(recordedXP) or 0) * claimMultiplier))
+    local claimTargetXP = getClaimTargetXPForPlayer(journalData, self.player, skillName, effectiveRecordedXP)
 
     local playerXP = self.player:getXp():getXP(perk)
-    if effectiveRecordedXP > playerXP then
+    if claimTargetXP > playerXP then
 
-        local xpDiff = effectiveRecordedXP - playerXP
+        local xpDiff = claimTargetXP - playerXP
 
         if sendAddXp then
             sendAddXp(self.player, perk, xpDiff, true)
@@ -5558,6 +5841,13 @@ function BurdJournals.UI.MainPanel.show(player, journal, mode, returnContainer)
     local totalBtnWidth = maxBtnW * numButtons + btnSpacing * (numButtons - 1) + 48
 
     local width = math.max(baseWidth, totalBtnWidth)
+    if journalData and journalData.isPlayerCreated == true and (mode == "log" or mode == "view") then
+        -- Widen Player Journal record/claim panels by ~1.5x erase-button width for extra row text room.
+        local eraseBtnWidth = 55
+        local playerJournalWidthBonus = math.floor(((eraseBtnWidth * 3) / 2) + 0.5)
+        local maxAllowedWidth = math.max(baseWidth, getCore():getScreenWidth() - 40)
+        width = math.min(maxAllowedWidth, width + playerJournalWidthBonus)
+    end
 
     local baseHeight = 180
     local itemHeight = 52
@@ -5735,6 +6025,7 @@ function BurdJournals.UI.MainPanel:createLogUI()
 
     y = self:createTabs(tabs, y, tabThemeColors)
 
+    self.filterBaseY = y
     y = self:createFilterTabBar(y, tabThemeColors)
 
     local skillItemCount = 24
@@ -5752,6 +6043,7 @@ function BurdJournals.UI.MainPanel:createLogUI()
     self.skillList.itemheight = 52
     self.skillList.doDrawItem = BurdJournals.UI.MainPanel.doDrawRecordItem
     self.skillList.mainPanel = self
+    self.listBottomY = self.skillList:getY() + self.skillList:getHeight()
 
     self.skillList.onMouseUp = function(listbox, x, y)
         if listbox.vscroll then
@@ -6076,12 +6368,13 @@ function BurdJournals.UI.MainPanel:populateRecordList(overrideData)
                     if currentXP > 0 or currentLevel > 0 then
                         totalSkills = totalSkills + 1
                         local displayName = BurdJournals.getPerkDisplayName(skillName)
-                        local modSource = BurdJournals.getSkillModSource(skillName)
+                        local modSource = BurdJournals.getSkillModId(skillName)
 
                         if self:matchesSearch(displayName) and self:passesFilter(modSource) then
                             matchCount = matchCount + 1
                             local recordedData = recordedSkills[skillName]
                             local recordedXP = recordedData and recordedData.xp or 0
+                            local _, recordedRawXP, recordedVhsExcludedXP = getSkillVhsBreakdown(recordedData, recordedXP)
                             local recordedLevel = recordedData and recordedData.level or 0
 
                             local baselineXP = 0
@@ -6107,6 +6400,12 @@ function BurdJournals.UI.MainPanel:populateRecordList(overrideData)
                                 end
                             end
 
+                            local skillTooltip = buildSkillVhsTooltip({
+                                xp = recordedXP,
+                                rawXP = recordedRawXP,
+                                vhsExcludedXP = recordedVhsExcludedXP
+                            }, nil, nil)
+
                             self.skillList:addItem(skillName, {
                                 isSkill = true,
                                 skillName = skillName,
@@ -6115,6 +6414,8 @@ function BurdJournals.UI.MainPanel:populateRecordList(overrideData)
                                 currentXP = currentXP,
                                 level = currentLevel,
                                 recordedXP = recordedXP,
+                                recordedRawXP = recordedRawXP,
+                                recordedVhsExcludedXP = recordedVhsExcludedXP,
                                 recordedLevel = recordedLevel,
                                 isRecorded = recordedXP > 0,
                                 canRecord = canRecord,
@@ -6124,7 +6425,7 @@ function BurdJournals.UI.MainPanel:populateRecordList(overrideData)
                                 isAtBaseline = isAtBaseline,
                                 isPassiveSkill = isPassiveSkill,
                                 modSource = modSource,
-                            })
+                            }, skillTooltip)
                         end
                     end
                 end
@@ -6156,7 +6457,7 @@ function BurdJournals.UI.MainPanel:populateRecordList(overrideData)
         for traitId, traitData in pairs(positiveTraits) do
             totalTraits = totalTraits + 1
             local traitName = safeGetTraitName(traitId)
-            local modSource = BurdJournals.getTraitModSource(traitId)
+            local modSource = BurdJournals.getTraitModId(traitId)
 
             if self:matchesSearch(traitName) and self:passesFilter(modSource) then
                 matchCount = matchCount + 1
@@ -6256,7 +6557,7 @@ function BurdJournals.UI.MainPanel:populateRecordList(overrideData)
                 totalRecipes = totalRecipes + 1
                 local displayName = BurdJournals.getRecipeDisplayName(recipeName)
                 local magazineSource = (type(recipeData) == "table" and recipeData.source) or BurdJournals.getMagazineForRecipe(recipeName)
-                local modSource = BurdJournals.getRecipeModSource(recipeName, magazineSource)
+                local modSource = BurdJournals.getRecipeModId(recipeName, magazineSource)
 
                 if self:matchesSearch(displayName) and self:passesFilter(modSource) then
                     matchCount = matchCount + 1
@@ -6529,19 +6830,24 @@ function BurdJournals.UI.MainPanel.doDrawRecordItem(self, y, item, alt)
             local squaresWidth = 10 * squareSize + 9 * squareSpacing
             local xpText
             local xpColor
+            local recordedSummary = formatXPWithVhsBreakdown(
+                data.recordedXP or 0,
+                data.recordedRawXP or data.recordedXP or 0,
+                data.recordedVhsExcludedXP or 0
+            )
 
             if data.isRecorded and not data.canRecord then
 
-                xpText = string.format(getText("UI_BurdJournals_RecordedXP") or "Recorded: %s XP", BurdJournals.formatXP(data.recordedXP))
+                xpText = "Recorded: " .. recordedSummary
                 xpColor = {r=0.4, g=0.5, b=0.45}
             elseif data.isRecorded and data.canRecord then
 
                 if baselineXP > 0 then
                     xpText = string.format(getText("UI_BurdJournals_XPWithBaseline"),
                         BurdJournals.formatXP(earnedXP), BurdJournals.formatXP(baselineXP))
-                    xpText = xpText .. string.format(getText("UI_BurdJournals_WasSuffix") or " (was %s)", BurdJournals.formatXP(data.recordedXP))
+                    xpText = xpText .. " (was " .. recordedSummary .. ")"
                 else
-                    xpText = string.format(getText("UI_BurdJournals_RecordedWas") or "%s XP (was %s)", BurdJournals.formatXP(earnedXP), BurdJournals.formatXP(data.recordedXP))
+                    xpText = BurdJournals.formatXP(earnedXP) .. " XP (was " .. recordedSummary .. ")"
                 end
                 xpColor = {r=0.5, g=0.8, b=0.6}
             else
@@ -6905,6 +7211,7 @@ function BurdJournals.UI.MainPanel:createViewUI()
 
     self.pendingClaims = self.pendingClaims or {skills = {}, traits = {}}
     self.sessionClaimedSkills = self.sessionClaimedSkills or {}
+    self.sessionClaimedTraits = self.sessionClaimedTraits or {}
 
     local headerHeight = 52
     self.headerRightInset = 0
@@ -6956,15 +7263,10 @@ function BurdJournals.UI.MainPanel:createViewUI()
                     playerXP = self.player:getXp():getXP(perk)
                 end
                 local preview = getClaimPreviewForSkill(journalData, skillName, skillData.xp or 0, 0, getClaimSessionIdForPanel(self, false))
-
-                if journalData.recordedWithBaseline then
-                    if preview.effectiveXP > 0 then
-                        skillCount = skillCount + 1
-                        totalXP = totalXP + preview.effectiveXP
-                    end
-                elseif playerXP < preview.effectiveXP then
+                local claimTargetXP = getClaimTargetXPForPlayer(journalData, self.player, skillName, preview.effectiveXP)
+                if playerXP < claimTargetXP then
                     skillCount = skillCount + 1
-                    totalXP = totalXP + (preview.effectiveXP - playerXP)
+                    totalXP = totalXP + (claimTargetXP - playerXP)
                 end
             end
         end
@@ -7030,6 +7332,7 @@ function BurdJournals.UI.MainPanel:createViewUI()
         y = self:createTabs(tabs, y, tabThemeColors)
     end
 
+    self.filterBaseY = y
     y = self:createFilterTabBar(y, tabThemeColors)
 
     local maxItemCount = math.max(totalSkillCount, totalTraitCount, totalRecipeCount, totalStatCount)
@@ -7047,6 +7350,7 @@ function BurdJournals.UI.MainPanel:createViewUI()
     self.skillList.itemheight = 52
     self.skillList.doDrawItem = BurdJournals.UI.MainPanel.doDrawViewItem
     self.skillList.mainPanel = self
+    self.listBottomY = self.skillList:getY() + self.skillList:getHeight()
 
     self.skillList.onMouseUp = function(listbox, x, y)
         if listbox.vscroll then
@@ -7188,7 +7492,7 @@ function BurdJournals.UI.MainPanel:populateViewList()
                 if isSkillVisibleForJournal(journalData, skillName) then
                     hasSkills = true
                     local displayName = BurdJournals.getPerkDisplayName(skillName)
-                    local modSource = BurdJournals.getSkillModSource(skillName)
+                    local modSource = BurdJournals.getSkillModId(skillName)
 
                     if self:matchesSearch(displayName) and self:passesFilter(modSource) then
                         matchCount = matchCount + 1
@@ -7201,8 +7505,10 @@ function BurdJournals.UI.MainPanel:populateViewList()
                         end
 
                         local recordedXP = skillData.xp or 0
+                        local _, recordedRawXP, recordedVhsExcludedXP = getSkillVhsBreakdown(skillData, recordedXP)
                         local preview = getClaimPreviewForSkill(journalData, skillName, recordedXP, 0, getClaimSessionIdForPanel(self, false))
                         local effectiveClaimXP = preview.effectiveXP
+                        local claimTargetXP = getClaimTargetXPForPlayer(journalData, self.player, skillName, effectiveClaimXP)
                         local recordedLevel = skillData.level or 0
                         if preview.level and preview.level > 0 then
                             recordedLevel = preview.level
@@ -7216,14 +7522,7 @@ function BurdJournals.UI.MainPanel:populateViewList()
                         -- Check if already claimed this session (before XP sync might have arrived)
                         local claimedThisSession = self.sessionClaimedSkills and self.sessionClaimedSkills[skillName]
                         
-                        local alreadyAtLevel
-                        if journalData.recordedWithBaseline then
-                            alreadyAtLevel = claimedThisSession or effectiveClaimXP <= 0
-                        else
-                            alreadyAtLevel = claimedThisSession or
-                                (playerLevel > recordedLevel) or
-                                (playerLevel == recordedLevel and playerXP >= effectiveClaimXP)
-                        end
+                        local alreadyAtLevel = claimedThisSession or (playerXP >= claimTargetXP)
 
                         -- Clear pending if player has sufficient level or claimed this session
                         if isPending and alreadyAtLevel then
@@ -7232,22 +7531,26 @@ function BurdJournals.UI.MainPanel:populateViewList()
                         end
                         
                         -- Clear session claim tracking once XP sync confirms player has sufficient XP
-                        if claimedThisSession and (
-                            (journalData.recordedWithBaseline and effectiveClaimXP <= 0) or
-                            (not journalData.recordedWithBaseline and (playerLevel > recordedLevel or (playerLevel == recordedLevel and playerXP >= effectiveClaimXP)))
-                        ) then
+                        if claimedThisSession and playerXP >= claimTargetXP then
                             self.sessionClaimedSkills[skillName] = nil
                         end
 
                         -- For player journals, can claim if player's level is less than recorded
                         -- This allows re-claiming if a previous claim failed or gave insufficient XP
                         local canClaim = not alreadyAtLevel and not isPending
+                        local skillTooltip = buildSkillVhsTooltip({
+                            xp = recordedXP,
+                            rawXP = recordedRawXP,
+                            vhsExcludedXP = recordedVhsExcludedXP
+                        }, effectiveClaimXP, preview.percent)
 
                         self.skillList:addItem(skillName, {
                             isSkill = true,
                             skillName = skillName,
                             displayName = displayName,
                             xp = recordedXP,
+                            rawXP = recordedRawXP,
+                            vhsExcludedXP = recordedVhsExcludedXP,
                             effectiveXP = effectiveClaimXP,
                             claimMultiplier = preview.multiplier,
                             claimPercent = preview.percent,
@@ -7259,7 +7562,7 @@ function BurdJournals.UI.MainPanel:populateViewList()
                             isPending = isPending,
                             alreadyAtLevel = alreadyAtLevel,
                             modSource = modSource,
-                        })
+                        }, skillTooltip)
                     end
                 end
             end
@@ -7279,20 +7582,29 @@ function BurdJournals.UI.MainPanel:populateViewList()
             for traitId, traitData in pairs(journalData.traits) do
                 hasTraits = true
                 local traitName = safeGetTraitName(traitId)
-                local modSource = BurdJournals.getTraitModSource(traitId)
+                local modSource = BurdJournals.getTraitModId(traitId)
 
                 if self:matchesSearch(traitName) and self:passesFilter(modSource) then
                     matchCount = matchCount + 1
                     local traitTexture = getTraitTexture(traitId)
-                    local alreadyKnown = BurdJournals.playerHasTrait(self.player, traitId)
+                    local normalizedTraitId = BurdJournals.normalizeTraitId and BurdJournals.normalizeTraitId(traitId) or traitId
+                    local traitSessionKey = string.lower(tostring(normalizedTraitId or traitId))
+                    local alreadyKnownActual = BurdJournals.playerHasTrait(self.player, traitId)
+                    local claimedThisSession = self.sessionClaimedTraits and (self.sessionClaimedTraits[traitId] or self.sessionClaimedTraits[traitSessionKey])
+                    local alreadyKnown = alreadyKnownActual or claimedThisSession
                     local isClaimed = BurdJournals.hasCharacterClaimedTrait(journalData, self.player, traitId)
-                    local isPending = self.pendingClaims.traits[traitId]
+                    local isPending = self.pendingClaims.traits[traitId] or self.pendingClaims.traits[traitSessionKey]
                     local isPositive = isTraitPositive(traitId)
 
                     -- Clear pending if claimed OR already known
                     if isPending and (isClaimed or alreadyKnown) then
                         self.pendingClaims.traits[traitId] = nil
+                        self.pendingClaims.traits[traitSessionKey] = nil
                         isPending = false
+                    end
+                    if claimedThisSession and alreadyKnownActual and self.sessionClaimedTraits then
+                        self.sessionClaimedTraits[traitId] = nil
+                        self.sessionClaimedTraits[traitSessionKey] = nil
                     end
 
                     self.skillList:addItem(traitId, {
@@ -7325,7 +7637,7 @@ function BurdJournals.UI.MainPanel:populateViewList()
                 hasRecipes = true
                 local displayName = BurdJournals.getRecipeDisplayName(recipeName)
                 local magazineSource = (type(recipeData) == "table" and recipeData.source) or BurdJournals.getMagazineForRecipe(recipeName)
-                local modSource = BurdJournals.getRecipeModSource(recipeName, magazineSource)
+                local modSource = BurdJournals.getRecipeModId(recipeName, magazineSource)
 
                 if self:matchesSearch(displayName) and self:passesFilter(modSource) then
                     matchCount = matchCount + 1
@@ -7450,7 +7762,19 @@ local function doDrawViewSkillItem(self, mainPanel, data, textX, textColor, card
             {r=0.4, g=0.5, b=0.6}, {r=0.12, g=0.12, b=0.12}, {r=0.25, g=0.3, b=0.4})
         local squaresWidth = 10 * squareSize + 9 * squareSpacing
         local queuedText = string.format(getText("UI_BurdJournals_QueuedNumber") or "Queued #%d", queuePosition)
-        self:drawText(queuedText, squaresX + squaresWidth + 8, squaresY, 0.6, 0.75, 0.9, 1, UIFont.Small)
+        local sourceXP = math.max(0, tonumber(data.xp) or displayXP)
+        local _, rawSourceXP, vhsExcludedXP = getSkillVhsBreakdown(data, sourceXP)
+        local xpText = queuedText .. "  " .. BurdJournals.formatXP(displayXP) .. " XP"
+        if data.claimPercent and data.claimPercent < 100 and sourceXP > 0 then
+            local reducedXP = math.max(0, sourceXP - displayXP)
+            xpText = queuedText .. "  " .. BurdJournals.formatXP(displayXP) .. "/" .. BurdJournals.formatXP(sourceXP) .. " XP (" .. tostring(data.claimPercent) .. "%, -" .. BurdJournals.formatXP(reducedXP) .. ")"
+            if vhsExcludedXP > 0 and rawSourceXP > sourceXP then
+                xpText = xpText .. " | VHS -" .. BurdJournals.formatXP(vhsExcludedXP)
+            end
+        else
+            xpText = queuedText .. "  " .. formatXPWithVhsBreakdown(displayXP, rawSourceXP, vhsExcludedXP)
+        end
+        self:drawText(xpText, squaresX + squaresWidth + 8, squaresY, 0.6, 0.75, 0.9, 1, UIFont.Small)
     elseif data.canClaim then
         local squaresX, squaresY, squareSize, squareSpacing = textX, cardY + 26, 10, 2
         local displayXP = data.effectiveXP or data.xp or 0
@@ -7461,9 +7785,15 @@ local function doDrawViewSkillItem(self, mainPanel, data, textX, textColor, card
         drawLevelSquares(self, squaresX, squaresY, level, progress, squareSize, squareSpacing,
             {r=0.3, g=0.55, b=0.65}, {r=0.12, g=0.12, b=0.12}, {r=0.2, g=0.35, b=0.4})
         local squaresWidth = 10 * squareSize + 9 * squareSpacing
-        local xpText = BurdJournals.formatXP(displayXP) .. " XP"
-        if data.claimPercent and data.claimPercent < 100 then
-            xpText = xpText .. " (" .. tostring(data.claimPercent) .. "%)"
+        local sourceXP = math.max(0, tonumber(data.xp) or displayXP)
+        local _, rawSourceXP, vhsExcludedXP = getSkillVhsBreakdown(data, sourceXP)
+        local xpText = formatXPWithVhsBreakdown(displayXP, rawSourceXP, vhsExcludedXP)
+        if data.claimPercent and data.claimPercent < 100 and sourceXP > 0 then
+            local reducedXP = math.max(0, sourceXP - displayXP)
+            xpText = BurdJournals.formatXP(displayXP) .. "/" .. BurdJournals.formatXP(sourceXP) .. " XP (" .. tostring(data.claimPercent) .. "%, -" .. BurdJournals.formatXP(reducedXP) .. ")"
+            if vhsExcludedXP > 0 and rawSourceXP > sourceXP then
+                xpText = xpText .. " | VHS -" .. BurdJournals.formatXP(vhsExcludedXP)
+            end
         end
         self:drawText(xpText, squaresX + squaresWidth + 8, squaresY, 0.5, 0.75, 0.7, 1, UIFont.Small)
     else
@@ -7955,22 +8285,35 @@ function BurdJournals.UI.MainPanel.doDrawViewItem(self, y, item, alt)
             -- Already claimed this stat
             local claimedText = getText("UI_BurdJournals_StatusAlreadyClaimed") or "Already claimed"
             self:drawText(claimedText, textX, cardY + 22, 0.5, 0.5, 0.5, 1, UIFont.Small)
-        elseif data.claimReason == "no_benefit" or data.currentValue >= data.recordedValue then
-            -- Player already has equal or higher value
-            local achievedText = string.format(getText("UI_BurdJournals_RecordedAchieved") or "Recorded: %s (achieved!)", data.recordedFormatted or "?")
-            self:drawText(achievedText, textX, cardY + 22, 0.4, 0.6, 0.4, 1, UIFont.Small)
         elseif data.claimReason == "not_absorbable" or not data.isAbsorbable then
             -- Stat cannot be absorbed (like hours survived in production)
             local recordedText = string.format(getText("UI_BurdJournals_RecordedValue") or "Recorded: %s", data.recordedFormatted or "?")
             self:drawText(recordedText, textX, cardY + 22, 0.5, 0.5, 0.5, 1, UIFont.Small)
-        elseif data.canClaim then
-            -- Can claim - show both values
-            local vsText = string.format(getText("UI_BurdJournals_RecordedVsCurrent") or "Recorded: %s | Current: %s", data.recordedFormatted or "?", data.currentFormatted or "?")
-            self:drawText(vsText, textX, cardY + 22, 0.5, 0.8, 0.6, 1, UIFont.Small)
         else
-            -- Fallback - show comparison text
-            local vsText = string.format(getText("UI_BurdJournals_RecordedVsCurrent") or "Recorded: %s | Current: %s", data.recordedFormatted or "?", data.currentFormatted or "?")
-            self:drawText(vsText, textX, cardY + 22, 0.5, 0.6, 0.7, 1, UIFont.Small)
+            local currentValue = tonumber(data.currentValue) or 0
+            local recordedValue = tonumber(data.recordedValue) or 0
+            if currentValue < recordedValue then
+                local notReachedText = string.format(
+                    getText("UI_BurdJournals_RecordedNotReached") or "Recorded: %s | Current: %s (not there yet)",
+                    data.recordedFormatted or "?",
+                    data.currentFormatted or "?"
+                )
+                self:drawText(notReachedText, textX, cardY + 22, 0.55, 0.55, 0.55, 1, UIFont.Small)
+            elseif currentValue == recordedValue then
+                local atPointText = string.format(
+                    getText("UI_BurdJournals_RecordedAtPoint") or "Recorded: %s | Current: %s (at this point)",
+                    data.recordedFormatted or "?",
+                    data.currentFormatted or "?"
+                )
+                self:drawText(atPointText, textX, cardY + 22, 0.75, 0.72, 0.55, 1, UIFont.Small)
+            else
+                local surpassedText = string.format(
+                    getText("UI_BurdJournals_RecordedSurpassed") or "Recorded: %s | Current: %s (surpassed)",
+                    data.recordedFormatted or "?",
+                    data.currentFormatted or "?"
+                )
+                self:drawText(surpassedText, textX, cardY + 22, 0.4, 0.6, 0.4, 1, UIFont.Small)
+            end
         end
 
         -- Check if there's an erasing state for this stat

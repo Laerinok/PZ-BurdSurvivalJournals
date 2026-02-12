@@ -559,6 +559,52 @@ export function getOriginalRepoTranslations(langCode) {
 }
 
 /**
+ * Get full merged translations for PR submission
+ * This returns complete translation files (repo + user edits merged)
+ * @returns {Object} Full merged translations by language code
+ */
+export function getFullMergedTranslationsForSubmission() {
+    const result = {};
+
+    // First, save current work to ensure we have the latest
+    if (currentLanguage && Object.keys(currentTranslations).length > 0) {
+        saveLanguageTranslations(currentLanguage, currentTranslations);
+    }
+
+    const saved = getAllTranslations();
+
+    for (const [langCode, data] of Object.entries(saved)) {
+        if (!data.translations || Object.keys(data.translations).length === 0) {
+            continue;
+        }
+
+        // CRITICAL: Only include languages that have been loaded this session
+        if (!(langCode in originalRepoTranslations)) {
+            console.log(`Skipping ${langCode} for full merge - not loaded this session`);
+            continue;
+        }
+
+        // Merge: start with original repo translations, overlay user edits
+        const originalRepo = originalRepoTranslations[langCode];
+        const userEdits = data.translations;
+
+        // Create full merged translations
+        const mergedTranslations = { ...originalRepo };
+
+        // Apply user edits (only non-empty values)
+        for (const [key, value] of Object.entries(userEdits)) {
+            if (value && value.trim()) {
+                mergedTranslations[key] = value;
+            }
+        }
+
+        result[langCode] = mergedTranslations;
+    }
+
+    return result;
+}
+
+/**
  * Get the language manifest
  * @returns {Object} Language manifest
  */

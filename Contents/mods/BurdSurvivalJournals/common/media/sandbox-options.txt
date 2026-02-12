@@ -151,6 +151,14 @@ option BurdJournals.LearningTimePerRecipe = {
     translation = BurdJournals_LearningTimePerRecipe,
 }
 
+/* Recorded Media / VHS compatibility (Player Journals) */
+option BurdJournals.AllowVhsSkillRecording = {
+    type = boolean,
+    default = false,
+    page = BurdJournals_Player,
+    translation = BurdJournals_AllowVhsSkillRecording,
+}
+
 /* Player Stats Recording */
 option BurdJournals.EnableStatRecording = {
     type = boolean,
@@ -611,6 +619,26 @@ option BurdJournals.BatchTimeMultiplier = {
     default = 0.25,
     page = BurdJournals_Advanced,
     translation = BurdJournals_BatchTimeMultiplier,
+}
+
+/* ============================================================ */
+/* TAB 4: OTHER MODS                                            */
+/* ============================================================ */
+
+/* Traits Purchase System compatibility */
+option BurdJournals.AllowTraitPurchaseSkillRecording = {
+    type = boolean,
+    default = false,
+    page = BurdJournals_OtherMods,
+    translation = BurdJournals_AllowTraitPurchaseSkillRecording,
+}
+
+/* Adaptive Traits compatibility */
+option BurdJournals.AllowAdaptiveTraitsManagedTraitRecording = {
+    type = boolean,
+    default = false,
+    page = BurdJournals_OtherMods,
+    translation = BurdJournals_AllowAdaptiveTraitsManagedTraitRecording,
 }
 
 /* ============================================================ */

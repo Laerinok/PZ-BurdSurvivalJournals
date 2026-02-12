@@ -22,8 +22,13 @@ function generateState() {
 /**
  * Start GitHub OAuth flow
  * Redirects user to GitHub for authorization
+ * @param {Object} options - OAuth flow options
+ * @param {boolean} options.forceAccountPicker - Force GitHub account picker
+ * @param {string|null} options.loginHint - Optional GitHub username hint
  */
-export function startOAuthFlow() {
+export function startOAuthFlow(options = {}) {
+    const { forceAccountPicker = true, loginHint = null } = options;
+
     // Generate and store state for CSRF protection
     oauthState = generateState();
     sessionStorage.setItem('oauth_state', oauthState);
@@ -38,6 +43,16 @@ export function startOAuthFlow() {
         scope: OAUTH_CONFIG.scopes.join(' '),
         state: oauthState
     });
+
+    // Force account selection so users can switch GitHub accounts
+    // without requiring incognito/private browsing.
+    if (forceAccountPicker) {
+        params.set('prompt', 'select_account');
+    }
+
+    if (loginHint && typeof loginHint === 'string' && loginHint.trim()) {
+        params.set('login', loginHint.trim());
+    }
 
     const authUrl = `https://github.com/login/oauth/authorize?${params}`;
 
@@ -168,6 +183,7 @@ export async function logout() {
 
     // Clear local token first
     clearGitHubToken();
+    sessionStorage.removeItem('oauth_state');
 
     // If we had a token, try to revoke it on GitHub's side
     if (token) {

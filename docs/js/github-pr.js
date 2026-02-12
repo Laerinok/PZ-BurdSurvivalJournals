@@ -6,8 +6,8 @@
 import { REPO_CONFIG, CATEGORIES } from './config.js';
 import { getGitHubToken, isGitHubAuthenticated, getGitHubUser } from './github-auth.js';
 import { generateCategoryFile } from './export-utils.js';
-import { getEnglishBaseline } from './translation-manager.js';
-import { categorizeTranslations } from './lua-parser.js';
+import { getEnglishBaseline, getOriginalRepoTranslations } from './translation-manager.js';
+import { categorizeTranslations, escapeLuaString } from './lua-parser.js';
 
 const GITHUB_API = 'https://api.github.com';
 
@@ -173,6 +173,79 @@ async function getFileInfo(owner, repo, path, branch) {
 }
 
 /**
+ * Decode file content from GitHub Contents API response
+ * @param {Object} fileInfo - File info from contents API
+ * @returns {string} Decoded UTF-8 content
+ */
+function decodeGitHubFileContent(fileInfo) {
+    if (!fileInfo?.content || fileInfo.encoding !== 'base64') {
+        return '';
+    }
+
+    try {
+        // GitHub inserts line breaks in base64 payloads
+        const normalized = fileInfo.content.replace(/\n/g, '');
+        return decodeURIComponent(escape(atob(normalized)));
+    } catch (e) {
+        console.warn('Failed to decode GitHub file content:', e);
+        return '';
+    }
+}
+
+/**
+ * Apply translation updates to an existing Lua file while preserving untouched lines
+ * @param {string} existingContent - Existing Lua file content
+ * @param {Object} updates - Changed translations to apply
+ * @returns {Object} Result with updated content, changed flag, and applied keys
+ */
+function applyUpdatesToExistingLuaFile(existingContent, updates) {
+    if (!existingContent || !updates || Object.keys(updates).length === 0) {
+        return {
+            content: existingContent || '',
+            changed: false,
+            appliedKeys: new Set()
+        };
+    }
+
+    const lines = existingContent.replace(/\r\n/g, '\n').split('\n');
+    const appliedKeys = new Set();
+    let changed = false;
+
+    // Conservative single-line key matcher:
+    //   key = "value",
+    //   key = "value", -- comment
+    const kvRegex = /^(\s*)([\w.]+)(\s*=\s*)"((?:[^"\\]|\\.)*)"(,?\s*(?:--.*)?)$/;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const match = line.match(kvRegex);
+        if (!match) continue;
+
+        const key = match[2];
+        if (!(key in updates)) continue;
+
+        const nextValue = updates[key];
+        if (!nextValue || !nextValue.trim()) continue;
+
+        const escaped = escapeLuaString(nextValue);
+        const rebuilt = `${match[1]}${key}${match[3]}"${escaped}"${match[5]}`;
+
+        if (rebuilt !== line) {
+            lines[i] = rebuilt;
+            changed = true;
+        }
+
+        appliedKeys.add(key);
+    }
+
+    return {
+        content: lines.join('\n'),
+        changed,
+        appliedKeys
+    };
+}
+
+/**
  * Create a pull request
  * @param {Object} options - PR options
  * @returns {Promise<Object>} PR info
@@ -198,10 +271,11 @@ async function createPullRequest({ title, body, head, base }) {
  * @param {string} options.customTitle - Custom PR title (optional)
  * @param {string} options.customBody - Custom PR body (optional)
  * @param {Object} options.langNames - Map of langCode to display name
+ * @param {Object} options.fullTranslationsByLang - Full merged translations (optional, for complete files)
  * @returns {Promise<Object>} Result with PR URL
  */
 export async function submitTranslationsPR(translationsByLang, options = {}) {
-    const { onProgress = null, customTitle = null, customBody = null, langNames = {} } = options;
+    const { onProgress = null, customTitle = null, customBody = null, langNames = {}, fullTranslationsByLang = null } = options;
     if (!isGitHubAuthenticated()) {
         throw new Error('Not authenticated with GitHub');
     }
@@ -236,55 +310,110 @@ export async function submitTranslationsPR(translationsByLang, options = {}) {
     await createBranch(user.login, REPO_CONFIG.repo, branchName, baseSha);
 
     // Commit translation files
-    const totalFiles = languages.length * CATEGORIES.length * 2; // build42 + build41
+    const totalFileTargets = languages.length * CATEGORIES.length * 2; // build42 + build41
+    let fileTargetsProcessed = 0;
     let filesCommitted = 0;
 
     for (const langCode of languages) {
-        const translations = translationsByLang[langCode];
-        const categorized = categorizeTranslations(translations);
+        const changedTranslations = translationsByLang[langCode];
+
+        // IMPORTANT: Use full merged translations if provided, otherwise merge with original
+        // This ensures we submit COMPLETE files, not just the changed keys
+        // The PR should contain the full translation file with changes applied
+        let mergedTranslations;
+        if (fullTranslationsByLang && fullTranslationsByLang[langCode]) {
+            // Use the full translations provided by the caller (includes all repo + edits)
+            mergedTranslations = fullTranslationsByLang[langCode];
+        } else {
+            // Fallback: merge changes with original repo translations
+            const originalTranslations = getOriginalRepoTranslations(langCode);
+            mergedTranslations = { ...originalTranslations, ...changedTranslations };
+        }
+
+        const categorizedMerged = categorizeTranslations(mergedTranslations);
 
         for (const category of CATEGORIES) {
-            const categoryTranslations = categorized[category] || {};
-            if (Object.keys(categoryTranslations).length === 0) continue;
-
-            const fileContent = generateCategoryFile(category, langCode, translations);
             const filename = `${category}_${langCode}.txt`;
 
             // Build 42 path
             const build42Path = `${REPO_CONFIG.translationPaths.build42}/${langCode}/${filename}`;
-            if (onProgress) onProgress(`Committing ${filename} (Build 42)...`, 30 + (filesCommitted / totalFiles) * 60);
+            if (onProgress) onProgress(`Processing ${filename} (Build 42)...`, 30 + (fileTargetsProcessed / totalFileTargets) * 60);
 
             // Check if file exists to get SHA
             const existingFile42 = await getFileInfo(user.login, REPO_CONFIG.repo, build42Path, branchName);
+            const existingContent42 = decodeGitHubFileContent(existingFile42);
 
-            await createOrUpdateFile(
-                user.login,
-                REPO_CONFIG.repo,
-                build42Path,
-                fileContent,
-                `Add/Update ${langCode} ${category} translation`,
-                branchName,
-                existingFile42?.sha
-            );
-            filesCommitted++;
+            let outputContent42 = existingContent42;
+            let shouldCommit42 = false;
+
+            if (existingFile42 && existingContent42) {
+                // Existing file: update only changed keys, preserve untouched entries/comments/formatting.
+                const patched = applyUpdatesToExistingLuaFile(existingContent42, changedTranslations);
+                outputContent42 = patched.content;
+                shouldCommit42 = patched.changed;
+            } else {
+                // New file: generate full category content from merged translations.
+                const categoryTranslations = categorizedMerged[category] || {};
+                if (Object.keys(categoryTranslations).length > 0) {
+                    outputContent42 = generateCategoryFile(category, langCode, mergedTranslations);
+                    shouldCommit42 = true;
+                }
+            }
+
+            if (shouldCommit42) {
+                await createOrUpdateFile(
+                    user.login,
+                    REPO_CONFIG.repo,
+                    build42Path,
+                    outputContent42,
+                    `Add/Update ${langCode} ${category} translation`,
+                    branchName,
+                    existingFile42?.sha
+                );
+                filesCommitted++;
+            }
+            fileTargetsProcessed++;
 
             // Build 41 path
             const build41Path = `${REPO_CONFIG.translationPaths.build41}/${langCode}/${filename}`;
-            if (onProgress) onProgress(`Committing ${filename} (Build 41)...`, 30 + (filesCommitted / totalFiles) * 60);
+            if (onProgress) onProgress(`Processing ${filename} (Build 41)...`, 30 + (fileTargetsProcessed / totalFileTargets) * 60);
 
             const existingFile41 = await getFileInfo(user.login, REPO_CONFIG.repo, build41Path, branchName);
+            const existingContent41 = decodeGitHubFileContent(existingFile41);
 
-            await createOrUpdateFile(
-                user.login,
-                REPO_CONFIG.repo,
-                build41Path,
-                fileContent,
-                `Add/Update ${langCode} ${category} translation`,
-                branchName,
-                existingFile41?.sha
-            );
-            filesCommitted++;
+            let outputContent41 = existingContent41;
+            let shouldCommit41 = false;
+
+            if (existingFile41 && existingContent41) {
+                const patched = applyUpdatesToExistingLuaFile(existingContent41, changedTranslations);
+                outputContent41 = patched.content;
+                shouldCommit41 = patched.changed;
+            } else {
+                const categoryTranslations = categorizedMerged[category] || {};
+                if (Object.keys(categoryTranslations).length > 0) {
+                    outputContent41 = generateCategoryFile(category, langCode, mergedTranslations);
+                    shouldCommit41 = true;
+                }
+            }
+
+            if (shouldCommit41) {
+                await createOrUpdateFile(
+                    user.login,
+                    REPO_CONFIG.repo,
+                    build41Path,
+                    outputContent41,
+                    `Add/Update ${langCode} ${category} translation`,
+                    branchName,
+                    existingFile41?.sha
+                );
+                filesCommitted++;
+            }
+            fileTargetsProcessed++;
         }
+    }
+
+    if (filesCommitted === 0) {
+        throw new Error('No file changes detected to commit (all selected keys already matched repository values).');
     }
 
     // Create PR
@@ -332,7 +461,7 @@ export function generatePRTitle(languages, langNames = {}) {
 /**
  * Generate PR body
  * @param {string[]} languages - Array of language codes
- * @param {Object} translationsByLang - Translations by language
+ * @param {Object} translationsByLang - Changed translations by language
  * @param {Object} langNames - Optional map of langCode to display name
  * @returns {string} PR body
  */
@@ -345,27 +474,35 @@ export function generatePRBody(languages, translationsByLang, langNames = {}) {
     body += `This PR adds/updates translations for the following languages:\n\n`;
 
     for (const langCode of languages) {
-        const translations = translationsByLang[langCode];
-        const keyCount = Object.keys(translations).length;
-        const percentage = Math.round((keyCount / englishKeyCount) * 100);
-        body += `- **${getDisplayName(langCode)}** (${langCode}): ${keyCount} changed/new keys\n`;
+        const changedTranslations = translationsByLang[langCode];
+        const changedCount = Object.keys(changedTranslations).length;
+
+        // Get merged count to show total coverage
+        const originalTranslations = getOriginalRepoTranslations(langCode);
+        const mergedTranslations = { ...originalTranslations, ...changedTranslations };
+        const totalCount = Object.keys(mergedTranslations).length;
+        const percentage = Math.round((totalCount / englishKeyCount) * 100);
+
+        body += `- **${getDisplayName(langCode)}** (${langCode}): ${changedCount} changed/new keys (${percentage}% total coverage)\n`;
     }
 
-    body += `\n### Categories Updated\n\n`;
+    body += `\n### Changes by Category\n\n`;
 
     for (const langCode of languages) {
-        const translations = translationsByLang[langCode];
-        const categorized = categorizeTranslations(translations);
+        const changedTranslations = translationsByLang[langCode];
+        const categorized = categorizeTranslations(changedTranslations);
 
         body += `**${getDisplayName(langCode)}:**\n`;
         for (const category of CATEGORIES) {
             const count = Object.keys(categorized[category] || {}).length;
             if (count > 0) {
-                body += `- ${category}: ${count} keys\n`;
+                body += `- ${category}: ${count} changed/new keys\n`;
             }
         }
         body += `\n`;
     }
+
+    body += `> **Note:** Complete translation files are submitted (existing translations preserved, changes merged in).\n\n`;
 
     body += `---\n`;
     body += `*Submitted via [Burd's Survival Journals Translation Tool](https://theburd.github.io/PZ-BurdSurvivalJournals/)*\n`;

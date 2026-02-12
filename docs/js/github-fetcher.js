@@ -305,11 +305,15 @@ export function getCompletionByCategory(languageTranslations, englishTranslation
     for (const category of CATEGORIES) {
         const prefix = category + '_';
         const altPrefix = category === 'Recipes' ? 'Recipe_' : null;
+        const recipePrefixes = category === 'Recipes' ? ['Bind_', 'RestoreJournal_'] : null;
+        const recipeSingleKeys = category === 'Recipes' ? ['EraseFilledJournal'] : null;
         const itemNamePrefix = category === 'ItemName' ? 'ItemName_' : null;
 
         const englishCategoryKeys = Object.keys(englishTranslations).filter(k => {
             if (k.startsWith(prefix)) return true;
             if (altPrefix && k.startsWith(altPrefix)) return true;
+            if (recipePrefixes && recipePrefixes.some(p => k.startsWith(p))) return true;
+            if (recipeSingleKeys && recipeSingleKeys.includes(k)) return true;
             if (itemNamePrefix && k.startsWith(itemNamePrefix)) return true;
             return false;
         });

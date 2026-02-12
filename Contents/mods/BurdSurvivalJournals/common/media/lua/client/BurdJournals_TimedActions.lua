@@ -112,14 +112,37 @@ function BurdJournals.ConvertToCleanAction:perform()
 
         local journal = BurdJournals.findItemById(player, self.journal:getID())
         if journal then
+            local sourceJournalData = nil
+            do
+                local sourceModData = journal:getModData()
+                sourceJournalData = sourceModData and sourceModData.BurdJournals or nil
+            end
+
+            local inheritedWasFromBloody = false
+            local inheritedWasCleaned = false
+            local inheritedRestoredBy = player and player:getUsername() or "Unknown"
+            if type(sourceJournalData) == "table" then
+                inheritedWasFromBloody = sourceJournalData.wasFromBloody == true or sourceJournalData.isBloody == true
+                inheritedWasCleaned = sourceJournalData.wasCleaned == true
+                if type(sourceJournalData.restoredBy) == "string" and sourceJournalData.restoredBy ~= "" then
+                    inheritedRestoredBy = sourceJournalData.restoredBy
+                end
+            end
+
             inventory:Remove(journal)
             local cleanJournal = inventory:AddItem("BurdJournals.BlankSurvivalJournal")
             if cleanJournal then
                 local modData = cleanJournal:getModData()
                 modData.BurdJournals = {
+                    uuid = (BurdJournals.generateUUID and BurdJournals.generateUUID())
+                        or ("journal-" .. tostring(getTimestampMs and getTimestampMs() or os.time()) .. "-" .. tostring(cleanJournal:getID())),
                     isWorn = false,
                     isBloody = false,
-                    wasFromBloody = false,
+                    wasFromWorn = true,
+                    wasFromBloody = inheritedWasFromBloody,
+                    wasRestored = true,
+                    wasCleaned = inheritedWasCleaned,
+                    restoredBy = inheritedRestoredBy,
                     isPlayerCreated = true,
                 }
                 BurdJournals.updateJournalName(cleanJournal)
