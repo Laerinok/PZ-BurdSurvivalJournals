@@ -1,219 +1,219 @@
-Sandbox_KO = {
+﻿Sandbox_KO = {
     -- TAB NAMES
-    Sandbox_BurdJournals_Player = "?? - ????",
-    Sandbox_BurdJournals_Loot = "?? - ???",
+    Sandbox_BurdJournals_Player = "일지 - 플레이어",
+    Sandbox_BurdJournals_Loot = "일지 - 전리품",
 
     -- ============================================================
     -- TAB 1: PLAYER SETTINGS
     -- ============================================================
 
     -- Master Toggle
-    Sandbox_BurdJournals_EnableJournals = "?? ?? ???",
-    Sandbox_BurdJournals_EnableJournals_tooltip = "?? ?? ?? ???? ?? ??? ??.",
+    Sandbox_BurdJournals_EnableJournals = "생존 일지 활성화",
+    Sandbox_BurdJournals_EnableJournals_tooltip = "전체 생존 일지 시스템을 위한 마스터 토글.",
 
     -- XP Recovery (Clean Journals)
-    Sandbox_BurdJournals_XPRecoveryMode = "?? ?? XP ??",
-    Sandbox_BurdJournals_XPRecoveryMode_tooltip = "?? ??(SET ??)? ?? ? ???? XP? ?. ?? ??? ???? ???? ??? ??? ????.",
-    Sandbox_BurdJournals_XPRecoveryMode_option1 = "?? ?? (100%)",
-    Sandbox_BurdJournals_XPRecoveryMode_option2 = "?? ??? ??",
+    Sandbox_BurdJournals_XPRecoveryMode = "클린 일지 XP 모드",
+    Sandbox_BurdJournals_XPRecoveryMode_tooltip = "클린 일지(SET 모드)를 읽을 때 회수되는 XP의 양. 낡은 일지나 피투성이 일지에는 영향을 미치지 않습니다.",
+    Sandbox_BurdJournals_XPRecoveryMode_option1 = "완전 복구 (100%)",
+    Sandbox_BurdJournals_XPRecoveryMode_option2 = "수확 체감의 법칙",
     Sandbox_BurdJournals_DiminishingTrackingMode = "Diminishing Tracking Mode",
     Sandbox_BurdJournals_DiminishingTrackingMode_tooltip = "How diminishing returns are tracked for CLEAN journal skill claims when Diminishing Returns is enabled.",
     Sandbox_BurdJournals_DiminishingTrackingMode_option1 = "Per Claim (Global)",
     Sandbox_BurdJournals_DiminishingTrackingMode_option2 = "Per Reading Session",
     Sandbox_BurdJournals_DiminishingTrackingMode_option3 = "Per Skill (Persistent)",
-    Sandbox_BurdJournals_DiminishingFirstRead = "? ?? ?? XP %",
-    Sandbox_BurdJournals_DiminishingFirstRead_tooltip = "? ?? ? ??? ??? ?? (50-100%). ?? ??? ??? ???? ???? ?????.",
+    Sandbox_BurdJournals_DiminishingFirstRead = "첫 번째 읽기 XP %",
+    Sandbox_BurdJournals_DiminishingFirstRead_tooltip = "첫 읽기 시 경험치 획득률 비율 (50-100%). 수확 체감의 법칙이 적용되는 경우에만 해당됩니다.",
 
-    Sandbox_BurdJournals_DiminishingDecayRate = "??? ??? %",
-    Sandbox_BurdJournals_DiminishingDecayRate_tooltip = "?? ???? XP ??? (5-50%).",
+    Sandbox_BurdJournals_DiminishingDecayRate = "읽기당 감소율 %",
+    Sandbox_BurdJournals_DiminishingDecayRate_tooltip = "후속 읽기마다 XP 감소량 (5-50%).",
 
-    Sandbox_BurdJournals_DiminishingMinimum = "?? XP %",
-    Sandbox_BurdJournals_DiminishingMinimum_tooltip = "???? ??? ? ?? ?? ?? (0-50%).",
+    Sandbox_BurdJournals_DiminishingMinimum = "최소 XP %",
+    Sandbox_BurdJournals_DiminishingMinimum_tooltip = "회복률이 떨어질 수 없는 최저 비율 (0-50%).",
 
     -- XP Multiplier
-    Sandbox_BurdJournals_JournalXPMultiplier = "?? XP ??",
-    Sandbox_BurdJournals_JournalXPMultiplier_tooltip = "???? ?? ??? ?? (0.25 = 25%, 1.0 = 100%, 2.0 = 200%). ?? ??? ???? ?? ??? ?????.",
+    Sandbox_BurdJournals_JournalXPMultiplier = "일지 XP 배율",
+    Sandbox_BurdJournals_JournalXPMultiplier_tooltip = "일지에서 얻는 경험치 배율 (0.25 = 25%, 1.0 = 100%, 2.0 = 200%). 낡은 일지와 피투성이 일지 모두에 적용됩니다.",
 
     -- Skill Book Multiplier
-    Sandbox_BurdJournals_SkillBookMultiplierForJournals = "스킬북 배율 적용",
-    Sandbox_BurdJournals_SkillBookMultiplierForJournals_tooltip = "활성화 시 스킬북의 경험치 배율이 낡은/피투성이 일지에서 흡수하는 경험치에 적용됩니다. 플레이어 일지에는 영향 없음. 아래 설정으로 배율이 제한됩니다.",
+    Sandbox_BurdJournals_SkillBookMultiplierForJournals = "ìŠ¤í‚¬ë¶ ë°°ìœ¨ ì ìš©",
+    Sandbox_BurdJournals_SkillBookMultiplierForJournals_tooltip = "í™œì„±í™” ì‹œ ìŠ¤í‚¬ë¶ì˜ ê²½í—˜ì¹˜ ë°°ìœ¨ì´ ë‚¡ì€/í”¼íˆ¬ì„±ì´ ì¼ì§€ì—ì„œ í¡ìˆ˜í•˜ëŠ” ê²½í—˜ì¹˜ì— ì ìš©ë©ë‹ˆë‹¤. í”Œë ˆì´ì–´ ì¼ì§€ì—ëŠ” ì˜í–¥ ì—†ìŒ. ì•„ëž˜ ì„¤ì •ìœ¼ë¡œ ë°°ìœ¨ì´ ì œí•œë©ë‹ˆë‹¤.",
     
-    Sandbox_BurdJournals_SkillBookMultiplierCap = "스킬북 배율 상한",
-    Sandbox_BurdJournals_SkillBookMultiplierCap_tooltip = "일지 스킬 흡수 시 최대 경험치 배율. 기본 2배로 초반 과도한 성장 방지. 16으로 설정 시 전체 스킬북 배율 허용.",
+    Sandbox_BurdJournals_SkillBookMultiplierCap = "ìŠ¤í‚¬ë¶ ë°°ìœ¨ ìƒí•œ",
+    Sandbox_BurdJournals_SkillBookMultiplierCap_tooltip = "ì¼ì§€ ìŠ¤í‚¬ í¡ìˆ˜ ì‹œ ìµœëŒ€ ê²½í—˜ì¹˜ ë°°ìœ¨. ê¸°ë³¸ 2ë°°ë¡œ ì´ˆë°˜ ê³¼ë„í•œ ì„±ìž¥ ë°©ì§€. 16ìœ¼ë¡œ ì„¤ì • ì‹œ ì „ì²´ ìŠ¤í‚¬ë¶ ë°°ìœ¨ í—ˆìš©.",
 
     -- Writing Requirements
-    Sandbox_BurdJournals_RequirePenToWrite = "???? ? ??",
-    Sandbox_BurdJournals_RequirePenToWrite_tooltip = "?? ??? ??? ????? ??? ??? ?????.",
+    Sandbox_BurdJournals_RequirePenToWrite = "글쓰기에 펜 필요",
+    Sandbox_BurdJournals_RequirePenToWrite_tooltip = "클린 일지에 기술을 기록하려면 펜이나 연필이 필요합니다.",
 
-    Sandbox_BurdJournals_PenUsesPerLog = "??? ? ?? ??",
-    Sandbox_BurdJournals_PenUsesPerLog_tooltip = "?? ?? ? ? ??? ??? (1-10).",
+    Sandbox_BurdJournals_PenUsesPerLog = "로그당 펜 사용 횟수",
+    Sandbox_BurdJournals_PenUsesPerLog_tooltip = "기술 로깅 시 펜 내구도 소모량 (1-10).",
 
-    Sandbox_BurdJournals_RequireEraserToErase = "???? ??? ??",
-    Sandbox_BurdJournals_RequireEraserToErase_tooltip = "?? ??? ???? ???? ?????.",
+    Sandbox_BurdJournals_RequireEraserToErase = "지우기에 지우개 필요",
+    Sandbox_BurdJournals_RequireEraserToErase_tooltip = "일지 내용을 지우려면 지우개가 필요합니다.",
 
     -- Learning Time Settings
-    Sandbox_BurdJournals_LearningTimePerSkill = "??? ?? ?? (?)",
-    Sandbox_BurdJournals_LearningTimePerSkill_tooltip = "???? ? ??? ??? ? ??? ?? ?? (?). ??/??? ????????.",
+    Sandbox_BurdJournals_LearningTimePerSkill = "기술당 학습 시간 (초)",
+    Sandbox_BurdJournals_LearningTimePerSkill_tooltip = "일지에서 각 기술을 익히는 데 걸리는 기본 시간 (초). 읽기/공부를 시뮬레이션합니다.",
 
-    Sandbox_BurdJournals_LearningTimePerTrait = "??? ?? ?? (?)",
-    Sandbox_BurdJournals_LearningTimePerTrait_tooltip = "???? ? ??? ???? ? ??? ?? ?? (?).",
+    Sandbox_BurdJournals_LearningTimePerTrait = "특성당 학습 시간 (초)",
+    Sandbox_BurdJournals_LearningTimePerTrait_tooltip = "일지에서 각 특성을 습득하는 데 걸리는 기본 시간 (초).",
 
-    Sandbox_BurdJournals_LearningTimeMultiplier = "?? ?? ??",
-    Sandbox_BurdJournals_LearningTimeMultiplier_tooltip = "?? ?? ??? ???? ?? ??. 0.5? ? ? ?? ??, 2.0? ? ? ?? ??.",
+    Sandbox_BurdJournals_LearningTimeMultiplier = "학습 시간 배율",
+    Sandbox_BurdJournals_LearningTimeMultiplier_tooltip = "모든 학습 시간에 적용되는 전역 배율. 0.5는 두 배 빠른 학습, 2.0은 두 배 느린 학습.",
 
     -- Player Stats Recording
-    Sandbox_BurdJournals_EnableStatRecording = "?? ?? ???",
-    Sandbox_BurdJournals_EnableStatRecording_tooltip = "?? ??? ???? ?? (? ?, ?? ?? ?) ??? ?? ??? ??.",
+    Sandbox_BurdJournals_EnableStatRecording = "통계 기록 활성화",
+    Sandbox_BurdJournals_EnableStatRecording_tooltip = "개인 일지에 플레이어 통계 (킬 수, 생존 시간 등) 기록을 위한 마스터 토글.",
 
-    Sandbox_BurdJournals_RecordZombieKills = "?? ?? ??",
-    Sandbox_BurdJournals_RecordZombieKills_tooltip = "????? ??? ?? ?? ??? ??? ? ??? ?????.",
+    Sandbox_BurdJournals_RecordZombieKills = "좀비 처치 기록",
+    Sandbox_BurdJournals_RecordZombieKills_tooltip = "플레이어가 일지에 좀비 처치 횟수를 기록할 수 있도록 허용합니다.",
 
-    Sandbox_BurdJournals_RecordHoursSurvived = "?? ?? ??",
-    Sandbox_BurdJournals_RecordHoursSurvived_tooltip = "????? ?? ??? ??? ??? ? ??? ?????.",
+    Sandbox_BurdJournals_RecordHoursSurvived = "생존 시간 기록",
+    Sandbox_BurdJournals_RecordHoursSurvived_tooltip = "플레이어가 생존 시간을 일지에 기록할 수 있도록 허용합니다.",
 
     -- Baseline Restriction (Anti-Exploit)
-    Sandbox_BurdJournals_EnableBaselineRestriction = "??? ?? ??? ??",
-    Sandbox_BurdJournals_EnableBaselineRestriction_tooltip = "????? ?? ???? ?? ??? XP? ????, ?? ?? ???? ???? ?? ?? ??? ???? ????. ?? ???? ???? ?? ??? ???? ??? ?????. ?????? ????? ???? ?????.",
+    Sandbox_BurdJournals_EnableBaselineRestriction = "획득한 진행 상황만 기록",
+    Sandbox_BurdJournals_EnableBaselineRestriction_tooltip = "활성화하면 게임 플레이를 통해 획득한 XP만 기록되고, 직업 시작 보너스나 특성으로 인한 기술 향상은 기록되지 않습니다. 여러 캐릭터를 생성하여 직업 기술을 파밍하는 악용을 방지합니다. 멀티플레이어 서버에서는 활성화를 권장합니다.",
 
     -- Trait Recording (Player Journals)
-    Sandbox_BurdJournals_EnableTraitRecordingPlayer = "?? ?? ??? (????)",
-    Sandbox_BurdJournals_EnableTraitRecordingPlayer_tooltip = "????? ?? ??? ??? ??? ? ??? ???. ?????? ?? ?? ????? ?? ???? ?????.",
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer = "특성 기록 활성화 (플레이어)",
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer_tooltip = "플레이어가 개인 일지에 특성을 기록할 수 있도록 합니다. 비활성화하면 특성 탭이 숨겨지지만 기존 데이터는 보존됩니다.",
 
     -- Recipe Recording (Player Journals)
-    Sandbox_BurdJournals_EnableRecipeRecordingPlayer = "??? ?? ??? (????)",
-    Sandbox_BurdJournals_EnableRecipeRecordingPlayer_tooltip = "????? ?? ??? ?? ???? ??? ? ??? ???. ?????? ??? ?? ????? ?? ???? ?????.",
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer = "레시피 기록 활성화 (플레이어)",
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer_tooltip = "플레이어가 개인 일지에 잡지 레시피를 기록할 수 있도록 합니다. 비활성화하면 레시피 탭이 숨겨지지만 기존 데이터는 보존됩니다.",
 
     -- Recipe Recording
 
-    Sandbox_BurdJournals_LearningTimePerRecipe = "???? ?? ?? (?)",
-    Sandbox_BurdJournals_LearningTimePerRecipe_tooltip = "???? ? ???? ??? ? ??? ?? ?? (?).",
+    Sandbox_BurdJournals_LearningTimePerRecipe = "레시피당 학습 시간 (초)",
+    Sandbox_BurdJournals_LearningTimePerRecipe_tooltip = "일지에서 각 레시피를 익히는 데 걸리는 기본 시간 (초).",
 
     -- Journal Capacity Limits
-    Sandbox_BurdJournals_MaxSkillsPerJournal = "??? ?? ?? ?",
-    Sandbox_BurdJournals_MaxSkillsPerJournal_tooltip = "?? ??? ??? ? ?? ?? ?? ?. ??? ??? ? 30?? ??? ????. ??? ?? ????? ? ?? ????.",
+    Sandbox_BurdJournals_MaxSkillsPerJournal = "일지당 최대 기술 수",
+    Sandbox_BurdJournals_MaxSkillsPerJournal_tooltip = "단일 일지에 기록할 수 있는 최대 기술 수. 바닐라 게임은 약 30개의 기술이 있습니다. 모드가 많은 게임에서는 이 값을 높이세요.",
 
-    Sandbox_BurdJournals_MaxTraitsPerJournal = "??? ?? ?? ?",
-    Sandbox_BurdJournals_MaxTraitsPerJournal_tooltip = "?? ??? ??? ? ?? ?? ?? ?. ??? ??? ? 50?? ?? ??? ??? ????. ??? ?? ????? ? ?? ????.",
+    Sandbox_BurdJournals_MaxTraitsPerJournal = "일지당 최대 특성 수",
+    Sandbox_BurdJournals_MaxTraitsPerJournal_tooltip = "단일 일지에 기록할 수 있는 최대 특성 수. 바닐라 게임은 약 50개의 허용 가능한 특성이 있습니다. 모드가 많은 게임에서는 이 값을 높이세요.",
 
-    Sandbox_BurdJournals_MaxRecipesPerJournal = "??? ?? ??? ?",
-    Sandbox_BurdJournals_MaxRecipesPerJournal_tooltip = "?? ??? ??? ? ?? ?? ??? ?. ??? ?? ??? 400? ??? ?? ???? ?? ? ????. ?? ??? ???? ? ?? ????.",
+    Sandbox_BurdJournals_MaxRecipesPerJournal = "일지당 최대 레시피 수",
+    Sandbox_BurdJournals_MaxRecipesPerJournal_tooltip = "단일 일지에 기록할 수 있는 최대 레시피 수. 모드가 많은 게임은 400개 이상의 잡지 레시피를 가질 수 있습니다. 용량 경고가 표시되면 이 값을 높이세요.",
 
     -- ============================================================
     -- TAB 2: LOOT SETTINGS
     -- ============================================================
 
     -- Worn Journals (World Containers)
-    Sandbox_BurdJournals_EnableWornJournalSpawns = "?? ?? ?? ???",
-    Sandbox_BurdJournals_EnableWornJournalSpawns_tooltip = "?? ??? ?? ???? (??, ??, ???)? ????? ?????. ??? XP ??? ?????.",
+    Sandbox_BurdJournals_EnableWornJournalSpawns = "낡은 일지 생성 활성화",
+    Sandbox_BurdJournals_EnableWornJournalSpawns_tooltip = "낡은 일지가 월드 컨테이너 (선반, 책상, 캐비닛)에 생성되도록 허용합니다. 소량의 XP 보상을 제공합니다.",
 
-    Sandbox_BurdJournals_WornJournalSpawnChance = "?? ?? ?? ?? %",
-    Sandbox_BurdJournals_WornJournalSpawnChance_tooltip = "?? ??? ?? ????? ??? ?? (0.1-100%).",
+    Sandbox_BurdJournals_WornJournalSpawnChance = "낡은 일지 생성 확률 %",
+    Sandbox_BurdJournals_WornJournalSpawnChance_tooltip = "낡은 일지가 월드 컨테이너에 나타날 확률 (0.1-100%).",
 
-    Sandbox_BurdJournals_WornJournalMinSkills = "?? ?? ?? ??",
-    Sandbox_BurdJournals_WornJournalMinSkills_tooltip = "???? ??? ?? ??? ?? ?? ?.",
+    Sandbox_BurdJournals_WornJournalMinSkills = "낡은 일지 최소 기술",
+    Sandbox_BurdJournals_WornJournalMinSkills_tooltip = "월드에서 발견된 낡은 일지의 최소 기술 수.",
 
-    Sandbox_BurdJournals_WornJournalMaxSkills = "?? ?? ?? ??",
-    Sandbox_BurdJournals_WornJournalMaxSkills_tooltip = "???? ??? ?? ??? ?? ?? ?.",
+    Sandbox_BurdJournals_WornJournalMaxSkills = "낡은 일지 최대 기술",
+    Sandbox_BurdJournals_WornJournalMaxSkills_tooltip = "월드에서 발견된 낡은 일지의 최대 기술 수.",
 
-    Sandbox_BurdJournals_WornJournalMinXP = "?? ?? ?? XP/??",
-    Sandbox_BurdJournals_WornJournalMinXP_tooltip = "?? ??? ??? ?? XP.",
+    Sandbox_BurdJournals_WornJournalMinXP = "낡은 일지 최소 XP/기술",
+    Sandbox_BurdJournals_WornJournalMinXP_tooltip = "낡은 일지의 기술당 최소 XP.",
 
-    Sandbox_BurdJournals_WornJournalMaxXP = "?? ?? ?? XP/??",
-    Sandbox_BurdJournals_WornJournalMaxXP_tooltip = "?? ??? ??? ?? XP.",
+    Sandbox_BurdJournals_WornJournalMaxXP = "낡은 일지 최대 XP/기술",
+    Sandbox_BurdJournals_WornJournalMaxXP_tooltip = "낡은 일지의 기술당 최대 XP.",
 
     -- Bloody Journals (Zombie Corpses)
-    Sandbox_BurdJournals_EnableBloodyJournalSpawns = "???? ?? ?? ???",
-    Sandbox_BurdJournals_EnableBloodyJournalSpawns_tooltip = "??? ???? ??? ??? ? ??? ???. ? ?? ??? ?? ??? ?????.",
+    Sandbox_BurdJournals_EnableBloodyJournalSpawns = "피투성이 일지 드롭 활성화",
+    Sandbox_BurdJournals_EnableBloodyJournalSpawns_tooltip = "좀비가 피투성이 일지를 드롭할 수 있도록 합니다. 더 나은 보상과 희귀 특성을 제공합니다.",
 
-    Sandbox_BurdJournals_BloodyJournalSpawnChance = "???? ?? ?? ?? %",
-    Sandbox_BurdJournals_BloodyJournalSpawnChance_tooltip = "??? ???? ??? ??? ?? (0.1-100%).",
+    Sandbox_BurdJournals_BloodyJournalSpawnChance = "피투성이 일지 드롭 확률 %",
+    Sandbox_BurdJournals_BloodyJournalSpawnChance_tooltip = "좀비가 피투성이 일지를 드롭할 확률 (0.1-100%).",
 
-    Sandbox_BurdJournals_BloodyJournalMinSkills = "???? ?? ?? ??",
-    Sandbox_BurdJournals_BloodyJournalMinSkills_tooltip = "??? ??? ???? ??? ?? ?? ?.",
+    Sandbox_BurdJournals_BloodyJournalMinSkills = "피투성이 일지 최소 기술",
+    Sandbox_BurdJournals_BloodyJournalMinSkills_tooltip = "좀비가 드롭한 피투성이 일지의 최소 기술 수.",
 
-    Sandbox_BurdJournals_BloodyJournalMaxSkills = "???? ?? ?? ??",
-    Sandbox_BurdJournals_BloodyJournalMaxSkills_tooltip = "??? ??? ???? ??? ?? ?? ?.",
+    Sandbox_BurdJournals_BloodyJournalMaxSkills = "피투성이 일지 최대 기술",
+    Sandbox_BurdJournals_BloodyJournalMaxSkills_tooltip = "좀비가 드롭한 피투성이 일지의 최대 기술 수.",
 
-    Sandbox_BurdJournals_BloodyJournalMinXP = "???? ?? ?? XP/??",
-    Sandbox_BurdJournals_BloodyJournalMinXP_tooltip = "???? ??? ??? ?? XP.",
+    Sandbox_BurdJournals_BloodyJournalMinXP = "피투성이 일지 최소 XP/기술",
+    Sandbox_BurdJournals_BloodyJournalMinXP_tooltip = "피투성이 일지의 기술당 최소 XP.",
 
-    Sandbox_BurdJournals_BloodyJournalMaxXP = "???? ?? ?? XP/??",
-    Sandbox_BurdJournals_BloodyJournalMaxXP_tooltip = "???? ??? ??? ?? XP.",
+    Sandbox_BurdJournals_BloodyJournalMaxXP = "피투성이 일지 최대 XP/기술",
+    Sandbox_BurdJournals_BloodyJournalMaxXP_tooltip = "피투성이 일지의 기술당 최대 XP.",
 
-    Sandbox_BurdJournals_BloodyJournalTraitChance = "?? ?? ?? %",
-    Sandbox_BurdJournals_BloodyJournalTraitChance_tooltip = "???? ??? ?? ??? ?? (???, ??? ?)? ??? ??.",
+    Sandbox_BurdJournals_BloodyJournalTraitChance = "희귀 특성 확률 %",
+    Sandbox_BurdJournals_BloodyJournalTraitChance_tooltip = "피투성이 일지에 허용 가능한 특성 (용감함, 체계적 등)이 포함될 확률.",
 
-    Sandbox_BurdJournals_BloodyJournalMaxTraits = "???? ??? ?? ??",
-    Sandbox_BurdJournals_BloodyJournalMaxTraits_tooltip = "???? ??? ??? ? ?? ?? ?? ? (0-5).",
+    Sandbox_BurdJournals_BloodyJournalMaxTraits = "피투성이 일지당 최대 특성",
+    Sandbox_BurdJournals_BloodyJournalMaxTraits_tooltip = "피투성이 일지에 생성될 수 있는 최대 특성 수 (0-5).",
 
-    Sandbox_BurdJournals_EnableBloodyJournalTraits = "???? ?? ?? ???",
-    Sandbox_BurdJournals_EnableBloodyJournalTraits_tooltip = "????? ???? ???? ??? ??? ? ????. ?????? ?? ?? ????? ?? ???? ?????.",
+    Sandbox_BurdJournals_EnableBloodyJournalTraits = "피투성이 일지 특성 활성화",
+    Sandbox_BurdJournals_EnableBloodyJournalTraits_tooltip = "활성화하면 피투성이 일지에서 특성을 획득할 수 있습니다. 비활성화하면 특성 탭이 숨겨지지만 기존 데이터는 보존됩니다.",
 
     -- Recipe/Magazine Spawns
-    Sandbox_BurdJournals_WornJournalRecipeChance = "?? ?? ??? ?? %",
-    Sandbox_BurdJournals_WornJournalRecipeChance_tooltip = "?? ??? ?? ???? ??? ?? (0-100%). ?? ??? ???? ???? ??? ????.",
+    Sandbox_BurdJournals_WornJournalRecipeChance = "낡은 일지 레시피 확률 %",
+    Sandbox_BurdJournals_WornJournalRecipeChance_tooltip = "낡은 일지에 잡지 레시피가 포함될 확률 (0-100%). 낡은 일지는 피투성이 일지보다 확률이 낮습니다.",
 
-    Sandbox_BurdJournals_WornJournalMaxRecipes = "?? ??? ?? ???",
-    Sandbox_BurdJournals_WornJournalMaxRecipes_tooltip = "?? ??? ??? ? ?? ?? ?? ??? ? (1-5).",
+    Sandbox_BurdJournals_WornJournalMaxRecipes = "낡은 일지당 최대 레시피",
+    Sandbox_BurdJournals_WornJournalMaxRecipes_tooltip = "낡은 일지에 생성될 수 있는 최대 잡지 레시피 수 (1-5).",
 
-    Sandbox_BurdJournals_EnableWornJournalRecipes = "?? ?? ??? ???",
-    Sandbox_BurdJournals_EnableWornJournalRecipes_tooltip = "????? ?? ???? ???? ??? ? ????. ?????? ??? ?? ????? ?? ???? ?????.",
+    Sandbox_BurdJournals_EnableWornJournalRecipes = "낡은 일지 레시피 활성화",
+    Sandbox_BurdJournals_EnableWornJournalRecipes_tooltip = "활성화하면 낡은 일지에서 레시피를 획득할 수 있습니다. 비활성화하면 레시피 탭이 숨겨지지만 기존 데이터는 보존됩니다.",
 
-    Sandbox_BurdJournals_WornJournalTraitChance = "?? ?? ?? ?? %",
-    Sandbox_BurdJournals_WornJournalTraitChance_tooltip = "?? ??? ??? ??? ?? (0-100%). 0% (???)?? ???? ???? ????? ??? ??? ?? ??? ?????.",
+    Sandbox_BurdJournals_WornJournalTraitChance = "낡은 일지 특성 확률 %",
+    Sandbox_BurdJournals_WornJournalTraitChance_tooltip = "낡은 일지에 특성이 포함될 확률 (0-100%). 0% (기본값)으로 설정하면 피투성이 일지에서만 특성이 나오는 기존 방식을 유지합니다.",
 
-    Sandbox_BurdJournals_WornJournalMinTraits = "?? ?? ?? ??",
-    Sandbox_BurdJournals_WornJournalMinTraits_tooltip = "?? ??? ??? ??? ? ?? ?? ? (1-5).",
+    Sandbox_BurdJournals_WornJournalMinTraits = "낡은 일지 최소 특성",
+    Sandbox_BurdJournals_WornJournalMinTraits_tooltip = "낡은 일지에 특성이 생성될 때 최소 특성 수 (1-5).",
 
-    Sandbox_BurdJournals_WornJournalMaxTraits = "?? ?? ?? ??",
-    Sandbox_BurdJournals_WornJournalMaxTraits_tooltip = "?? ??? ??? ? ?? ?? ?? ? (1-5).",
+    Sandbox_BurdJournals_WornJournalMaxTraits = "낡은 일지 최대 특성",
+    Sandbox_BurdJournals_WornJournalMaxTraits_tooltip = "낡은 일지에 생성될 수 있는 최대 특성 수 (1-5).",
 
-    Sandbox_BurdJournals_EnableWornJournalTraits = "?? ?? ?? ???",
-    Sandbox_BurdJournals_EnableWornJournalTraits_tooltip = "????? ?? ???? ??? ??? ? ????. ?????? ?? ?? ????? ?? ???? ?????.",
+    Sandbox_BurdJournals_EnableWornJournalTraits = "낡은 일지 특성 활성화",
+    Sandbox_BurdJournals_EnableWornJournalTraits_tooltip = "활성화하면 낡은 일지에서 특성을 획득할 수 있습니다. 비활성화하면 특성 탭이 숨겨지지만 기존 데이터는 보존됩니다.",
 
-    Sandbox_BurdJournals_BloodyJournalRecipeChance = "???? ?? ??? ?? %",
-    Sandbox_BurdJournals_BloodyJournalRecipeChance_tooltip = "???? ??? ?? ???? ??? ?? (0-100%). ???? ??? ?? ???? ??? ????.",
+    Sandbox_BurdJournals_BloodyJournalRecipeChance = "피투성이 일지 레시피 확률 %",
+    Sandbox_BurdJournals_BloodyJournalRecipeChance_tooltip = "피투성이 일지에 잡지 레시피가 포함될 확률 (0-100%). 피투성이 일지는 낡은 일지보다 확률이 높습니다.",
 
-    Sandbox_BurdJournals_BloodyJournalMaxRecipes = "???? ??? ?? ???",
-    Sandbox_BurdJournals_BloodyJournalMaxRecipes_tooltip = "???? ??? ??? ? ?? ?? ?? ??? ? (1-5).",
+    Sandbox_BurdJournals_BloodyJournalMaxRecipes = "피투성이 일지당 최대 레시피",
+    Sandbox_BurdJournals_BloodyJournalMaxRecipes_tooltip = "피투성이 일지에 생성될 수 있는 최대 잡지 레시피 수 (1-5).",
 
-    Sandbox_BurdJournals_EnableBloodyJournalRecipes = "???? ?? ??? ???",
-    Sandbox_BurdJournals_EnableBloodyJournalRecipes_tooltip = "????? ???? ???? ???? ??? ? ????. ?????? ??? ?? ????? ?? ???? ?????.",
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes = "피투성이 일지 레시피 활성화",
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes_tooltip = "활성화하면 피투성이 일지에서 레시피를 획득할 수 있습니다. 비활성화하면 레시피 탭이 숨겨지지만 기존 데이터는 보존됩니다.",
 
     -- ============================================================
     -- TAB 3: ADVANCED SETTINGS
     -- ============================================================
 
-    Sandbox_BurdJournals_Advanced = "?? - ??",
+    Sandbox_BurdJournals_Advanced = "일지 - 고급",
 
     -- Feature Toggles
-    Sandbox_BurdJournals_EnablePlayerJournals = "???? ?? ???",
-    Sandbox_BurdJournals_EnablePlayerJournals_tooltip = "????? ?? ??/??? ?? ?? ??? ???? ??? ? ??? ???. ?????? ??? ??? ?????.",
+    Sandbox_BurdJournals_EnablePlayerJournals = "플레이어 일지 활성화",
+    Sandbox_BurdJournals_EnablePlayerJournals_tooltip = "플레이어가 기술 기록/복구를 위해 개인 일지를 제작하고 사용할 수 있도록 합니다. 비활성화하면 전리품 일지만 허용됩니다.",
 
     -- Reading Skill Integration
-    Sandbox_BurdJournals_ReadingSkillAffectsSpeed = "?? ??? ??? ??",
-    Sandbox_BurdJournals_ReadingSkillAffectsSpeed_tooltip = "?? ?? ??? ???? ???? ??? ???? ? ??? ??? ?????.",
+    Sandbox_BurdJournals_ReadingSkillAffectsSpeed = "읽기 능력이 속도에 영향",
+    Sandbox_BurdJournals_ReadingSkillAffectsSpeed_tooltip = "읽기 능력 레벨이 높을수록 일지에서 정보를 습득하는 데 걸리는 시간이 단축됩니다.",
 
-    Sandbox_BurdJournals_ReadingSpeedBonus = "?? ?? ???",
-    Sandbox_BurdJournals_ReadingSpeedBonus_tooltip = "?? ?? ??? ?? ??? (0.1 = ??? 10% ??, ?? 10?? ?? 100%).",
+    Sandbox_BurdJournals_ReadingSpeedBonus = "읽기 속도 보너스",
+    Sandbox_BurdJournals_ReadingSpeedBonus_tooltip = "읽기 능력 레벨당 속도 보너스 (0.1 = 레벨당 10% 빠름, 레벨 10에서 최대 100%).",
 
     -- Erase/Convert Times
-    Sandbox_BurdJournals_EraseTime = "??? ?? (?)",
-    Sandbox_BurdJournals_EraseTime_tooltip = "?? ??? ??? ? ??? ?? (?).",
+    Sandbox_BurdJournals_EraseTime = "지우기 시간 (초)",
+    Sandbox_BurdJournals_EraseTime_tooltip = "일지 내용을 지우는 데 걸리는 시간 (초).",
 
-    Sandbox_BurdJournals_ConvertTime = "?? ?? (?)",
-    Sandbox_BurdJournals_ConvertTime_tooltip = "?? ??? ?? ??? ???? ? ??? ?? (?).",
+    Sandbox_BurdJournals_ConvertTime = "변환 시간 (초)",
+    Sandbox_BurdJournals_ConvertTime_tooltip = "낡은 일지를 클린 일지로 변환하는 데 걸리는 시간 (초).",
 
     -- Multiplayer Sharing Settings
-    Sandbox_BurdJournals_AllowOthersToOpenJournals = "?? ????? ?? ?? ?? ??",
-    Sandbox_BurdJournals_AllowOthersToOpenJournals_tooltip = "????? ?? ????? ??? ???? ?? ?? ??? ??? ? ????. ?????? ?? ???? ? ? ????.",
+    Sandbox_BurdJournals_AllowOthersToOpenJournals = "다른 플레이어가 개인 일지 열기 허용",
+    Sandbox_BurdJournals_AllowOthersToOpenJournals_tooltip = "활성화하면 다른 플레이어가 자신이 작성하지 않은 개인 일지를 열어볼 수 있습니다. 비활성화하면 일지 작성자만 열 수 있습니다.",
 
-    Sandbox_BurdJournals_AllowOthersToClaimFromJournals = "?? ????? ?? ???? ?? ??",
-    Sandbox_BurdJournals_AllowOthersToClaimFromJournals_tooltip = "????? ?? ????? ??? ???? ?? ?? ???? ??/??? ??? ? ????. '?? ????? ?? ??'? ?????? ???. ?????? ???? ??? ???? ??? ? ????.",
+    Sandbox_BurdJournals_AllowOthersToClaimFromJournals = "다른 플레이어가 개인 일지에서 습득 허용",
+    Sandbox_BurdJournals_AllowOthersToClaimFromJournals_tooltip = "활성화하면 다른 플레이어가 자신이 작성하지 않은 개인 일지에서 기술/특성을 습득할 수 있습니다. '다른 플레이어가 열기 허용'이 활성화되어야 합니다. 비활성화하면 작성자만 자신의 일지에서 습득할 수 있습니다.",
 
     -- Trait Settings
-    Sandbox_BurdJournals_AllowNegativeTraits = "??? ?? ??",
-    Sandbox_BurdJournals_AllowNegativeTraits_tooltip = "????? ??? ?? (???, ?? ??? ?)? ??? ???? ??? ? ????. ?? ???? ??? ?? ?????. ???: ?? (??? ???).",
+    Sandbox_BurdJournals_AllowNegativeTraits = "부정적 특성 허용",
+    Sandbox_BurdJournals_AllowNegativeTraits_tooltip = "활성화하면 부정적 특성 (서투름, 느린 학습자 등)이 일지에 나타나고 기록될 수 있습니다. 모드 특성이나 챌린지 런에 유용합니다. 기본값: 꺼짐 (긍정적 특성만).",
 
 
     -- Player Journal Dissolution
@@ -234,8 +234,8 @@ Sandbox_KO = {
     -- DEBUG & DEVELOPMENT SETTINGS
     -- ============================================================
 
-    Sandbox_BurdJournals_AllowDebugCommands = "??? ??? ??",
-    Sandbox_BurdJournals_AllowDebugCommands_tooltip = "-debug ?? ?? ?? ??? ??? (/bsjgive, /bsjdump, /bsjdebug ?)? ??????. ?? ?????? ?? ????? ?? ????, ???????? ???? ??? ? ????. ?? ??? ? ??? ?????.",
+    Sandbox_BurdJournals_AllowDebugCommands = "디버그 명령어 허용",
+    Sandbox_BurdJournals_AllowDebugCommands_tooltip = "-debug 실행 인자 없이 디버그 명령어 (/bsjgive, /bsjdump, /bsjdebug 등)를 활성화합니다. 싱글 플레이에서는 모든 플레이어가 사용 가능하고, 멀티플레이에서는 관리자만 사용할 수 있습니다. 서버 테스트 및 개발에 유용합니다.",
     Sandbox_BurdJournals_EnablePassiveSkillsLoot = "Enable Passive Skills (Loot)",
     Sandbox_BurdJournals_EnablePassiveSkillsLoot_tooltip = "When enabled, Fitness/Strength can appear and be claimed on worn/bloody journals. When disabled, passive skill entries are hidden but preserved.",
     Sandbox_BurdJournals_EnablePassiveSkillsPlayer = "Enable Passive Skills (Player)",
