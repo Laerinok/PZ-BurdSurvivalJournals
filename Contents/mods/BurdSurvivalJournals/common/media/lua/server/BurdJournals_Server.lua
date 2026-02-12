@@ -788,6 +788,73 @@ function BurdJournals.Server.handleRequestXpSync(player, args)
     BurdJournals.Server.sendToClient(player, "xpSyncComplete", {})
 end
 
+-- Apply XP with compatibility fallbacks.
+-- Some mods wrap/override XP APIs; this prevents one bad hook from breaking journal claims.
+function BurdJournals.Server.applyXPWithFallback(player, perk, xpAmount, options)
+    local amount = tonumber(xpAmount) or 0
+    if not player or not perk or amount <= 0 then
+        return false, "invalid"
+    end
+
+    local useMultipliers = options and options.useMultipliers == true
+    local skillName = options and options.skillName or "unknown"
+    local xpObj = player.getXp and player:getXp() or nil
+    local safePcallFn = BurdJournals.safePcall or pcall
+
+    local function attempt(label, fn)
+        local ok, err = safePcallFn(fn)
+        if ok then
+            return true
+        end
+        BurdJournals.debugPrint("[BurdJournals] XP apply failed via " .. tostring(label)
+            .. " for " .. tostring(skillName) .. ": " .. tostring(err))
+        return false
+    end
+
+    -- Prefer direct AddXP on the server to avoid unnecessary sync spam during batch operations.
+    if xpObj and xpObj.AddXP then
+        -- Signature variants observed across game/mod environments.
+        if attempt("AddXP(6)", function()
+            xpObj:AddXP(perk, amount, false, useMultipliers, false, true)
+        end) then
+            return true, "AddXP6"
+        end
+        if attempt("AddXP(4)", function()
+            xpObj:AddXP(perk, amount, false, useMultipliers)
+        end) then
+            return true, "AddXP4"
+        end
+        if attempt("AddXP(2)", function()
+            xpObj:AddXP(perk, amount)
+        end) then
+            return true, "AddXP2"
+        end
+    end
+
+    -- Vanilla helper fallback.
+    if addXp and attempt("addXp", function()
+        addXp(player, perk, amount)
+    end) then
+        return true, "addXp"
+    end
+
+    -- Last resort: MP helper if present.
+    if sendAddXp then
+        if attempt("sendAddXp(4)", function()
+            sendAddXp(player, perk, amount, useMultipliers)
+        end) then
+            return true, "sendAddXp4"
+        end
+        if attempt("sendAddXp(3)", function()
+            sendAddXp(player, perk, amount)
+        end) then
+            return true, "sendAddXp3"
+        end
+    end
+
+    return false, "none"
+end
+
 function BurdJournals.Server.handleTrackVhsSkillXP(player, args)
     if not player or type(args) ~= "table" then
         return
@@ -2077,6 +2144,7 @@ function BurdJournals.Server.handleLearnSkills(player, args)
 
     local skillsToSet = {}
     local skillsApplied = 0
+    local applyFailedAny = false
     local normalizedAny = false
     local consumedAny = false
     local claimSessionId = args and args.claimSessionId
@@ -2120,21 +2188,21 @@ function BurdJournals.Server.handleLearnSkills(player, args)
             -- Apply XP directly on server using vanilla addXp function (42.13.2+ compatible)
             -- For "set" mode, we need to calculate the difference
             local perk = BurdJournals.getPerkByName(skillName)
-            if perk and addXp then
+            if perk then
                 local currentXP = player:getXp():getXP(perk)
                 if targetXP > currentXP then
                     local xpToAdd = targetXP - currentXP
-                    -- Fitness and Strength use different XP scaling in PZ
-                    -- AddXP() for passive skills only adds ~1/5th of the amount as displayed XP
-                    -- Apply 5x multiplier to compensate for passive skill internal scaling
-                    local isPassiveSkill = (skillName == "Fitness" or skillName == "Strength")
-                    if isPassiveSkill then
-                        xpToAdd = xpToAdd * 5
-                        BurdJournals.debugPrint("[BurdJournals] Server: Applied 5x passive skill multiplier for " .. skillName .. ", xpToAdd: " .. tostring(xpToAdd))
+                    local applied, method = BurdJournals.Server.applyXPWithFallback(player, perk, xpToAdd, {
+                        skillName = skillName,
+                        useMultipliers = false,
+                    })
+                    if applied then
+                        BurdJournals.debugPrint("[BurdJournals] Server: LearnSkills - Applied " .. tostring(xpToAdd)
+                            .. " XP to " .. skillName .. " via " .. tostring(method))
+                        skillsApplied = skillsApplied + 1
+                    else
+                        applyFailedAny = true
                     end
-                    BurdJournals.debugPrint("[BurdJournals] Server: LearnSkills - Applying " .. tostring(xpToAdd) .. " XP to " .. skillName .. " via addXp()")
-                    addXp(player, perk, xpToAdd)
-                    skillsApplied = skillsApplied + 1
                 end
             end
         end
@@ -2146,14 +2214,12 @@ function BurdJournals.Server.handleLearnSkills(player, args)
         BurdJournals.captureJournalDRState(journal, "learnSkills", player)
     end
 
-    -- Fallback: send to client if addXp not available (SP mode)
-    if not addXp then
+    if applyFailedAny then
         BurdJournals.debugPrint("[BurdJournals] Server: LearnSkills fallback - sending applyXP to client")
         BurdJournals.Server.sendToClient(player, "applyXP", {skills = skillsToSet, mode = "set"})
-    else
-        -- Notify client of success (for UI update)
-        BurdJournals.Server.sendToClient(player, "learnSuccess", {skillCount = skillsApplied})
     end
+    -- Notify client of success (for UI update)
+    BurdJournals.Server.sendToClient(player, "learnSuccess", {skillCount = skillsApplied})
 end
 
 function BurdJournals.Server.handleClaimSkill(player, args)
@@ -2356,35 +2422,32 @@ function BurdJournals.Server.handleClaimSkill(player, args)
         -- This bypasses sandbox XP multiplier settings to give exact recorded XP
         -- (Same approach as production version - no setXPToLevel, no passive multiplier)
         -- Signature: AddXP(perk, amount, addToKnownRecipes, useMultipliers, isPassive, checkLevelUp)
-        local xpObj = player:getXp()
-        local success = false
-        if xpObj and xpObj.AddXP then
-            xpObj:AddXP(perk, xpToApply, false, false, false, true)  -- checkLevelUp = true!
-            success = true
-        end
+        local success, appliedVia = BurdJournals.Server.applyXPWithFallback(player, perk, xpToApply, {
+            skillName = skillName,
+            useMultipliers = false,
+        })
         if success then
-            BurdJournals.debugPrint("[BurdJournals] Server: Applied " .. tostring(xpToApply) .. " XP to " .. skillName .. " via AddXP (no multipliers)")
+            BurdJournals.debugPrint("[BurdJournals] Server: Applied " .. tostring(xpToApply)
+                .. " XP to " .. skillName .. " via " .. tostring(appliedVia))
         else
-            -- Fallback to addXp if AddXP fails
-            if addXp then
-                BurdJournals.debugPrint("[BurdJournals] Server: Fallback to addXp() for " .. skillName)
-                addXp(player, perk, xpToApply)
-            else
-                -- Last resort - send to client
-                BurdJournals.debugPrint("[BurdJournals] Server: Fallback - sending applyXP to client for " .. skillName)
-                BurdJournals.Server.sendToClient(player, "applyXP", {
-                    skills = {
-                        [skillName] = {
-                            xp = xpToApply,
-                            mode = "add"
-                        }
-                    },
-                    mode = "add"
-                })
-            end
+            -- Last resort - send to client
+            BurdJournals.debugPrint("[BurdJournals] Server: Fallback - sending applyXP to client for " .. skillName)
+            BurdJournals.Server.sendToClient(player, "applyXP", {
+                skills = {
+                    [skillName] = {
+                        xp = xpToApply,
+                        mode = "add"
+                    }
+                },
+                mode = "add"
+            })
         end
 
+        -- NOTE: Don't call syncXp here - it disrupts batch command processing
+        -- Client will request sync at end of batch via requestXpSync command
+
         -- Get player state AFTER XP application for debug comparison
+        local xpObj = player:getXp()
         local levelAfter = player:getPerkLevel(perk)
         local xpAfter = xpObj:getXP(perk)
         
@@ -2833,19 +2896,15 @@ function BurdJournals.Server.handleAbsorbSkill(player, args)
             shouldDis = BurdJournals.shouldDissolve(freshJournal, player)
         end
 
-        -- Apply XP directly on server - use AddXP with useMultipliers=false since we already applied our own
-        if perk then
-            BurdJournals.debugPrint("[BurdJournals] Server: Absorb - Applying " .. tostring(xpToAdd) .. " XP to " .. skillName .. " via AddXP (no game multipliers)")
-            -- AddXP signature: (perk, amount, addToKnownRecipes, useMultipliers, isPassive, checkLevelUp)
-            -- Set useMultipliers to false since we've already calculated with our skill book multiplier
-            -- checkLevelUp = true to recalculate level!
-            player:getXp():AddXP(perk, xpToAdd, true, false, false, true)
-        elseif addXp then
-            -- Fallback to vanilla addXp if AddXP not available
-            BurdJournals.debugPrint("[BurdJournals] Server: Absorb - Fallback using addXp() for " .. skillName)
-            addXp(player, perk, xpToAdd)
+        local applied, appliedVia = BurdJournals.Server.applyXPWithFallback(player, perk, xpToAdd, {
+            skillName = skillName,
+            useMultipliers = false,
+        })
+        if applied then
+            BurdJournals.debugPrint("[BurdJournals] Server: Absorb - Applied " .. tostring(xpToAdd)
+                .. " XP to " .. skillName .. " via " .. tostring(appliedVia))
         else
-            -- Fallback for SP or if addXp unavailable
+            -- Last resort fallback for SP/edge cases
             BurdJournals.debugPrint("[BurdJournals] Server: Absorb fallback - sending applyXP to client for " .. skillName)
             BurdJournals.Server.sendToClient(player, "applyXP", {
                 skills = {
