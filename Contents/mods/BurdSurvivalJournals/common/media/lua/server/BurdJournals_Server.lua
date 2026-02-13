@@ -199,11 +199,14 @@ function BurdJournals.Server.getSkillClaimTargetXP(player, journalData, skillNam
     local targetXP = math.max(0, tonumber(recordedXP) or 0)
     local baselineXP = 0
     local baselineSuppressed = false
+    local useBaselineMode = BurdJournals.getJournalSkillRecordingMode
+        and BurdJournals.getJournalSkillRecordingMode(journalData, player)
+        or (type(journalData) == "table" and journalData.recordedWithBaseline == true)
 
     if player
         and type(journalData) == "table"
         and journalData.isPlayerCreated == true
-        and journalData.recordedWithBaseline == true
+        and useBaselineMode == true
     then
         baselineSuppressed = BurdJournals.Server.isBaselineDebugModifiedForPlayer
             and BurdJournals.Server.isBaselineDebugModifiedForPlayer(player)
@@ -217,7 +220,7 @@ function BurdJournals.Server.getSkillClaimTargetXP(player, journalData, skillNam
     return targetXP, baselineXP, baselineSuppressed
 end
 
-function BurdJournals.Server.validateSkillPayload(skills, player)
+function BurdJournals.Server.validateSkillPayload(skills, player, useBaselineOverride)
     if skills == nil then return nil end
     if type(skills) ~= "table" then
         print("[BurdJournals] WARNING: Invalid skills payload (not a table) from " .. tostring(player and player:getUsername() or "unknown"))
@@ -231,7 +234,16 @@ function BurdJournals.Server.validateSkillPayload(skills, player)
     local playerJournalContext = {isPlayerCreated = true}
 
     -- Get baseline using the correct accessor
-    local useBaseline = BurdJournals.shouldEnforceBaseline and BurdJournals.shouldEnforceBaseline(player) or false
+    local useBaseline
+    if type(useBaselineOverride) == "boolean" then
+        useBaseline = useBaselineOverride
+    else
+        useBaseline = BurdJournals.shouldEnforceBaseline and BurdJournals.shouldEnforceBaseline(player) or false
+    end
+    if useBaseline and BurdJournals.Server.isBaselineDebugModifiedForPlayer and BurdJournals.Server.isBaselineDebugModifiedForPlayer(player) then
+        useBaseline = false
+        BurdJournals.debugPrint("[BurdJournals] validateSkillPayload: baseline restriction suppressed because debug baseline edits are active")
+    end
     local allowVhsSkillRecording = BurdJournals.isVhsSkillRecordingEnabled and BurdJournals.isVhsSkillRecordingEnabled() or false
 
     -- Debug: Check if we have cached baseline for this player
@@ -297,14 +309,30 @@ function BurdJournals.Server.validateSkillPayload(skills, player)
                 if not allowVhsSkillRecording then
                     local trackedDelta, trackedTotal, trackedBaseline = BurdJournals.Server.getTrackedVhsSkillXPDeltaForPlayer(player, skillName, useBaseline)
                     if trackedDelta > 0 then
-                        local earnedBeforeVhs = earnedXP
-                        earnedXP = math.max(0, earnedXP - trackedDelta)
-                        vhsExcludedXP = math.max(0, (tonumber(earnedBeforeVhs) or 0) - earnedXP)
-                        BurdJournals.debugPrint("[BurdJournals] validateSkillPayload: " .. skillName
-                            .. " subtracting VHS XP delta=" .. tostring(trackedDelta)
-                            .. " (total=" .. tostring(trackedTotal)
-                            .. ", baseline=" .. tostring(trackedBaseline)
-                            .. "), finalEarned=" .. tostring(earnedXP))
+                        local earnedBeforeVhs = math.max(0, tonumber(earnedXP) or 0)
+                        local safeTrackedDelta = math.max(0, tonumber(trackedDelta) or 0)
+
+                        -- Guard against stale/duplicated VHS tracking data.
+                        -- If tracked VHS exceeds currently earned XP, subtracting it would
+                        -- incorrectly zero out legitimate progress and break recording.
+                        if safeTrackedDelta > (earnedBeforeVhs + 0.001) then
+                            BurdJournals.debugPrint("[BurdJournals] validateSkillPayload: " .. skillName
+                                .. " VHS tracking out of sync; skipping subtraction (trackedDelta=" .. tostring(safeTrackedDelta)
+                                .. ", earnedBeforeVhs=" .. tostring(earnedBeforeVhs)
+                                .. ", total=" .. tostring(trackedTotal)
+                                .. ", baseline=" .. tostring(trackedBaseline) .. ")")
+                            safeTrackedDelta = 0
+                        end
+
+                        if safeTrackedDelta > 0 then
+                            earnedXP = math.max(0, earnedBeforeVhs - safeTrackedDelta)
+                            vhsExcludedXP = math.max(0, earnedBeforeVhs - earnedXP)
+                            BurdJournals.debugPrint("[BurdJournals] validateSkillPayload: " .. skillName
+                                .. " subtracting VHS XP delta=" .. tostring(safeTrackedDelta)
+                                .. " (total=" .. tostring(trackedTotal)
+                                .. ", baseline=" .. tostring(trackedBaseline)
+                                .. "), finalEarned=" .. tostring(earnedXP))
+                        end
                     end
                 end
 
@@ -329,7 +357,7 @@ function BurdJournals.Server.validateSkillPayload(skills, player)
     return validSkills
 end
 
-function BurdJournals.Server.validateTraitPayload(traits, player)
+function BurdJournals.Server.validateTraitPayload(traits, player, useBaselineOverride)
     if traits == nil then return nil end
 
     -- Check if trait recording is enabled for player journals
@@ -346,7 +374,12 @@ function BurdJournals.Server.validateTraitPayload(traits, player)
     local validTraits = {}
 
     -- Check if baseline restriction is enabled
-    local useBaseline = BurdJournals.shouldEnforceBaseline and BurdJournals.shouldEnforceBaseline(player) or false
+    local useBaseline
+    if type(useBaselineOverride) == "boolean" then
+        useBaseline = useBaselineOverride
+    else
+        useBaseline = BurdJournals.shouldEnforceBaseline and BurdJournals.shouldEnforceBaseline(player) or false
+    end
 
     local playerJournalContext = { isPlayerCreated = true }
 
@@ -416,7 +449,7 @@ function BurdJournals.Server.validateStatsPayload(stats, player)
     return validStats
 end
 
-function BurdJournals.Server.validateRecipePayload(recipes, player)
+function BurdJournals.Server.validateRecipePayload(recipes, player, useBaselineOverride)
     if recipes == nil then return nil end
 
     -- Check if recipe recording is enabled for player journals
@@ -433,7 +466,12 @@ function BurdJournals.Server.validateRecipePayload(recipes, player)
     local validRecipes = {}
 
     -- Check if baseline restriction is enabled
-    local useBaseline = BurdJournals.shouldEnforceBaseline and BurdJournals.shouldEnforceBaseline(player) or false
+    local useBaseline
+    if type(useBaselineOverride) == "boolean" then
+        useBaseline = useBaselineOverride
+    else
+        useBaseline = BurdJournals.shouldEnforceBaseline and BurdJournals.shouldEnforceBaseline(player) or false
+    end
 
     for recipeName, _ in pairs(recipes) do
 
@@ -856,6 +894,9 @@ function BurdJournals.Server.applyXPWithFallback(player, perk, xpAmount, options
 end
 
 function BurdJournals.Server.handleTrackVhsSkillXP(player, args)
+    -- VHS tracking flow disabled (temporary rollback).
+    if true then return end
+
     if not player or type(args) ~= "table" then
         return
     end
@@ -1766,18 +1807,52 @@ function BurdJournals.Server.handleRecordProgress(player, args)
     local recipeNames = {}
 
     -- Debug: Log baseline state
-    local useBaseline = BurdJournals.shouldEnforceBaseline and BurdJournals.shouldEnforceBaseline(player) or false
+    local hasLegacyEntries = (BurdJournals.hasAnyEntries and BurdJournals.hasAnyEntries(modData.BurdJournals.skills))
+        or (BurdJournals.hasAnyEntries and BurdJournals.hasAnyEntries(modData.BurdJournals.traits))
+        or (BurdJournals.hasAnyEntries and BurdJournals.hasAnyEntries(modData.BurdJournals.recipes))
+        or false
+    local useBaseline = BurdJournals.getJournalSkillRecordingMode
+        and BurdJournals.getJournalSkillRecordingMode(modData.BurdJournals, player)
+        or (BurdJournals.shouldEnforceBaseline and BurdJournals.shouldEnforceBaseline(player) or false)
+    if useBaseline and BurdJournals.Server.isBaselineDebugModifiedForPlayer and BurdJournals.Server.isBaselineDebugModifiedForPlayer(player) then
+        useBaseline = false
+        BurdJournals.debugPrint("[BurdJournals] handleRecordProgress: baseline restriction suppressed because debug baseline edits are active")
+    end
+    if useBaseline and modData.BurdJournals.recordedWithBaseline == true and type(modData.BurdJournals.skills) == "table" then
+        local sampledSkills = 0
+        local suspiciousAbsoluteSkills = 0
+        for skillName, storedData in pairs(modData.BurdJournals.skills) do
+            local storedXP = tonumber(type(storedData) == "table" and storedData.xp or storedData)
+            if storedXP and storedXP > 0 then
+                local perk = BurdJournals.getPerkByName and BurdJournals.getPerkByName(skillName)
+                if perk then
+                    sampledSkills = sampledSkills + 1
+                    local actualXP = player:getXp():getXP(perk)
+                    local baselineXP = math.max(0, tonumber(BurdJournals.Server.getSkillBaselineForPlayer(player, skillName)) or 0)
+                    local earnedXP = math.max(0, actualXP - baselineXP)
+                    if storedXP > (earnedXP + 0.001) and storedXP <= (actualXP + 0.001) then
+                        suspiciousAbsoluteSkills = suspiciousAbsoluteSkills + 1
+                    end
+                end
+            end
+        end
+        if sampledSkills > 0 and suspiciousAbsoluteSkills >= math.max(1, math.floor(sampledSkills * 0.5)) then
+            useBaseline = false
+            modData.BurdJournals.recordedWithBaseline = false
+            BurdJournals.debugPrint("[BurdJournals] handleRecordProgress: auto-repaired journal XP mode (legacy absolute entries detected while recordedWithBaseline=true)")
+        end
+    end
     local hasBaselineCaptured = BurdJournals.hasBaselineCaptured and BurdJournals.hasBaselineCaptured(player) or false
     local isBaselineBypassed = BurdJournals.isBaselineBypassed and BurdJournals.isBaselineBypassed(player) or false
     BurdJournals.debugPrint("[BurdJournals] handleRecordProgress: useBaseline=" .. tostring(useBaseline) .. ", hasBaselineCaptured=" .. tostring(hasBaselineCaptured) .. ", isBaselineBypassed=" .. tostring(isBaselineBypassed))
 
     -- Persist recording mode for correct future claim semantics.
-    -- If this is the first write (or the journal is still empty), bind mode to current baseline policy.
+    -- Legacy journals with existing entries but no flag are absolute/set mode.
     if modData.BurdJournals.recordedWithBaseline == nil then
-        modData.BurdJournals.recordedWithBaseline = useBaseline
-    else
-        local hasExistingSkills = BurdJournals.countTable(modData.BurdJournals.skills or {}) > 0
-        if not hasExistingSkills then
+        if hasLegacyEntries then
+            modData.BurdJournals.recordedWithBaseline = false
+            BurdJournals.debugPrint("[BurdJournals] handleRecordProgress: inferred legacy journal XP mode (recordedWithBaseline=false)")
+        else
             modData.BurdJournals.recordedWithBaseline = useBaseline
         end
     end
@@ -1788,10 +1863,10 @@ function BurdJournals.Server.handleRecordProgress(player, args)
     local debugInRecipes = args.recipes and BurdJournals.countTable(args.recipes) or 0
     BurdJournals.debugPrint("[BurdJournals] handleRecordProgress: Incoming skills=" .. debugInSkills .. ", traits=" .. debugInTraits .. ", recipes=" .. debugInRecipes)
 
-    local validatedSkills = BurdJournals.Server.validateSkillPayload(args.skills, player)
-    local validatedTraits = BurdJournals.Server.validateTraitPayload(args.traits, player)
+    local validatedSkills = BurdJournals.Server.validateSkillPayload(args.skills, player, useBaseline)
+    local validatedTraits = BurdJournals.Server.validateTraitPayload(args.traits, player, useBaseline)
     local validatedStats = BurdJournals.Server.validateStatsPayload(args.stats, player)
-    local validatedRecipes = BurdJournals.Server.validateRecipePayload(args.recipes, player)
+    local validatedRecipes = BurdJournals.Server.validateRecipePayload(args.recipes, player, useBaseline)
 
     -- Debug: Log validated counts
     local validSkillCount = validatedSkills and BurdJournals.countTable(validatedSkills) or 0
@@ -2293,6 +2368,17 @@ function BurdJournals.Server.handleClaimSkill(player, args)
     end
 
     local skillData = journalData.skills[skillName]
+    local claimModeBefore, claimModeAfter, claimModeChanged, claimModeAutoRepaired = nil, nil, false, false
+    if normalizeDebugJournalXPMode then
+        claimModeBefore, claimModeAfter, claimModeChanged, claimModeAutoRepaired = normalizeDebugJournalXPMode(journalData, player)
+        if claimModeChanged then
+            BurdJournals.debugPrint("[BurdJournals] handleClaimSkill: normalized journal XP mode " .. tostring(claimModeBefore) .. " -> " .. tostring(claimModeAfter))
+        end
+        if claimModeAutoRepaired then
+            BurdJournals.debugPrint("[BurdJournals] handleClaimSkill: auto-repaired mismatched baseline flag using legacy absolute-entry detection")
+        end
+    end
+
     local recordedXP = tonumber(skillData.xp) or 0
     local recordedLevel = tonumber(skillData.level) or 0
     local normalizedLegacy = false
@@ -2355,7 +2441,10 @@ function BurdJournals.Server.handleClaimSkill(player, args)
 
     -- Player journals always use SET mode (absolute target XP).
     -- For baseline-recorded journals, target XP is resolved as baseline + delta.
-    local useAddMode = (not isPlayerJournal) and journalData.recordedWithBaseline == true
+    local journalUsesBaselineMode = BurdJournals.getJournalSkillRecordingMode
+        and BurdJournals.getJournalSkillRecordingMode(journalData, player)
+        or (journalData.recordedWithBaseline == true)
+    local useAddMode = (not isPlayerJournal) and journalUsesBaselineMode == true
     -- isPlayerJournal already declared above
 
     -- Debug logging
@@ -2373,6 +2462,8 @@ function BurdJournals.Server.handleClaimSkill(player, args)
     BurdJournals.debugPrint("  - claimSessionId: " .. tostring(args and args.claimSessionId))
     BurdJournals.debugPrint("  - isPlayerCreated: " .. tostring(isPlayerJournal))
     BurdJournals.debugPrint("  - recordedWithBaseline: " .. tostring(journalData.recordedWithBaseline))
+    BurdJournals.debugPrint("  - journalUsesBaselineMode: " .. tostring(journalUsesBaselineMode))
+    BurdJournals.debugPrint("  - claimModeChanged: " .. tostring(claimModeChanged))
     BurdJournals.debugPrint("  - useAddMode: " .. tostring(useAddMode))
 
     if effectiveRecordedXP > 0 then
@@ -4318,6 +4409,59 @@ local function trimUUID(value)
     return uuid
 end
 
+local function getDebugXPModeLabel(mode)
+    if mode == true then
+        return "baseline"
+    end
+    if mode == false then
+        return "absolute"
+    end
+    return "auto"
+end
+
+local function normalizeDebugJournalXPMode(data, targetPlayer)
+    if type(data) ~= "table" then
+        return nil, nil, false, false
+    end
+
+    local modeBefore = data.recordedWithBaseline
+    local modeAfter = BurdJournals.getJournalSkillRecordingMode
+        and BurdJournals.getJournalSkillRecordingMode(data, targetPlayer)
+        or (modeBefore == true)
+    local autoRepaired = false
+
+    if modeAfter and data.recordedWithBaseline == true and type(data.skills) == "table" and targetPlayer and targetPlayer.getXp then
+        local sampledSkills = 0
+        local suspiciousAbsoluteSkills = 0
+        for skillName, storedData in pairs(data.skills) do
+            local storedXP = tonumber(type(storedData) == "table" and storedData.xp or storedData)
+            if storedXP and storedXP > 0 then
+                local perk = BurdJournals.getPerkByName and BurdJournals.getPerkByName(skillName)
+                if perk then
+                    sampledSkills = sampledSkills + 1
+                    local actualXP = targetPlayer:getXp():getXP(perk)
+                    local baselineXP = math.max(0, tonumber(BurdJournals.Server.getSkillBaselineForPlayer(targetPlayer, skillName)) or 0)
+                    local earnedXP = math.max(0, actualXP - baselineXP)
+                    if storedXP > (earnedXP + 0.001) and storedXP <= (actualXP + 0.001) then
+                        suspiciousAbsoluteSkills = suspiciousAbsoluteSkills + 1
+                    end
+                end
+            end
+        end
+        if sampledSkills > 0 and suspiciousAbsoluteSkills >= math.max(1, math.floor(sampledSkills * 0.5)) then
+            modeAfter = false
+            autoRepaired = true
+        end
+    end
+
+    if data.recordedWithBaseline ~= modeAfter then
+        data.recordedWithBaseline = modeAfter
+        return modeBefore, modeAfter, true, autoRepaired
+    end
+
+    return modeBefore, modeAfter, false, autoRepaired
+end
+
 local function normalizeIdentityValue(value)
     return trimUUID(value)
 end
@@ -4960,6 +5104,11 @@ function BurdJournals.Server.handleDebugRepairJournalByUUID(player, args)
     modData.BurdJournals = modData.BurdJournals or {}
     local data = modData.BurdJournals
     local changed = 0
+    local normalizeXPMode = args and args.normalizeXPMode == true
+    local xpModeBefore = data.recordedWithBaseline
+    local xpModeAfter = data.recordedWithBaseline
+    local xpModeChanged = false
+    local xpModeAutoRepaired = false
 
     if data.uuid ~= uuid then
         data.uuid = uuid
@@ -4993,6 +5142,13 @@ function BurdJournals.Server.handleDebugRepairJournalByUUID(player, args)
         end
     end
 
+    if normalizeXPMode then
+        xpModeBefore, xpModeAfter, xpModeChanged, xpModeAutoRepaired = normalizeDebugJournalXPMode(data, targetPlayer)
+        if xpModeChanged then
+            changed = changed + 1
+        end
+    end
+
     if BurdJournals.migrateJournalIfNeeded then
         BurdJournals.migrateJournalIfNeeded(journal, targetPlayer)
     end
@@ -5012,7 +5168,18 @@ function BurdJournals.Server.handleDebugRepairJournalByUUID(player, args)
     local cleaned = sanitizeResult and sanitizeResult.cleaned == true
     local message = "UUID repair complete"
         .. " (changed=" .. tostring(changed)
-        .. ", sanitized=" .. tostring(cleaned) .. ")"
+        .. ", sanitized=" .. tostring(cleaned)
+    if normalizeXPMode then
+        if xpModeChanged then
+            message = message .. ", xpMode=" .. getDebugXPModeLabel(xpModeBefore) .. "->" .. getDebugXPModeLabel(xpModeAfter)
+        else
+            message = message .. ", xpMode=" .. getDebugXPModeLabel(xpModeAfter) .. " (unchanged)"
+        end
+        if xpModeAutoRepaired then
+            message = message .. ", autoModeRepair=true"
+        end
+    end
+    message = message .. ")"
 
     BurdJournals.Server.sendToClient(player, "debugJournalUUIDRepairResult", {
         uuid = uuid,
@@ -5022,6 +5189,11 @@ function BurdJournals.Server.handleDebugRepairJournalByUUID(player, args)
         changed = changed,
         sanitized = cleaned,
         markRestored = args and args.markRestored == true,
+        normalizeXPMode = normalizeXPMode,
+        xpModeBefore = xpModeBefore,
+        xpModeAfter = xpModeAfter,
+        xpModeChanged = xpModeChanged == true,
+        xpModeAutoRepaired = xpModeAutoRepaired == true,
         message = message,
     })
 end
@@ -7257,3 +7429,10 @@ else
 end
 
 BurdJournals.debugPrint("[BurdJournals] Server module fully loaded!")
+
+
+
+
+
+
+

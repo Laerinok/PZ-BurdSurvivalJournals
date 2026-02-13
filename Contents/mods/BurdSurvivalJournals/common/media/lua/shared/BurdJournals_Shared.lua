@@ -2370,7 +2370,8 @@ end
 -- Compatibility toggle for VHS/media-derived skill XP.
 -- Default OFF to prevent media grinding from being journaled and looped.
 function BurdJournals.isVhsSkillRecordingEnabled()
-    return BurdJournals.getSandboxOption("AllowVhsSkillRecording") == true
+    -- VHS flow temporarily disabled: treat VHS XP like normal XP for journals.
+    return true
 end
 
 local function normalizePositiveNumberMap(inputMap)
@@ -2501,6 +2502,8 @@ function BurdJournals.getPlayerVhsSkillXPMapCopy(player)
 end
 
 function BurdJournals.recordVhsSkillXP(player, skillDeltas, lineGuid, category, sourceTag)
+    -- VHS tracking flow disabled (temporary rollback).
+    if true then return 0 end
     if not player or type(skillDeltas) ~= "table" then
         return 0
     end
@@ -2558,6 +2561,8 @@ function BurdJournals.recordVhsSkillXP(player, skillDeltas, lineGuid, category, 
 end
 
 function BurdJournals.sendVhsSkillXPToServer(player, skillDeltas, lineGuid, category)
+    -- VHS tracking flow disabled (temporary rollback).
+    if true then return false end
     if not (isClient and isClient()) then
         return false
     end
@@ -2585,6 +2590,8 @@ function BurdJournals.sendVhsSkillXPToServer(player, skillDeltas, lineGuid, cate
 end
 
 function BurdJournals.ensureVhsMediaTrackingHook()
+    -- VHS tracking flow disabled (temporary rollback).
+    if true then return false end
     if BurdJournals._vhsMediaTrackingHookInstalled then
         return true
     end
@@ -2667,12 +2674,12 @@ function BurdJournals.ensureVhsMediaTrackingHook()
     return true
 end
 
-if not BurdJournals._vhsHookOnGameStartRegistered and Events and Events.OnGameStart and Events.OnGameStart.Add then
+if false and not BurdJournals._vhsHookOnGameStartRegistered and Events and Events.OnGameStart and Events.OnGameStart.Add then
     Events.OnGameStart.Add(BurdJournals.ensureVhsMediaTrackingHook)
     BurdJournals._vhsHookOnGameStartRegistered = true
 end
 
-local hookOk, hookErr = pcall(BurdJournals.ensureVhsMediaTrackingHook)
+local hookOk, hookErr = true, nil
 if not hookOk and hookErr then
     if BurdJournals.debugPrint then
         BurdJournals.debugPrint("[BurdJournals] VHS media tracking hook deferred after load error: " .. tostring(hookErr))
@@ -7233,7 +7240,43 @@ function BurdJournals.shouldEnforceBaseline(player)
     if BurdJournals.isBaselineBypassed(player) then
         return false
     end
+    -- Debug baseline edits are synthetic test scaffolding and should not block
+    -- recording/claiming flows with baseline restrictions.
+    if player and player.getModData then
+        local modData = player:getModData()
+        if modData and modData.BurdJournals and modData.BurdJournals.debugModified == true then
+            return false
+        end
+    end
     return true
+end
+
+-- Resolve which XP mode should be used when recording into a specific journal.
+-- `true`  = baseline/delta mode (earned XP only)
+-- `false` = absolute/set mode (total XP)
+function BurdJournals.getJournalSkillRecordingMode(journalData, player)
+    local defaultMode = BurdJournals.shouldEnforceBaseline and BurdJournals.shouldEnforceBaseline(player) or false
+    if type(journalData) ~= "table" then
+        return defaultMode
+    end
+
+    if journalData.recordedWithBaseline == true then
+        return true
+    end
+    if journalData.recordedWithBaseline == false then
+        return false
+    end
+
+    local hasSkills = BurdJournals.hasAnyEntries and BurdJournals.hasAnyEntries(journalData.skills) or false
+    local hasTraits = BurdJournals.hasAnyEntries and BurdJournals.hasAnyEntries(journalData.traits) or false
+    local hasRecipes = BurdJournals.hasAnyEntries and BurdJournals.hasAnyEntries(journalData.recipes) or false
+
+    -- Legacy journals created before `recordedWithBaseline` existed stored absolute XP.
+    if hasSkills or hasTraits or hasRecipes then
+        return false
+    end
+
+    return defaultMode
 end
 
 function BurdJournals.hasBaselineCaptured(player)
@@ -9709,3 +9752,5 @@ function BurdJournals.collectModSources(itemType, journalData, player, mode)
 
     return result
 end
+
+

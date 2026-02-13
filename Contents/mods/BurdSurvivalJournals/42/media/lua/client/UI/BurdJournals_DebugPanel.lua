@@ -4513,7 +4513,23 @@ function BurdJournals.UI.DebugPanel:createJournalPanel(startY, height)
     restoreUuidBtn.backgroundColor = {r=0.32, g=0.24, b=0.15, a=1}
     panel:addChild(restoreUuidBtn)
 
-    local deleteUuidBtn = ISButton:new(padding + fullWidth - 74, y + 22, 70, 20, "Delete", self, BurdJournals.UI.DebugPanel.onJournalDeleteByUUIDPrompt)
+    local uuidSecondRowY = y + 22
+    local deleteUuidW = 70
+    local normalizeUuidW = 92
+    local deleteUuidX = padding + fullWidth - deleteUuidW
+    local normalizeUuidX = deleteUuidX - uuidBtnGap - normalizeUuidW
+
+    local normalizeUuidBtn = ISButton:new(normalizeUuidX, uuidSecondRowY, normalizeUuidW, 20, "Normalize XP", self, BurdJournals.UI.DebugPanel.onJournalNormalizeXPModeByUUID)
+    normalizeUuidBtn:initialise()
+    normalizeUuidBtn:instantiate()
+    normalizeUuidBtn.font = UIFont.Small
+    normalizeUuidBtn.textColor = {r=1, g=1, b=1, a=1}
+    normalizeUuidBtn.borderColor = {r=0.35, g=0.45, b=0.6, a=1}
+    normalizeUuidBtn.backgroundColor = {r=0.2, g=0.24, b=0.35, a=1}
+    normalizeUuidBtn:setTooltip("Normalize journal XP mode by UUID (auto-detect absolute vs baseline mode).")
+    panel:addChild(normalizeUuidBtn)
+
+    local deleteUuidBtn = ISButton:new(deleteUuidX, uuidSecondRowY, deleteUuidW, 20, "Delete", self, BurdJournals.UI.DebugPanel.onJournalDeleteByUUIDPrompt)
     deleteUuidBtn:initialise()
     deleteUuidBtn:instantiate()
     deleteUuidBtn.font = UIFont.Small
@@ -5349,6 +5365,59 @@ local function getJournalUUIDInput(panel)
     return uuid
 end
 
+local function getDebugXPModeLabel(mode)
+    if mode == true then
+        return "baseline"
+    end
+    if mode == false then
+        return "absolute"
+    end
+    return "auto"
+end
+
+local function normalizeDebugJournalXPMode(data, player)
+    if type(data) ~= "table" then
+        return nil, nil, false, false
+    end
+
+    local modeBefore = data.recordedWithBaseline
+    local modeAfter = BurdJournals.getJournalSkillRecordingMode
+        and BurdJournals.getJournalSkillRecordingMode(data, player)
+        or (modeBefore == true)
+    local autoRepaired = false
+
+    if modeAfter and data.recordedWithBaseline == true and type(data.skills) == "table" and player and player.getXp then
+        local sampledSkills = 0
+        local suspiciousAbsoluteSkills = 0
+        for skillName, storedData in pairs(data.skills) do
+            local storedXP = tonumber(type(storedData) == "table" and storedData.xp or storedData)
+            if storedXP and storedXP > 0 then
+                local perk = BurdJournals.getPerkByName and BurdJournals.getPerkByName(skillName)
+                if perk then
+                    sampledSkills = sampledSkills + 1
+                    local actualXP = player:getXp():getXP(perk)
+                    local baselineXP = math.max(0, tonumber(BurdJournals.getSkillBaseline and BurdJournals.getSkillBaseline(player, skillName) or 0) or 0)
+                    local earnedXP = math.max(0, actualXP - baselineXP)
+                    if storedXP > (earnedXP + 0.001) and storedXP <= (actualXP + 0.001) then
+                        suspiciousAbsoluteSkills = suspiciousAbsoluteSkills + 1
+                    end
+                end
+            end
+        end
+        if sampledSkills > 0 and suspiciousAbsoluteSkills >= math.max(1, math.floor(sampledSkills * 0.5)) then
+            modeAfter = false
+            autoRepaired = true
+        end
+    end
+
+    if data.recordedWithBaseline ~= modeAfter then
+        data.recordedWithBaseline = modeAfter
+        return modeBefore, modeAfter, true, autoRepaired
+    end
+
+    return modeBefore, modeAfter, false, autoRepaired
+end
+
 function BurdJournals.UI.DebugPanel:onJournalFindByUUID()
     local uuid = getJournalUUIDInput(self)
     if not uuid then
@@ -5422,6 +5491,50 @@ function BurdJournals.UI.DebugPanel:onJournalRepairByUUID()
     self.editingJournal = journal
     self:refreshJournalEditorData()
     self:setStatus("Local UUID repair complete", {r=0.3, g=1, b=0.5})
+end
+
+function BurdJournals.UI.DebugPanel:onJournalNormalizeXPModeByUUID()
+    local uuid = getJournalUUIDInput(self)
+    if not uuid then
+        self:setStatus("Enter a journal UUID first", {r=1, g=0.6, b=0.3})
+        return
+    end
+
+    if sendClientCommand and isClient and isClient() then
+        sendClientCommand("BurdJournals", "debugRepairJournalByUUID", {uuid = uuid, normalizeXPMode = true})
+        self:setStatus("Normalize-XP request sent...", {r=0.5, g=0.8, b=1})
+        return
+    end
+
+    -- SP/local fallback
+    local journal = BurdJournals.findJournalByUUID and BurdJournals.findJournalByUUID(self.player, uuid)
+    if not journal then
+        self:setStatus("UUID not found locally. Move closer and retry.", {r=1, g=0.6, b=0.3})
+        return
+    end
+
+    local modData = journal:getModData()
+    modData.BurdJournals = modData.BurdJournals or {}
+    local data = modData.BurdJournals
+    local modeBefore, modeAfter, modeChanged, autoRepaired = normalizeDebugJournalXPMode(data, self.player)
+
+    if BurdJournals.UI and BurdJournals.UI.DebugPanel and BurdJournals.UI.DebugPanel.finalizeJournalEdit then
+        BurdJournals.UI.DebugPanel.finalizeJournalEdit(journal)
+    elseif journal.transmitModData then
+        journal:transmitModData()
+    end
+
+    self.editingJournal = journal
+    self:refreshJournalEditorData()
+
+    local message = "XP mode already normalized (" .. getDebugXPModeLabel(modeAfter) .. ")"
+    if modeChanged then
+        message = "Normalized XP mode: " .. getDebugXPModeLabel(modeBefore) .. " -> " .. getDebugXPModeLabel(modeAfter)
+    end
+    if autoRepaired then
+        message = message .. " [legacy mismatch repaired]"
+    end
+    self:setStatus(message, {r=0.3, g=1, b=0.5})
 end
 
 function BurdJournals.UI.DebugPanel:onJournalMarkRestoredByUUID()

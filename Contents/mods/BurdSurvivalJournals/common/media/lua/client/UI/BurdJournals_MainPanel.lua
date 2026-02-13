@@ -396,10 +396,51 @@ local function getClaimPreviewForSkill(journalData, skillName, recordedXP, readO
     }
 end
 
+local function resolveJournalRecordingModeForPlayer(journalData, player)
+    local useBaseline = BurdJournals.getJournalSkillRecordingMode
+        and BurdJournals.getJournalSkillRecordingMode(journalData, player)
+        or BurdJournals.shouldEnforceBaseline(player)
+    local autoRepaired = false
+
+    if useBaseline
+        and type(journalData) == "table"
+        and journalData.recordedWithBaseline == true
+        and type(journalData.skills) == "table"
+        and player
+        and player.getXp
+    then
+        local sampledSkills = 0
+        local suspiciousAbsoluteSkills = 0
+        for skillName, storedData in pairs(journalData.skills) do
+            local storedXP = tonumber(type(storedData) == "table" and storedData.xp or storedData)
+            if storedXP and storedXP > 0 then
+                local perk = BurdJournals.getPerkByName and BurdJournals.getPerkByName(skillName)
+                if perk then
+                    sampledSkills = sampledSkills + 1
+                    local actualXP = player:getXp():getXP(perk)
+                    local baselineXP = math.max(0, tonumber(BurdJournals.getSkillBaseline and BurdJournals.getSkillBaseline(player, skillName) or 0) or 0)
+                    local earnedXP = math.max(0, actualXP - baselineXP)
+                    if storedXP > (earnedXP + 0.001) and storedXP <= (actualXP + 0.001) then
+                        suspiciousAbsoluteSkills = suspiciousAbsoluteSkills + 1
+                    end
+                end
+            end
+        end
+
+        if sampledSkills > 0 and suspiciousAbsoluteSkills >= math.max(1, math.floor(sampledSkills * 0.5)) then
+            useBaseline = false
+            autoRepaired = true
+        end
+    end
+
+    return useBaseline, autoRepaired
+end
+
 local function getClaimTargetXPForPlayer(journalData, player, skillName, effectiveXP)
     local targetXP = math.max(0, tonumber(effectiveXP) or 0)
     local baselineXP = 0
     local baselineSuppressed = false
+    local useBaselineForJournal = resolveJournalRecordingModeForPlayer(journalData, player)
 
     local playerModData = player and player.getModData and player:getModData() or nil
     if playerModData and playerModData.BurdJournals and playerModData.BurdJournals.debugModified == true then
@@ -408,7 +449,7 @@ local function getClaimTargetXPForPlayer(journalData, player, skillName, effecti
 
     if journalData
         and journalData.isPlayerCreated
-        and journalData.recordedWithBaseline
+        and useBaselineForJournal
         and BurdJournals.getSkillBaseline
         and not baselineSuppressed
     then
@@ -3681,7 +3722,13 @@ function BurdJournals.UI.MainPanel:startRecordingAll()
     end
     BurdJournals.debugPrint("[BurdJournals] startRecordingAll: Starting...")
 
-    if BurdJournals.shouldEnforceBaseline(self.player) then
+    local journalData = BurdJournals.getJournalData(self.journal) or {}
+    local useBaseline, autoRepairedMode = resolveJournalRecordingModeForPlayer(journalData, self.player)
+    if autoRepairedMode then
+        BurdJournals.debugPrint("[BurdJournals] startRecordingAll: detected legacy absolute journal entries while baseline flag was set; using absolute mode for this pass")
+    end
+
+    if useBaseline then
         if not BurdJournals.hasBaselineCaptured(self.player) then
 
             if BurdJournals.Client and BurdJournals.Client.captureBaseline then
@@ -3717,7 +3764,6 @@ function BurdJournals.UI.MainPanel:startRecordingAll()
     local recordedSkills = self.recordedSkills or {}
     local recordedTraits = self.recordedTraits or {}
 
-    local useBaseline = BurdJournals.shouldEnforceBaseline(self.player)
     for _, skillName in ipairs(allowedSkills) do
         if isSkillRecordableInPlayerJournal(skillName) then
             local perk = BurdJournals.getPerkByName(skillName)
@@ -3847,7 +3893,13 @@ function BurdJournals.UI.MainPanel:startRecordingTab(tabId)
         return false
     end
 
-    if BurdJournals.shouldEnforceBaseline(self.player) then
+    local journalData = BurdJournals.getJournalData(self.journal) or {}
+    local useBaseline, autoRepairedMode = resolveJournalRecordingModeForPlayer(journalData, self.player)
+    if autoRepairedMode then
+        BurdJournals.debugPrint("[BurdJournals] startRecordingTab: detected legacy absolute journal entries while baseline flag was set; using absolute mode for this pass")
+    end
+
+    if useBaseline then
         if not BurdJournals.hasBaselineCaptured(self.player) then
 
             if BurdJournals.Client and BurdJournals.Client.captureBaseline then
@@ -3885,7 +3937,6 @@ function BurdJournals.UI.MainPanel:startRecordingTab(tabId)
     if tabId == "skills" then
 
         local allowedSkills = BurdJournals.getAllowedSkills()
-        local useBaseline = BurdJournals.shouldEnforceBaseline(self.player)
         for _, skillName in ipairs(allowedSkills) do
             if isSkillRecordableInPlayerJournal(skillName) then
                 local perk = BurdJournals.getPerkByName(skillName)
@@ -6306,8 +6357,21 @@ end
 function BurdJournals.UI.MainPanel:populateRecordList(overrideData)
     self.skillList:clear()
 
-    -- Only enforce baseline if enabled AND not bypassed for this player
-    if BurdJournals.shouldEnforceBaseline(self.player) then
+    local journalData
+    if overrideData then
+        journalData = overrideData
+        BurdJournals.debugPrint("[BurdJournals] populateRecordList: Using override data from server response")
+    else
+        journalData = BurdJournals.getJournalData(self.journal) or {}
+    end
+
+    local useBaselineForJournal, autoRepairedMode = resolveJournalRecordingModeForPlayer(journalData, self.player)
+    if autoRepairedMode then
+        BurdJournals.debugPrint("[BurdJournals] populateRecordList: detected legacy absolute journal entries while baseline flag was set; using absolute mode for display")
+    end
+
+    -- Only enforce baseline capture when this journal is recording in baseline mode.
+    if useBaselineForJournal then
         if not BurdJournals.hasBaselineCaptured(self.player) then
 
             if BurdJournals.Client and BurdJournals.Client.captureBaseline then
@@ -6336,13 +6400,6 @@ function BurdJournals.UI.MainPanel:populateRecordList(overrideData)
         end
     end
 
-    local journalData
-    if overrideData then
-        journalData = overrideData
-        BurdJournals.debugPrint("[BurdJournals] populateRecordList: Using override data from server response")
-    else
-        journalData = BurdJournals.getJournalData(self.journal) or {}
-    end
     self.recordedSkills = journalData.skills or {}
     self.recordedTraits = journalData.traits or {}
     self.recordedRecipes = journalData.recipes or {}
@@ -6356,7 +6413,7 @@ function BurdJournals.UI.MainPanel:populateRecordList(overrideData)
 
         local matchCount = 0
         local totalSkills = 0
-        local useBaseline = BurdJournals.shouldEnforceBaseline(self.player)
+        local useBaseline = useBaselineForJournal
 
         for _, skillName in ipairs(allowedSkills) do
             if isSkillRecordableInPlayerJournal(skillName) then
