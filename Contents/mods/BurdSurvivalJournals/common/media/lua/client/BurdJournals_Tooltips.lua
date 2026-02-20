@@ -5,6 +5,16 @@ require "ISUI/ISToolTipInv"
 BurdJournals = BurdJournals or {}
 BurdJournals.Tooltips = BurdJournals.Tooltips or {}
 
+local function getTooltipText(key, fallback)
+    local text = getText(key)
+    if text and text ~= "" and text ~= key then
+        return text
+    end
+    return fallback
+end
+
+local CURSED_TAG_COLOR = {r=0.82, g=0.58, b=0.95}
+
 local function formatAge(timestamp)
     if not timestamp then return nil end
 
@@ -109,8 +119,10 @@ function BurdJournals.Tooltips.getExtraInfo(item)
         end
     end
 
-    if journalData.professionName then
-        local profLine = string.format(getText("Tooltip_BurdJournals_Profession") or "Profession: %s", journalData.professionName)
+    -- Resolve profession name (handles translation keys stored by server)
+    local resolvedProfessionName = BurdJournals.resolveProfessionName(journalData)
+    if resolvedProfessionName then
+        local profLine = string.format(getText("Tooltip_BurdJournals_Profession") or "Profession: %s", resolvedProfessionName)
         table.insert(lines, {text = profLine, color = {r=0.7, g=0.7, b=0.7}})
     end
 
@@ -186,10 +198,16 @@ function BurdJournals.Tooltips.getExtraInfo(item)
 
     local conditionText = nil
     local conditionColor = nil
+    local conditionSuffixText = nil
+    local conditionSuffixColor = nil
 
     if journalData.isBloody then
         conditionText = getText("Tooltip_BurdJournals_ConditionBloody") or "Condition: Bloody"
         conditionColor = {r=0.8, g=0.2, b=0.2}
+        if journalData.isCursedReward == true then
+            conditionSuffixText = " " .. getTooltipText("Tooltip_BurdJournals_TagCursed", "[Cursed]")
+            conditionSuffixColor = CURSED_TAG_COLOR
+        end
     elseif journalData.isWorn then
         conditionText = getText("Tooltip_BurdJournals_ConditionWorn") or "Condition: Worn"
         conditionColor = {r=0.7, g=0.5, b=0.3}
@@ -202,7 +220,12 @@ function BurdJournals.Tooltips.getExtraInfo(item)
     end
 
     if conditionText then
-        table.insert(lines, {text = conditionText, color = conditionColor})
+        table.insert(lines, {
+            text = conditionText,
+            color = conditionColor,
+            suffixText = conditionSuffixText,
+            suffixColor = conditionSuffixColor,
+        })
     end
 
     local originText = nil
@@ -295,7 +318,15 @@ ISToolTipInv.render = function(self)
 
     for i, lineData in ipairs(extraLines) do
         local y = startY + (i - 1) * lineHeight
-        self:drawText(lineData.text, 12, y, lineData.color.r, lineData.color.g, lineData.color.b, 1.0, font)
+        local lineText = tostring(lineData.text or "")
+        local lineColor = lineData.color or {r=1, g=1, b=1}
+        self:drawText(lineText, 12, y, lineColor.r, lineColor.g, lineColor.b, 1.0, font)
+
+        if lineData.suffixText and tostring(lineData.suffixText) ~= "" then
+            local suffixColor = lineData.suffixColor or lineColor
+            local baseWidth = getTextManager():MeasureStringX(font, lineText)
+            self:drawText(tostring(lineData.suffixText), 12 + baseWidth, y, suffixColor.r, suffixColor.g, suffixColor.b, 1.0, font)
+        end
     end
 
     self:setHeight(originalHeight + extraHeight)

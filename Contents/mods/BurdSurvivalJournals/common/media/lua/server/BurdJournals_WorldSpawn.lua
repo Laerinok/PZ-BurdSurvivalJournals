@@ -259,8 +259,17 @@ function BurdJournals.WorldSpawn.inferProfessionFromSkills(skills)
     if bestProfId then
         for _, prof in ipairs(BurdJournals.WorldSpawn.Professions) do
             if prof.id == bestProfId then
-
-                local profName = prof.nameKey and getText(prof.nameKey) or prof.name
+                -- Get translated name, with robust fallback for server-side getText() issues
+                local profName = nil
+                if prof.nameKey then
+                    local translated = getText(prof.nameKey)
+                    if translated and translated ~= "" and translated ~= prof.nameKey then
+                        profName = translated
+                    end
+                end
+                if not profName or profName == "" then
+                    profName = prof.name
+                end
                 return prof.id, profName, prof.flavorKey
             end
         end
@@ -273,7 +282,20 @@ function BurdJournals.WorldSpawn.getRandomProfession()
     local professions = BurdJournals.WorldSpawn.Professions
     local prof = professions[ZombRand(#professions) + 1]
 
-    local profName = prof.nameKey and getText(prof.nameKey) or prof.name
+    -- Get translated name, with robust fallback for server-side getText() issues
+    local profName = nil
+    if prof.nameKey then
+        local translated = getText(prof.nameKey)
+        -- Check for valid translation (not nil, not empty, not the key itself)
+        if translated and translated ~= "" and translated ~= prof.nameKey then
+            profName = translated
+        end
+    end
+    -- Fallback to plain name if translation failed
+    if not profName or profName == "" then
+        profName = prof.name
+    end
+    
     return prof.id, profName, prof.flavorKey
 end
 
@@ -331,6 +353,60 @@ function BurdJournals.WorldSpawn.generateWornJournalData()
         recipes = BurdJournals.generateRandomRecipes(numRecipes)
     end
 
+    -- Optional trait generation for worn journals (default 0% chance)
+    local traits = nil
+    local traitChance = BurdJournals.getSandboxOption("WornJournalTraitChance") or 0
+    if traitChance > 0 and ZombRand(100) < traitChance then
+        local traitList = (BurdJournals.getGrantableTraits and BurdJournals.getGrantableTraits()) or 
+                          BurdJournals.GRANTABLE_TRAITS or {}
+        local listSize = #traitList
+        
+        if listSize > 0 then
+            local minTraits = BurdJournals.getSandboxOption("WornJournalMinTraits") or 1
+            local maxTraits = BurdJournals.getSandboxOption("WornJournalMaxTraits") or 1
+            if minTraits < 1 then minTraits = 1 end
+            if maxTraits < minTraits then maxTraits = minTraits end
+            if maxTraits > listSize then maxTraits = listSize end
+            
+            local numTraits = ZombRand(minTraits, maxTraits + 1)
+            
+            traits = {}
+            local availableTraits = {}
+            for _, t in ipairs(traitList) do
+                table.insert(availableTraits, t)
+            end
+            
+            -- Shuffle for random selection
+            for i = #availableTraits, 2, -1 do
+                local j = ZombRand(i) + 1
+                availableTraits[i], availableTraits[j] = availableTraits[j], availableTraits[i]
+            end
+            
+            -- Pick traits
+            for i = 1, numTraits do
+                if #availableTraits == 0 then break end
+                local idx = ZombRand(#availableTraits) + 1
+                local traitId = availableTraits[idx]
+                if traitId and type(traitId) == "string" then
+                    traits[traitId] = true
+                    table.remove(availableTraits, idx)
+                end
+            end
+            
+            -- Check if we got any traits
+            local traitCount = 0
+            for _ in pairs(traits) do
+                traitCount = traitCount + 1
+                break
+            end
+            if traitCount == 0 then
+                traits = nil
+            end
+        end
+    end
+
+    local forgetSlot = BurdJournals.rollForgetSlotForType and BurdJournals.rollForgetSlotForType("worn")
+
     local journalData = {
         uuid = BurdJournals.generateUUID(),
         author = survivorName,
@@ -340,17 +416,18 @@ function BurdJournals.WorldSpawn.generateWornJournalData()
         timestamp = getGameTime():getWorldAgeHours() - ZombRand(24, 720),
         skills = skills,
         recipes = recipes,
+        traits = traits,
+        forgetSlot = forgetSlot,
 
         isWorn = true,
         isBloody = false,
         wasFromBloody = false,
         isPlayerCreated = false,
 
-        traits = nil,
-
         claimedSkills = {},
         claimedTraits = {},
         claimedRecipes = {},
+        claimedForgetSlot = {},
     }
 
     return journalData
@@ -450,6 +527,8 @@ function BurdJournals.WorldSpawn.generateBloodyJournalData()
         BurdJournals.debugPrint("[BurdJournals] WorldSpawn Bloody: Recipe roll failed (" .. recipeRoll .. " >= " .. recipeChance .. ")")
     end
 
+    local forgetSlot = BurdJournals.rollForgetSlotForType and BurdJournals.rollForgetSlotForType("bloody")
+
     local journalData = {
         uuid = BurdJournals.generateUUID(),
         author = survivorName,
@@ -460,6 +539,7 @@ function BurdJournals.WorldSpawn.generateBloodyJournalData()
         skills = skills,
         traits = traits,
         recipes = recipes,
+        forgetSlot = forgetSlot,
 
         isWorn = false,
         isBloody = true,
@@ -470,6 +550,7 @@ function BurdJournals.WorldSpawn.generateBloodyJournalData()
         claimedSkills = {},
         claimedTraits = {},
         claimedRecipes = {},
+        claimedForgetSlot = {},
     }
 
     return journalData

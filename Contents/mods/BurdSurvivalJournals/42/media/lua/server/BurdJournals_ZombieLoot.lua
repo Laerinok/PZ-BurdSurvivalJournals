@@ -241,6 +241,8 @@ function BurdJournals.ZombieLoot.generateBloodyJournalData()
         recipes = BurdJournals.generateRandomRecipesSeeded(numRecipes, worldAge)
     end
 
+    local forgetSlot = BurdJournals.rollForgetSlotForType and BurdJournals.rollForgetSlotForType("bloody")
+
     -- Get translated name, with robust fallback for server-side getText() issues
     local professionName = nil
     if profession.nameKey then
@@ -262,6 +264,7 @@ function BurdJournals.ZombieLoot.generateBloodyJournalData()
         skills = skills,
         traits = traits,
         recipes = recipes,
+        forgetSlot = forgetSlot,
 
         isBloody = true,
         isWorn = false,
@@ -273,6 +276,7 @@ function BurdJournals.ZombieLoot.generateBloodyJournalData()
         claimedSkills = {},
         claimedTraits = {},
         claimedRecipes = {},
+        claimedForgetSlot = {},
     }
 
     return journalData
@@ -283,6 +287,66 @@ function BurdJournals.ZombieLoot.onZombieDead(zombie)
     if isClient() and not isServer() then return end
     if not zombie then return end
     if not BurdJournals.isEnabled() then return end
+
+    local cursedSpawnsEnabled = BurdJournals.getSandboxOption("EnableCursedJournalSpawns")
+    if cursedSpawnsEnabled ~= false then
+        local cursedDropChance = tonumber(BurdJournals.getSandboxOption("CursedJournalSpawnChance")) or 0.2
+        local cursedRoll = ZombRandFloat(0, 100)
+        if cursedRoll <= cursedDropChance then
+            local square = zombie:getSquare()
+            if square then
+                local container = zombie:getInventory()
+                local cursedJournal = nil
+                if container then
+                    cursedJournal = container:AddItem(BurdJournals.CURSED_ITEM_TYPE or "BurdJournals.CursedJournal")
+                end
+                if not cursedJournal and InventoryItemFactory then
+                    cursedJournal = InventoryItemFactory.CreateItem(BurdJournals.CURSED_ITEM_TYPE or "BurdJournals.CursedJournal")
+                    if cursedJournal then
+                        square:AddWorldInventoryItem(cursedJournal, ZombRandFloat(0, 0.8), ZombRandFloat(0, 0.8), 0)
+                    end
+                end
+
+                if cursedJournal then
+                    local modData = cursedJournal:getModData()
+                    modData.BurdJournals = modData.BurdJournals or {}
+                    local data = modData.BurdJournals
+                    data.uuid = data.uuid or (BurdJournals.generateUUID and BurdJournals.generateUUID()) or ("cursed-" .. tostring(ZombRand(999999999)))
+                    data.timestamp = getGameTime():getWorldAgeHours() - ZombRand(24, 720)
+                    data.author = data.author or (BurdJournals.generateRandomSurvivorName and BurdJournals.generateRandomSurvivorName()) or "Unknown Survivor"
+                    data.isCursedJournal = true
+                    data.cursedState = "dormant"
+                    data.isCursedReward = false
+                    data.cursedEffectType = nil
+                    data.cursedUnleashedByCharacterId = nil
+                    data.cursedUnleashedByUsername = nil
+                    data.cursedUnleashedAtHours = nil
+                    data.cursedSealSoundEvent = nil
+                    data.cursedForcedEffectType = nil
+                    data.cursedForcedTraitId = nil
+                    data.cursedForcedSkillName = nil
+                    data.cursedPendingRewards = nil
+                    data.isBloody = false
+                    data.isWorn = false
+                    data.wasFromBloody = false
+                    data.isPlayerCreated = false
+                    data.isZombieJournal = true
+                    data.claims = data.claims or {}
+                    data.claimedSkills = data.claimedSkills or {}
+                    data.claimedTraits = data.claimedTraits or {}
+                    data.claimedRecipes = data.claimedRecipes or {}
+                    data.claimedForgetSlot = data.claimedForgetSlot or {}
+
+                    BurdJournals.updateJournalName(cursedJournal)
+                    BurdJournals.updateJournalIcon(cursedJournal)
+                    if isServer() and cursedJournal.transmitModData then
+                        cursedJournal:transmitModData()
+                    end
+                    return
+                end
+            end
+        end
+    end
 
     local spawnsEnabled = BurdJournals.getSandboxOption("EnableBloodyJournalSpawns")
     if spawnsEnabled == false then return end
@@ -424,8 +488,10 @@ local function onFillContainerWornJournals(roomName, containerType, itemContaine
                     wasFromBloody = false,
                     isPlayerCreated = false,
                     traits = nil,
+                    forgetSlot = BurdJournals.rollForgetSlotForType and BurdJournals.rollForgetSlotForType("worn") or nil,
                     claimedSkills = {},
                     claimedTraits = {},
+                    claimedForgetSlot = {},
                 }
                 if BurdJournals.updateJournalName then
                     BurdJournals.updateJournalName(journal)

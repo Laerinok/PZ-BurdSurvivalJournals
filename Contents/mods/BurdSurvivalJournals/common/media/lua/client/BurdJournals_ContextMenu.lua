@@ -268,6 +268,12 @@ function BurdJournals.ContextMenu.addJournalOptions(context, player, journal)
     local isClean = BurdJournals.isClean(journal)
     local isBlank = BurdJournals.isBlankJournal(journal)
     local isFilled = BurdJournals.isFilledJournal(journal)
+    local isCursedItem = BurdJournals.isCursedJournalItem and BurdJournals.isCursedJournalItem(journal)
+
+    if isCursedItem then
+        BurdJournals.ContextMenu.addCursedJournalOptions(context, player, journal)
+        return
+    end
 
     if isBloody then
 
@@ -284,6 +290,23 @@ function BurdJournals.ContextMenu.addJournalOptions(context, player, journal)
         end
     else
     end
+end
+
+function BurdJournals.ContextMenu.addCursedJournalOptions(context, player, journal)
+    local openOption = context:addOption(
+        getText("ContextMenu_BurdJournals_OpenCursedJournal") or "Break the Seal...",
+        player,
+        BurdJournals.ContextMenu.onOpenCursedJournal,
+        journal
+    )
+    local tooltip = ISToolTip:new()
+    tooltip:initialise()
+    tooltip:setVisible(false)
+    tooltip:setName(getText("Tooltip_BurdJournals_CursedJournalName") or "Cursed Journal")
+    tooltip.description = getText("Tooltip_BurdJournals_CursedJournalDesc")
+        or "An unsettling journal. The first reader will pay a price."
+    openOption.toolTip = tooltip
+    BurdJournals.ContextMenu.applyLightRequirement(openOption, player)
 end
 
 function BurdJournals.ContextMenu.addBloodyJournalOptions(context, player, journal, isBlank)
@@ -421,7 +444,7 @@ function BurdJournals.ContextMenu.addWornJournalOptions(context, player, journal
 
     if not context or not player or not journal then return end
 
-        local journalData = BurdJournals.getJournalData(journal)
+    local journalData = BurdJournals.getJournalData(journal)
         local isFilled = BurdJournals.isFilledJournal(journal)
 
         if isFilled and journalData then
@@ -895,6 +918,24 @@ function BurdJournals.ContextMenu.onOpenBloodyJournal(player, journal)
     end)
 end
 
+function BurdJournals.ContextMenu.onOpenCursedJournal(player, journal)
+    if not BurdJournals.ContextMenu.requireLightOrNotify(player) then
+        return
+    end
+
+    BurdJournals.ContextMenu.pickUpThenDo(player, journal, function(p, j)
+        if not BurdJournals.ContextMenu.requireLightOrNotify(p) then
+            return
+        end
+        if j and j.getID then
+            sendClientCommand(p, "BurdJournals", "openCursedJournal", {
+                journalId = j:getID(),
+                confirm = false,
+            })
+        end
+    end)
+end
+
 function BurdJournals.ContextMenu.onAbsorbAllFromJournal(player, journal)
 
     local playerNum = player and player:getPlayerNum() or 0
@@ -1007,6 +1048,7 @@ function BurdJournals.ContextMenu.onAbsorbAllFromJournal(player, journal)
                 end
 
                 -- Use AddXP with useMultipliers=false since we already applied journal/skillbook multipliers
+                -- AddXP adds the specified amount directly for all skills
                 -- Signature: AddXP(perk, amount, addToKnownRecipes, useMultipliers, isPassive, checkLevelUp)
                 if sendAddXp then
                     sendAddXp(player, perk, xpToApply, false)
@@ -1047,6 +1089,18 @@ function BurdJournals.ContextMenu.onAbsorbAllFromJournal(player, journal)
                 traitsSkipped = traitsSkipped + 1
             else
                 local success = BurdJournals.safeAddTrait(player, traitId)
+                if success then
+                    local allowCancellation = BurdJournals.getSandboxOption("AllowMutualExclusionCancellation")
+                    if allowCancellation == nil then
+                        allowCancellation = true
+                    end
+                    if allowCancellation and BurdJournals.getConflictingTraits and BurdJournals.safeRemoveTrait then
+                        local conflicts = BurdJournals.getConflictingTraits(player, traitId)
+                        for _, conflictId in ipairs(conflicts) do
+                            BurdJournals.safeRemoveTrait(player, conflictId)
+                        end
+                    end
+                end
                 if jData then
                     BurdJournals.markTraitClaimedByCharacter(jData, player, traitId)
                 end
@@ -1141,7 +1195,7 @@ function BurdJournals.ContextMenu.onConvertToClean(player, journal)
 
     BurdJournals.ContextMenu.pickUpThenDo(player, journal, function(p, j, returnContainer)
         local isFilled = BurdJournals.isFilledJournal(j)
-        local remaining = BurdJournals.getRemainingRewards(j)
+        local remaining = BurdJournals.getRemainingRewards(j, p)
 
         if isFilled and remaining > 0 then
 

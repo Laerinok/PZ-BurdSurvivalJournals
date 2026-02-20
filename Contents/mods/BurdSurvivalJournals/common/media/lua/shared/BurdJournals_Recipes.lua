@@ -1,6 +1,11 @@
 
 require "BurdJournals_Shared"
 
+if type(BurdJournals) ~= "table" then
+    BurdJournals = {}
+    print("[BurdJournals] ERROR: BurdJournals_Shared failed to initialize; recipe handlers running in degraded mode")
+end
+
 -- Build 42 OnTest signature: function(sourceItem, result)
 -- We don't need the parameters, just checking sandbox option
 function BurdJournals_CanCraftPlayerJournal(sourceItem, result)
@@ -438,6 +443,7 @@ function BurdJournals_OnCleanWornJournal(arg1, arg2, arg3, arg4)
             skillReadCounts = journalData.skillReadCounts or {},
             skills = journalData.skills,
             traits = journalData.traits,
+            recipes = journalData.recipes,
             isWritten = true,
             isWorn = false,
             isBloody = false,
@@ -447,7 +453,8 @@ function BurdJournals_OnCleanWornJournal(arg1, arg2, arg3, arg4)
             wasFromBloody = journalData.wasFromBloody or journalData.isBloody,
             restoredBy = player and player:getUsername() or "Unknown",
             claimedSkills = journalData.claimedSkills or {},
-            claimedTraits = journalData.claimedTraits or {}
+            claimedTraits = journalData.claimedTraits or {},
+            claimedRecipes = journalData.claimedRecipes or {}
         }
 
         if BurdJournals and BurdJournals.updateJournalName then
@@ -492,6 +499,7 @@ function BurdJournals_OnCreateFilledCleanFromWorn(arg1, arg2, arg3, arg4)
                 skillReadCounts = journalData.skillReadCounts or {},
                 skills = journalData.skills or {},
                 traits = journalData.traits or {},
+                recipes = journalData.recipes,
                 isWritten = true,
                 isWorn = false,
                 isBloody = false,
@@ -500,6 +508,7 @@ function BurdJournals_OnCreateFilledCleanFromWorn(arg1, arg2, arg3, arg4)
                 isPlayerCreated = journalData.isPlayerCreated,
                 claimedSkills = journalData.claimedSkills or {},
                 claimedTraits = journalData.claimedTraits or {},
+                claimedRecipes = journalData.claimedRecipes or {},
                 wasRestored = true,
                 restoredBy = player and player:getUsername() or "Unknown",
             }
@@ -557,6 +566,7 @@ function BurdJournals_OnCreateFilledWornFromBloody(arg1, arg2, arg3, arg4)
                 skillReadCounts = journalData.skillReadCounts or {},
                 skills = journalData.skills or {},
                 traits = journalData.traits or {},
+                recipes = journalData.recipes,
                 isWritten = true,
                 isWorn = true,
                 isBloody = false,
@@ -564,6 +574,7 @@ function BurdJournals_OnCreateFilledWornFromBloody(arg1, arg2, arg3, arg4)
                 isPlayerCreated = false,
                 claimedSkills = journalData.claimedSkills or {},
                 claimedTraits = journalData.claimedTraits or {},
+                claimedRecipes = journalData.claimedRecipes or {},
                 wasCleaned = true,
                 cleanedBy = player and player:getUsername() or "Unknown",
             }
@@ -619,6 +630,7 @@ function BurdJournals_OnCreateFilledCleanFromWornOrBloody(arg1, arg2, arg3, arg4
                 skillReadCounts = journalData.skillReadCounts or {},
                 skills = journalData.skills or {},
                 traits = journalData.traits or {},
+                recipes = journalData.recipes,
                 isWritten = true,
                 isWorn = false,
                 isBloody = false,
@@ -627,6 +639,7 @@ function BurdJournals_OnCreateFilledCleanFromWornOrBloody(arg1, arg2, arg3, arg4
                 isPlayerCreated = journalData.isPlayerCreated,
                 claimedSkills = journalData.claimedSkills or {},
                 claimedTraits = journalData.claimedTraits or {},
+                claimedRecipes = journalData.claimedRecipes or {},
                 wasRestored = true,
                 restoredBy = player and player:getUsername() or "Unknown",
             }
@@ -684,6 +697,7 @@ function BurdJournals_OnCreateFilledCleanFromBloody(arg1, arg2, arg3, arg4)
                 skillReadCounts = journalData.skillReadCounts or {},
                 skills = journalData.skills or {},
                 traits = journalData.traits or {},
+                recipes = journalData.recipes,
                 isWritten = true,
                 isWorn = false,
                 isBloody = false,
@@ -691,6 +705,7 @@ function BurdJournals_OnCreateFilledCleanFromBloody(arg1, arg2, arg3, arg4)
                 isPlayerCreated = false,
                 claimedSkills = journalData.claimedSkills or {},
                 claimedTraits = journalData.claimedTraits or {},
+                claimedRecipes = journalData.claimedRecipes or {},
                 wasRestored = true,
                 wasCleaned = true,
                 restoredBy = player and player:getUsername() or "Unknown",

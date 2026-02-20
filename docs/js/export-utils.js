@@ -4,7 +4,7 @@
  */
 
 import { CATEGORIES, EXPORT_PATHS, MOD_FOLDER_NAME, TOOL_VERSION } from './config.js';
-import { generateLuaFile, categorizeTranslations } from './lua-parser.js';
+import { generateLuaFile, categorizeTranslations, getCategoryFromKey, extractPlaceholders } from './lua-parser.js';
 import { getEnglishBaseline, getCurrentLanguage, getCurrentTranslations } from './translation-manager.js';
 
 /**
@@ -226,6 +226,115 @@ export function downloadJsonBackup(langCode = null, translations = null) {
     langCode = langCode || getCurrentLanguage();
     const json = exportAsJson(langCode, translations);
     const filename = `BSJ_Translation_${langCode}_${Date.now()}.json`;
+    downloadFile(filename, json, 'application/json');
+}
+
+/**
+ * Export template format for manual/local/LLM workflows
+ * Schema: bsj-template-v1
+ * @param {string} langCode - Language code
+ * @param {Object} translations - Current translations
+ * @returns {string} JSON string
+ */
+export function exportTemplate(langCode = null, translations = null) {
+    langCode = langCode || getCurrentLanguage();
+    translations = translations || getCurrentTranslations();
+    const english = getEnglishBaseline();
+
+    const entries = {};
+    for (const [key, englishValue] of Object.entries(english)) {
+        entries[key] = {
+            english: englishValue,
+            translation: translations[key] || '',
+            category: getCategoryFromKey(key),
+            placeholders: extractPlaceholders(englishValue)
+        };
+    }
+
+    const data = {
+        _meta: {
+            schema: 'bsj-template-v1',
+            name: "Burd's Survival Journals Translation Template",
+            version: TOOL_VERSION,
+            langCode,
+            exportedAt: new Date().toISOString(),
+            keyCount: Object.keys(entries).length
+        },
+        entries
+    };
+
+    return JSON.stringify(data, null, 2);
+}
+
+/**
+ * Download bsj-template-v1 template
+ * @param {string} langCode - Language code
+ * @param {Object} translations - Current translations
+ */
+export function downloadTemplate(langCode = null, translations = null) {
+    langCode = langCode || getCurrentLanguage();
+    const json = exportTemplate(langCode, translations);
+    const filename = `BSJ_Template_${langCode}.json`;
+    downloadFile(filename, json, 'application/json');
+}
+
+/**
+ * Export LLM translation pack with strict rules and context metadata
+ * @param {string} langCode - Language code
+ * @param {Object} translations - Current translations
+ * @returns {string} JSON string
+ */
+export function exportLLMPack(langCode = null, translations = null) {
+    langCode = langCode || getCurrentLanguage();
+    translations = translations || getCurrentTranslations();
+    const english = getEnglishBaseline();
+
+    const entries = {};
+    for (const [key, englishValue] of Object.entries(english)) {
+        entries[key] = {
+            english: englishValue,
+            translation: translations[key] || '',
+            category: getCategoryFromKey(key),
+            placeholders: extractPlaceholders(englishValue),
+            constraints: {
+                preservePlaceholders: true,
+                preserveEscapes: true,
+                keepKeyUnchanged: true
+            }
+        };
+    }
+
+    const data = {
+        _meta: {
+            schema: 'bsj-template-v1',
+            packType: 'llm-translation-pack',
+            name: "Burd's Survival Journals LLM Translation Pack",
+            version: TOOL_VERSION,
+            langCode,
+            exportedAt: new Date().toISOString(),
+            instructions: [
+                'Translate only the "translation" field values.',
+                'Do not modify keys.',
+                'Preserve placeholders exactly (%s, %d, %1, etc.).',
+                'Preserve escaped sequences such as \\n.',
+                'Keep translation semantically aligned to game UI context.'
+            ]
+        },
+        entries
+    };
+
+    return JSON.stringify(data, null, 2);
+}
+
+/**
+ * Download LLM translation pack
+ * @param {string} langCode - Language code
+ * @param {Object} translations - Current translations
+ */
+export function downloadLLMPack(langCode = null, translations = null) {
+    langCode = langCode || getCurrentLanguage();
+    const json = exportLLMPack(langCode, translations);
+    const filename = `BSJ_LLM_Pack_${langCode}.json`;
     downloadFile(filename, json, 'application/json');
 }
 

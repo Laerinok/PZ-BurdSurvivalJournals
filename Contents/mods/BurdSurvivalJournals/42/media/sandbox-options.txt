@@ -49,7 +49,7 @@ option BurdJournals.DiminishingFirstRead = {
 
 option BurdJournals.DiminishingDecayRate = {
     type = integer,
-    min = 5,
+    min = 0,
     max = 50,
     default = 10,
     page = BurdJournals_Player,
@@ -356,6 +356,22 @@ option BurdJournals.WornJournalMaxTraits = {
     translation = BurdJournals_WornJournalMaxTraits,
 }
 
+option BurdJournals.EnableWornJournalForgetSlot = {
+    type = boolean,
+    default = true,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_EnableWornJournalForgetSlot,
+}
+
+option BurdJournals.WornJournalForgetChance = {
+    type = integer,
+    min = 0,
+    max = 100,
+    default = 1,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_WornJournalForgetChance,
+}
+
 /* BLOODY JOURNALS (Zombie Corpses - Better Rewards + Traits) */
 option BurdJournals.EnableBloodyJournalSpawns = {
     type = boolean,
@@ -438,6 +454,22 @@ option BurdJournals.BloodyJournalMaxTraits = {
     translation = BurdJournals_BloodyJournalMaxTraits,
 }
 
+option BurdJournals.EnableBloodyJournalForgetSlot = {
+    type = boolean,
+    default = true,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_EnableBloodyJournalForgetSlot,
+}
+
+option BurdJournals.BloodyJournalForgetChance = {
+    type = integer,
+    min = 0,
+    max = 100,
+    default = 3,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_BloodyJournalForgetChance,
+}
+
 /* Bloody Journal Recipe Settings */
 /* Enable/Disable Recipe Display on Bloody Journals */
 /* When disabled, existing recipes in journals will be hidden but preserved */
@@ -465,6 +497,134 @@ option BurdJournals.BloodyJournalMaxRecipes = {
     default = 2,
     page = BurdJournals_Loot,
     translation = BurdJournals_BloodyJournalMaxRecipes,
+}
+
+/* CURSED JOURNALS (Dormant drop -> buffed bloody rewards on first open) */
+option BurdJournals.EnableCursedJournalSpawns = {
+    type = boolean,
+    default = true,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_EnableCursedJournalSpawns,
+}
+
+option BurdJournals.CursedJournalSpawnChance = {
+    type = double,
+    min = 0.0,
+    max = 100.0,
+    default = 0.2,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_CursedJournalSpawnChance,
+}
+
+option BurdJournals.CursedJournalMinSkills = {
+    type = integer,
+    min = 1,
+    max = 10,
+    default = 2,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_CursedJournalMinSkills,
+}
+
+option BurdJournals.CursedJournalMaxSkills = {
+    type = integer,
+    min = 1,
+    max = 10,
+    default = 5,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_CursedJournalMaxSkills,
+}
+
+option BurdJournals.CursedJournalMinXP = {
+    type = integer,
+    min = 1,
+    max = 5000,
+    default = 75,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_CursedJournalMinXP,
+}
+
+option BurdJournals.CursedJournalMaxXP = {
+    type = integer,
+    min = 1,
+    max = 5000,
+    default = 300,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_CursedJournalMaxXP,
+}
+
+option BurdJournals.EnableCursedJournalTraits = {
+    type = boolean,
+    default = true,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_EnableCursedJournalTraits,
+}
+
+option BurdJournals.CursedJournalTraitChance = {
+    type = integer,
+    min = 0,
+    max = 100,
+    default = 40,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_CursedJournalTraitChance,
+}
+
+option BurdJournals.CursedJournalMinTraits = {
+    type = integer,
+    min = 1,
+    max = 5,
+    default = 1,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_CursedJournalMinTraits,
+}
+
+option BurdJournals.CursedJournalMaxTraits = {
+    type = integer,
+    min = 1,
+    max = 5,
+    default = 3,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_CursedJournalMaxTraits,
+}
+
+option BurdJournals.EnableCursedJournalRecipes = {
+    type = boolean,
+    default = true,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_EnableCursedJournalRecipes,
+}
+
+option BurdJournals.CursedJournalRecipeChance = {
+    type = integer,
+    min = 0,
+    max = 100,
+    default = 60,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_CursedJournalRecipeChance,
+}
+
+option BurdJournals.CursedJournalMaxRecipes = {
+    type = integer,
+    min = 1,
+    max = 5,
+    default = 3,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_CursedJournalMaxRecipes,
+}
+
+option BurdJournals.EnableCursedJournalForgetSlot = {
+    type = boolean,
+    default = true,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_EnableCursedJournalForgetSlot,
+}
+
+option BurdJournals.CursedJournalForgetChance = {
+    type = integer,
+    min = 0,
+    max = 100,
+    default = 25,
+    page = BurdJournals_Loot,
+    translation = BurdJournals_CursedJournalForgetChance,
 }
 
 /* ============================================================ */
@@ -572,6 +732,13 @@ option BurdJournals.AllowPlayerJournalDissolution = {
     default = false,
     page = BurdJournals_Advanced,
     translation = BurdJournals_AllowPlayerJournalDissolution,
+}
+
+option BurdJournals.AllowMutualExclusionCancellation = {
+    type = boolean,
+    default = true,
+    page = BurdJournals_Advanced,
+    translation = BurdJournals_AllowMutualExclusionCancellation,
 }
 
 /* ============================================================ */

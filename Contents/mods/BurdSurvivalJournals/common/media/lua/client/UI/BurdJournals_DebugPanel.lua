@@ -143,48 +143,6 @@ function BurdJournals.UI.DebugPanel:canTargetOtherPlayers()
     return BurdJournals.UI.DebugPanel.isAdminPlayer(self.player)
 end
 
-local function normalizeDebugSearchText(value)
-    local text = string.lower(tostring(value or ""))
-    if text == "" then
-        return ""
-    end
-
-    -- Strip common rich-text style tags and normalize punctuation/spacing.
-    text = string.gsub(text, "%[img=[^%]]-%]", " ")
-    text = string.gsub(text, "%[col=[^%]]-%]", " ")
-    text = string.gsub(text, "%[/col%]", " ")
-    text = string.gsub(text, "[%p_]+", " ")
-    text = string.gsub(text, "%s+", " ")
-    text = string.gsub(text, "^%s+", "")
-    text = string.gsub(text, "%s+$", "")
-    return text
-end
-
-local function debugSearchMatches(query, ...)
-    local normalizedQuery = normalizeDebugSearchText(query)
-    if normalizedQuery == "" then
-        return true
-    end
-
-    local compactQuery = string.gsub(normalizedQuery, "%s+", "")
-    for i = 1, select("#", ...) do
-        local haystack = normalizeDebugSearchText(select(i, ...))
-        if haystack ~= "" then
-            if string.find(haystack, normalizedQuery, 1, true) then
-                return true
-            end
-            if compactQuery ~= "" then
-                local compactHaystack = string.gsub(haystack, "%s+", "")
-                if string.find(compactHaystack, compactQuery, 1, true) then
-                    return true
-                end
-            end
-        end
-    end
-
-    return false
-end
-
 -- ============================================================================
 -- Initialization
 -- ============================================================================
@@ -376,6 +334,48 @@ function BurdJournals.UI.DebugPanel:showTab(tabId)
     end
 end
 
+local function normalizeDebugSearchText(value)
+    local text = string.lower(tostring(value or ""))
+    if text == "" then
+        return ""
+    end
+
+    -- Strip common rich-text style tags and normalize punctuation/spacing.
+    text = string.gsub(text, "%[img=[^%]]-%]", " ")
+    text = string.gsub(text, "%[col=[^%]]-%]", " ")
+    text = string.gsub(text, "%[/col%]", " ")
+    text = string.gsub(text, "[%p_]+", " ")
+    text = string.gsub(text, "%s+", " ")
+    text = string.gsub(text, "^%s+", "")
+    text = string.gsub(text, "%s+$", "")
+    return text
+end
+
+local function debugSearchMatches(query, ...)
+    local normalizedQuery = normalizeDebugSearchText(query)
+    if normalizedQuery == "" then
+        return true
+    end
+
+    local compactQuery = string.gsub(normalizedQuery, "%s+", "")
+    for i = 1, select("#", ...) do
+        local haystack = normalizeDebugSearchText(select(i, ...))
+        if haystack ~= "" then
+            if string.find(haystack, normalizedQuery, 1, true) then
+                return true
+            end
+            if compactQuery ~= "" then
+                local compactHaystack = string.gsub(haystack, "%s+", "")
+                if string.find(compactHaystack, compactQuery, 1, true) then
+                    return true
+                end
+            end
+        end
+    end
+
+    return false
+end
+
 -- Clear trait discovery caches to force fresh lookup
 function BurdJournals.UI.DebugPanel.clearTraitCaches()
     if BurdJournals then
@@ -553,7 +553,7 @@ function BurdJournals.UI.DebugPanel:createSpawnPanel(startY, height)
     -- Type buttons
     local typeX = padding
     local btnWidth = 70
-    local types = {"Blank", "Filled", "Worn", "Bloody"}
+    local types = {"Blank", "Filled", "Worn", "Bloody", "Cursed"}
     panel.typeButtons = {}
     panel.selectedType = "filled"
     
@@ -689,6 +689,68 @@ function BurdJournals.UI.DebugPanel:createSpawnPanel(startY, height)
     panel:addChild(panel.ageEntry)
     y = y + 24
 
+    -- Cursed controls (shown only for cursed type)
+    panel.cursedStateLabel = ISLabel:new(padding, y, 18, (getText("UI_BurdJournals_DebugCursedState") or "Cursed State:"), 0.8, 0.75, 0.9, 1, UIFont.Small, true)
+    panel.cursedStateLabel:initialise()
+    panel.cursedStateLabel:instantiate()
+    panel:addChild(panel.cursedStateLabel)
+
+    panel.cursedStateCombo = ISComboBox:new(padding + 95, y - 2, 215, 22, self, nil)
+    panel.cursedStateCombo:initialise()
+    panel.cursedStateCombo:instantiate()
+    panel.cursedStateCombo.font = UIFont.Small
+    panel.cursedStateCombo:addOption(getText("UI_BurdJournals_DebugCursedDormant") or "Dormant (Cursed Item)")
+    panel.cursedStateCombo:addOption(getText("UI_BurdJournals_DebugCursedUnleashed") or "Unleashed (Bloody Reward)")
+    panel.cursedStateCombo:setSelected(1)
+    panel:addChild(panel.cursedStateCombo)
+    y = y + 24
+
+    panel.forceCurseLabel = ISLabel:new(padding, y, 18, (getText("UI_BurdJournals_DebugForceCurse") or "Force Curse:"), 0.8, 0.75, 0.9, 1, UIFont.Small, true)
+    panel.forceCurseLabel:initialise()
+    panel.forceCurseLabel:instantiate()
+    panel:addChild(panel.forceCurseLabel)
+
+    local forceComboX = padding + 95
+    local forceComboTotalW = math.max(220, panel.width - forceComboX - padding)
+    local forceComboPrimaryW = math.max(120, math.floor((forceComboTotalW - 6) * 0.5))
+    local forceComboTargetW = math.max(95, forceComboTotalW - forceComboPrimaryW - 6)
+
+    panel.forceCurseCombo = ISComboBox:new(forceComboX, y - 2, forceComboPrimaryW, 22, self, BurdJournals.UI.DebugPanel.onForceCurseComboChange)
+    panel.forceCurseCombo:initialise()
+    panel.forceCurseCombo:instantiate()
+    panel.forceCurseCombo.font = UIFont.Small
+    panel.forceCurseCombo:addOptionWithData(getText("UI_BurdJournals_DebugCurseRandom") or "Random", "random")
+    panel.forceCurseCombo:addOptionWithData(getText("UI_BurdJournals_DebugCurseGainNegative") or "Gain Negative Trait", "gain_negative_trait")
+    panel.forceCurseCombo:addOptionWithData(getText("UI_BurdJournals_DebugCurseLosePositive") or "Lose Positive Trait", "lose_positive_trait")
+    panel.forceCurseCombo:addOptionWithData(getText("UI_BurdJournals_DebugCurseLoseSkill") or "Lose Skill Level", "lose_skill_level")
+    panel.forceCurseCombo:addOptionWithData(getText("UI_BurdJournals_DebugCurseAmbush") or "Ambush (Panic + Horde)", "panic")
+    panel.forceCurseCombo:setSelected(1)
+    panel:addChild(panel.forceCurseCombo)
+
+    panel.forceCurseTargetCombo = ISComboBox:new(forceComboX + forceComboPrimaryW + 6, y - 2, forceComboTargetW, 22, self, nil)
+    panel.forceCurseTargetCombo:initialise()
+    panel.forceCurseTargetCombo:instantiate()
+    panel.forceCurseTargetCombo.font = UIFont.Small
+    panel.forceCurseTargetCombo:setVisible(false)
+    if panel.forceCurseTargetCombo.setTooltip then
+        panel.forceCurseTargetCombo:setTooltip(getText("UI_BurdJournals_DebugForceCurseTargetTip")
+            or "Optional specific target used by the selected curse type.")
+    end
+    panel:addChild(panel.forceCurseTargetCombo)
+
+    panel.forceCurseTargetType = nil
+    y = y + 24
+
+    panel.forgetSlotTick = ISTickBox:new(padding, y - 2, panel.width - (padding * 2), 20, "", self, nil)
+    panel.forgetSlotTick:initialise()
+    panel.forgetSlotTick:instantiate()
+    panel.forgetSlotTick:addOption(getText("UI_BurdJournals_DebugForgetSlot") or "Include forget slot")
+    if panel.forgetSlotTick.setSelected then
+        panel.forgetSlotTick:setSelected(1, false)
+    else
+        panel.forgetSlotTick.selected[1] = false
+    end
+    panel:addChild(panel.forgetSlotTick)
     y = y + 24
 
     -- Separator line
@@ -964,6 +1026,113 @@ function BurdJournals.UI.DebugPanel.onProfessionComboChange(self)
     self:updateSpawnPanelVisibility()
 end
 
+local function buildPositiveTraitDebugTargets()
+    local targets = {}
+    local costLookup = BurdJournals.UI.DebugPanel.buildTraitCostLookup()
+    local seen = {}
+    local allTraits = BurdJournals.UI.DebugPanel.getAvailableTraits()
+    for _, traitId in ipairs(allTraits or {}) do
+        local id = tostring(traitId or "")
+        local lower = string.lower(id)
+        local cost = tonumber(costLookup[lower]) or 0
+        if cost > 0 and not seen[lower] then
+            seen[lower] = true
+            targets[#targets + 1] = {
+                id = id,
+                label = BurdJournals.UI.DebugPanel.getTraitDisplayName(id)
+            }
+        end
+    end
+    table.sort(targets, function(a, b)
+        return string.lower(a.label) < string.lower(b.label)
+    end)
+    return targets
+end
+
+local function buildNegativeTraitDebugTargets()
+    local targets = {}
+    local seen = {}
+    for _, traitId in ipairs(BurdJournals.REMOVABLE_TRAITS or {}) do
+        local id = tostring(traitId or "")
+        local lower = string.lower(id)
+        if id ~= "" and not seen[lower] then
+            seen[lower] = true
+            targets[#targets + 1] = {
+                id = id,
+                label = BurdJournals.UI.DebugPanel.getTraitDisplayName(id)
+            }
+        end
+    end
+    table.sort(targets, function(a, b)
+        return string.lower(a.label) < string.lower(b.label)
+    end)
+    return targets
+end
+
+local function buildSkillDebugTargets()
+    local targets = {}
+    local seen = {}
+    local skills = BurdJournals.getAllowedSkills and BurdJournals.getAllowedSkills() or {}
+    for _, skillName in ipairs(skills) do
+        local id = tostring(skillName or "")
+        local lower = string.lower(id)
+        if id ~= "" and not seen[lower] then
+            seen[lower] = true
+            targets[#targets + 1] = {
+                id = id,
+                label = BurdJournals.UI.DebugPanel.getSkillDisplayName(id)
+            }
+        end
+    end
+    table.sort(targets, function(a, b)
+        return string.lower(a.label) < string.lower(b.label)
+    end)
+    return targets
+end
+
+function BurdJournals.UI.DebugPanel.refreshForceCurseTargetCombo(panel)
+    if not panel or not panel.forceCurseCombo or not panel.forceCurseTargetCombo then
+        return
+    end
+
+    local curseType = panel.forceCurseCombo:getOptionData(panel.forceCurseCombo.selected)
+        or panel.forceCurseCombo.options[panel.forceCurseCombo.selected]
+    local targetCombo = panel.forceCurseTargetCombo
+    targetCombo:clear()
+    panel.forceCurseTargetType = nil
+
+    if curseType == "gain_negative_trait" then
+        panel.forceCurseTargetType = "trait"
+        targetCombo:addOptionWithData("Contextual (Negative Trait)", nil)
+        for _, entry in ipairs(buildNegativeTraitDebugTargets()) do
+            targetCombo:addOptionWithData(entry.label, entry.id)
+        end
+    elseif curseType == "lose_positive_trait" then
+        panel.forceCurseTargetType = "trait"
+        targetCombo:addOptionWithData("Contextual (Positive Trait)", nil)
+        for _, entry in ipairs(buildPositiveTraitDebugTargets()) do
+            targetCombo:addOptionWithData(entry.label, entry.id)
+        end
+    elseif curseType == "lose_skill_level" then
+        panel.forceCurseTargetType = "skill"
+        targetCombo:addOptionWithData("Contextual (Skill)", nil)
+        for _, entry in ipairs(buildSkillDebugTargets()) do
+            targetCombo:addOptionWithData(entry.label, entry.id)
+        end
+    end
+
+    if panel.forceCurseTargetType then
+        targetCombo:setSelected(1)
+        targetCombo:setVisible(true)
+    else
+        targetCombo:setVisible(false)
+    end
+end
+
+function BurdJournals.UI.DebugPanel.onForceCurseComboChange(self)
+    BurdJournals.UI.DebugPanel.refreshForceCurseTargetCombo(self.spawnPanel)
+end
+
 local function isSpawnSkillAllowedForType(journalType, skillName)
     if not skillName then
         return false
@@ -1021,6 +1190,7 @@ function BurdJournals.UI.DebugPanel:updateSpawnPanelVisibility()
     local journalType = panel.selectedType or "blank"
     local isBlank = (journalType == "blank")
     local isFilled = (journalType == "filled")
+    local isCursed = (journalType == "cursed")
     local isWornOrBloody = (journalType == "worn" or journalType == "bloody")
     
     -- Check combo selections (with nil safety)
@@ -1042,6 +1212,12 @@ function BurdJournals.UI.DebugPanel:updateSpawnPanelVisibility()
     local showCustomProf = (isWornOrBloody == true and isCustomProf == true)
     local showFlavor = (isBlank == false)
     local showSpawnMeta = (isBlank == false)
+    local showCursedControls = (isCursed == true)
+    if showCursedControls then
+        BurdJournals.UI.DebugPanel.refreshForceCurseTargetCombo(panel)
+    end
+    local showForceCurseTarget = showCursedControls and panel.forceCurseTargetType ~= nil
+    local showForgetSlotToggle = (isBlank == false and (isWornOrBloody == true or isCursed == true))
     local showContent = (isBlank == false)
     
     -- Set visibility (with nil guards)
@@ -1057,6 +1233,12 @@ function BurdJournals.UI.DebugPanel:updateSpawnPanelVisibility()
     if panel.flavorEntry then panel.flavorEntry:setVisible(showFlavor) end
     if panel.ageLabel then panel.ageLabel:setVisible(showSpawnMeta) end
     if panel.ageEntry then panel.ageEntry:setVisible(showSpawnMeta) end
+    if panel.cursedStateLabel then panel.cursedStateLabel:setVisible(showCursedControls) end
+    if panel.cursedStateCombo then panel.cursedStateCombo:setVisible(showCursedControls) end
+    if panel.forceCurseLabel then panel.forceCurseLabel:setVisible(showCursedControls) end
+    if panel.forceCurseCombo then panel.forceCurseCombo:setVisible(showCursedControls) end
+    if panel.forceCurseTargetCombo then panel.forceCurseTargetCombo:setVisible(showForceCurseTarget) end
+    if panel.forgetSlotTick then panel.forgetSlotTick:setVisible(showForgetSlotToggle) end
     
     -- Update owner label text
     if panel.ownerLabel then
@@ -1110,6 +1292,23 @@ function BurdJournals.UI.DebugPanel:updateSpawnPanelVisibility()
     if showSpawnMeta then
         if panel.ageLabel then panel.ageLabel:setY(y) end
         if panel.ageEntry then panel.ageEntry:setY(y - 2) end
+        y = y + rowHeight
+    end
+
+    if showCursedControls then
+        if panel.cursedStateLabel then panel.cursedStateLabel:setY(y) end
+        if panel.cursedStateCombo then panel.cursedStateCombo:setY(y - 2) end
+        y = y + rowHeight
+
+        if panel.forceCurseLabel then panel.forceCurseLabel:setY(y) end
+        if panel.forceCurseCombo then panel.forceCurseCombo:setY(y - 2) end
+        if panel.forceCurseTargetCombo then panel.forceCurseTargetCombo:setY(y - 2) end
+        y = y + rowHeight
+
+    end
+
+    if showForgetSlotToggle then
+        if panel.forgetSlotTick then panel.forgetSlotTick:setY(y - 2) end
         y = y + rowHeight
     end
     
@@ -1210,6 +1409,8 @@ function BurdJournals.UI.DebugPanel:updateSpawnPanelVisibility()
     -- Update spawn button text
     if isBlank then
         panel.spawnBtn:setTitle("SPAWN BLANK JOURNAL")
+    elseif isCursed and panel.cursedStateCombo and panel.cursedStateCombo.selected == 2 then
+        panel.spawnBtn:setTitle("SPAWN CURSED REWARD")
     else
         panel.spawnBtn:setTitle("SPAWN " .. string.upper(journalType) .. " JOURNAL")
     end
@@ -1742,7 +1943,12 @@ function BurdJournals.UI.DebugPanel:onSpawnClick()
         traits = {},
         recipes = {},
         stats = {},
-        owner = "Debug Spawn"
+        owner = "Debug Spawn",
+        forceCurseType = nil,
+        forceCurseTraitId = nil,
+        forceCurseSkillName = nil,
+        cursedUnleashed = false,
+        forgetSlot = false,
     }
     
     -- Handle owner/assignment based on journal type
@@ -1815,6 +2021,27 @@ function BurdJournals.UI.DebugPanel:onSpawnClick()
         if panel.ageEntry and panel.ageEntry.getText then
             local ageHours = tonumber(panel.ageEntry:getText() or "0") or 0
             params.ageHours = math.max(0, ageHours)
+        end
+
+        if panel.forgetSlotTick and panel.forgetSlotTick.selected then
+            params.forgetSlot = panel.forgetSlotTick.selected[1] == true
+        end
+        if journalType == "cursed" then
+            if panel.cursedStateCombo then
+                params.cursedUnleashed = (panel.cursedStateCombo.selected == 2)
+            end
+            if panel.forceCurseCombo and panel.forceCurseCombo.selected and panel.forceCurseCombo.selected > 0 then
+                params.forceCurseType = panel.forceCurseCombo:getOptionData(panel.forceCurseCombo.selected)
+                    or panel.forceCurseCombo.options[panel.forceCurseCombo.selected]
+            end
+            if panel.forceCurseTargetCombo and panel.forceCurseTargetCombo.selected and panel.forceCurseTargetCombo.selected > 0 then
+                local targetValue = panel.forceCurseTargetCombo:getOptionData(panel.forceCurseTargetCombo.selected)
+                if panel.forceCurseTargetType == "trait" then
+                    params.forceCurseTraitId = targetValue
+                elseif panel.forceCurseTargetType == "skill" then
+                    params.forceCurseSkillName = targetValue
+                end
+            end
         end
     end
     
@@ -2178,7 +2405,7 @@ function BurdJournals.UI.DebugPanel:refreshCharacterData()
         -- No player yet, skip population
         return 
     end
-    
+
     -- Clear existing lists safely
     if panel.charSkillList and panel.charSkillList.clear then 
         panel.charSkillList:clear()
@@ -3364,7 +3591,7 @@ function BurdJournals.UI.DebugPanel:createBaselinePanel(startY, height)
         panel:addChild(panel.baselineSkillList)
         y = y + skillListHeight + 10
         
-        -- Dump button only
+        -- Dump buttons
         local dumpBtn = ISButton:new(padding, y, 150, btnHeight, "Dump Stats to Console", self, BurdJournals.UI.DebugPanel.onBaselineCmd)
         dumpBtn:initialise()
         dumpBtn:instantiate()
@@ -3374,6 +3601,16 @@ function BurdJournals.UI.DebugPanel:createBaselinePanel(startY, height)
         dumpBtn.borderColor = {r=0.4, g=0.5, b=0.6, a=1}
         dumpBtn.backgroundColor = {r=0.2, g=0.25, b=0.3, a=1}
         panel:addChild(dumpBtn)
+
+        local spawnDumpBtn = ISButton:new(padding + 160, y, 200, btnHeight, "Dump Spawn Readiness", self, BurdJournals.UI.DebugPanel.onBaselineCmd)
+        spawnDumpBtn:initialise()
+        spawnDumpBtn:instantiate()
+        spawnDumpBtn.font = UIFont.Small
+        spawnDumpBtn.internal = "dumpspawnstate"
+        spawnDumpBtn.textColor = {r=1, g=1, b=1, a=1}
+        spawnDumpBtn.borderColor = {r=0.35, g=0.55, b=0.65, a=1}
+        spawnDumpBtn.backgroundColor = {r=0.16, g=0.28, b=0.34, a=1}
+        panel:addChild(spawnDumpBtn)
         
         -- Store reference and populate
         self.baselinePanel = panel
@@ -3516,6 +3753,18 @@ function BurdJournals.UI.DebugPanel:createBaselinePanel(startY, height)
     migrateBtn.borderColor = {r=0.35, g=0.55, b=0.65, a=1}
     migrateBtn.backgroundColor = {r=0.16, g=0.26, b=0.32, a=1}
     panel:addChild(migrateBtn)
+
+    y = y + btnHeight + 5
+
+    local spawnDumpBtn = ISButton:new(padding, y, 190, btnHeight, "Dump Spawn Readiness", self, BurdJournals.UI.DebugPanel.onBaselineCmd)
+    spawnDumpBtn:initialise()
+    spawnDumpBtn:instantiate()
+    spawnDumpBtn.font = UIFont.Small
+    spawnDumpBtn.internal = "dumpspawnstate"
+    spawnDumpBtn.textColor = {r=1, g=1, b=1, a=1}
+    spawnDumpBtn.borderColor = {r=0.35, g=0.55, b=0.65, a=1}
+    spawnDumpBtn.backgroundColor = {r=0.16, g=0.28, b=0.34, a=1}
+    panel:addChild(spawnDumpBtn)
     
     -- Store reference
     self.baselinePanel = panel
@@ -3593,6 +3842,25 @@ function BurdJournals.UI.DebugPanel:refreshBaselineData()
     if not targetPlayer then 
         -- No player yet, skip population
         return 
+    end
+
+    local localPlayer = getPlayer and getPlayer() or self.player
+    local isLocalTarget = targetPlayer == localPlayer
+    if not isLocalTarget and targetPlayer and localPlayer then
+        local targetName = targetPlayer.getUsername and targetPlayer:getUsername() or nil
+        local localName = localPlayer.getUsername and localPlayer:getUsername() or nil
+        if targetName and localName and targetName == localName then
+            isLocalTarget = true
+        end
+    end
+
+    local bootstrapPlayer = isLocalTarget and localPlayer or targetPlayer
+    if isLocalTarget
+        and bootstrapPlayer
+        and BurdJournals
+        and BurdJournals.Client
+        and BurdJournals.Client.tryBootstrapPendingNewCharacterBaseline then
+        BurdJournals.Client.tryBootstrapPendingNewCharacterBaseline(bootstrapPlayer, "debug_panel_refresh", true)
     end
     
     -- Get player's XP object safely (same logic as Character tab)
@@ -4300,6 +4568,13 @@ function BurdJournals.UI.DebugPanel:onBaselineCmd(button)
         end
         BurdJournals.debugPrint("  Debug Modified: " .. tostring(modData.BurdJournals and modData.BurdJournals.debugModified or false))
         self:setStatus("Baseline dumped to console", {r=0.5, g=0.8, b=1})
+    elseif cmd == "dumpspawnstate" then
+        if BurdJournals and BurdJournals.Client and BurdJournals.Client.dumpBaselineSpawnState then
+            BurdJournals.Client.dumpBaselineSpawnState(targetPlayer, "DebugPanel")
+            self:setStatus("Spawn readiness dumped to console", {r=0.5, g=0.8, b=1})
+        else
+            self:setStatus("Spawn readiness dump unavailable", {r=1, g=0.5, b=0.3})
+        end
     elseif cmd == "clearall" then
         if targetPlayer then
             if isClient() and not isServer() then
@@ -5823,6 +6098,17 @@ function BurdJournals.UI.DebugPanel:refreshJournalEditorData()
     elseif journalData.isDebugSpawned then
         infoText = infoText .. " [Debug Spawned]"
     end
+    if journalData.forgetSlot == true then
+        infoText = infoText .. " [Forget Slot]"
+    end
+    if journalData.isCursedJournal == true then
+        infoText = infoText .. " [Cursed:" .. tostring(journalData.cursedState or "dormant") .. "]"
+    elseif journalData.isCursedReward == true then
+        infoText = infoText .. " [Cursed Reward]"
+    end
+    if journalData.cursedEffectType and journalData.cursedEffectType ~= "" then
+        infoText = infoText .. " [Curse=" .. tostring(journalData.cursedEffectType) .. "]"
+    end
     if journal.__bsjServerProxy then
         infoText = infoText .. " [No live item]"
     end
@@ -5967,6 +6253,26 @@ function BurdJournals.UI.DebugPanel:refreshJournalEditorData()
     BurdJournals.UI.DebugPanel.updateJournalSkillLabel(self)
 end
 
+local function getDebugSkillDisplayLevel(skillName, storedLevel, xp)
+    local currentXP = math.max(0, tonumber(xp) or 0)
+    local normalizedStoredLevel = math.max(0, math.min(10, math.floor(tonumber(storedLevel) or 0)))
+    local derivedLevel = normalizedStoredLevel
+
+    if BurdJournals.getSkillLevelFromXP then
+        local computed = BurdJournals.getSkillLevelFromXP(currentXP, skillName)
+        if tonumber(computed) then
+            derivedLevel = math.max(0, math.min(10, math.floor(tonumber(computed) or 0)))
+        end
+    end
+
+    -- For baseline-recorded passive skills, stored level can be intentionally higher than
+    -- XP-derived level (XP is delta, level is absolute). Preserve stored level in UI.
+    if normalizedStoredLevel > derivedLevel then
+        return normalizedStoredLevel, true
+    end
+    return derivedLevel, false
+end
+
 -- Draw function for journal skill items
 function BurdJournals.UI.DebugPanel.drawJournalSkillItem(self, y, item, alt)
     local h = tonumber(self.itemheight) or 24
@@ -5988,16 +6294,10 @@ function BurdJournals.UI.DebugPanel.drawJournalSkillItem(self, y, item, alt)
     local journalPanel = parentPanel and parentPanel.journalPanel
     local isSelected = journalPanel and journalPanel.journalFocusedSkill == data.name
     
-    -- Ensure level/xp are valid numbers (prefer XP-derived level to avoid stale level fields)
+    -- Resolve display level from XP, but preserve stored level when it is intentionally higher
+    -- (e.g., passive skills recorded in baseline mode).
     local currentXP = math.max(0, tonumber(data.xp) or 0)
-    local currentLevel = tonumber(data.level) or 0
-    if BurdJournals.getSkillLevelFromXP then
-        local derivedLevel = BurdJournals.getSkillLevelFromXP(currentXP, data.name)
-        if tonumber(derivedLevel) then
-            currentLevel = tonumber(derivedLevel) or currentLevel
-        end
-    end
-    currentLevel = math.max(0, math.min(10, math.floor(currentLevel)))
+    local currentLevel, usedStoredOverride = getDebugSkillDisplayLevel(data.name, data.level, currentXP)
     local displayName = tostring(data.displayName or data.name or "Unknown")
     
     -- Background (check item.index exists)
@@ -6023,7 +6323,7 @@ function BurdJournals.UI.DebugPanel.drawJournalSkillItem(self, y, item, alt)
     local squareSize = 12
     local squareSpacing = 2
     local progress = 0
-    if currentLevel < 10 then
+    if currentLevel < 10 and not usedStoredOverride then
         local levelStartXP = 0
         local levelEndXP = 0
         if BurdJournals.getXPThresholdForLevel then
@@ -6170,8 +6470,9 @@ function BurdJournals.UI.DebugPanel.onJournalSkillListClick(self, x, y)
         local clickedLevel = math.floor(relX / (squareSize + squareSpacing)) + 1
         clickedLevel = math.max(0, math.min(10, clickedLevel))
         
-        -- Toggle off if clicking current level
-        if clickedLevel == data.level then
+        local currentDisplayLevel = select(1, getDebugSkillDisplayLevel(data.name, data.level, data.xp))
+        -- Toggle off if clicking current displayed level
+        if clickedLevel == currentDisplayLevel then
             clickedLevel = 0
         end
         
@@ -6369,10 +6670,9 @@ function BurdJournals.UI.DebugPanel.updateJournalDiminishingLabel(self)
     end
 end
 
--- Mark journal as debug-edited for persistence across restarts and mod updates
--- This sets the isDebugSpawned flag which tells sanitization to use lenient mode
--- Also sets isPlayerCreated so claims work properly (not treated as worn/bloody)
--- Also backs up journal data to global ModData for extra persistence (like baseline system)
+-- Mark journal as debug-edited for persistence across restarts and mod updates.
+-- Keeps worn/bloody journals in found-journal claim mode; only clean journals
+-- are forced into player-journal mode.
 function BurdJournals.UI.DebugPanel.markJournalAsDebugEdited(journal)
     if not journal then return end
     local modData = journal:getModData()
@@ -6396,21 +6696,34 @@ function BurdJournals.UI.DebugPanel.markJournalAsDebugEdited(journal)
         BurdJournals.debugPrint("[BurdJournals] Marked journal as debug-edited for persistence")
     end
 
-    -- IMPORTANT: Set isPlayerCreated so claims work properly
-    -- Without this, the journal is treated like a worn/bloody journal with per-character claim tracking
-    if not modData.BurdJournals.isPlayerCreated then
-        modData.BurdJournals.isPlayerCreated = true
+    local fullType = journal.getFullType and journal:getFullType() or ""
+    local isWornType = type(fullType) == "string" and string.find(fullType, "_Worn", 1, true) ~= nil
+    local isBloodyType = type(fullType) == "string" and string.find(fullType, "_Bloody", 1, true) ~= nil
+    local isCursedType = fullType == (BurdJournals.CURSED_ITEM_TYPE or "BurdJournals.CursedJournal")
+    local isFoundJournal = isWornType or isBloodyType or isCursedType
+
+    -- Keep type/origin flags on found journals so per-character claims remain correct.
+    if isWornType and modData.BurdJournals.isWorn ~= true then
+        modData.BurdJournals.isWorn = true
+        modData.BurdJournals.wasFromWorn = true
         needsTransmit = true
-        BurdJournals.debugPrint("[BurdJournals] Set isPlayerCreated=true for proper claim handling")
+    end
+    if isBloodyType and modData.BurdJournals.isBloody ~= true then
+        modData.BurdJournals.isBloody = true
+        modData.BurdJournals.wasFromBloody = true
+        needsTransmit = true
     end
 
-    -- Clear any worn/bloody flags that might interfere with claims
-    if modData.BurdJournals.isWorn or modData.BurdJournals.isBloody then
-        modData.BurdJournals.isWorn = nil
-        modData.BurdJournals.isBloody = nil
-        modData.BurdJournals.wasFromBloody = nil
+    if isFoundJournal then
+        if modData.BurdJournals.isPlayerCreated ~= false then
+            modData.BurdJournals.isPlayerCreated = false
+            needsTransmit = true
+            BurdJournals.debugPrint("[BurdJournals] Preserved found-journal claim mode (isPlayerCreated=false)")
+        end
+    elseif modData.BurdJournals.isPlayerCreated ~= true then
+        modData.BurdJournals.isPlayerCreated = true
         needsTransmit = true
-        BurdJournals.debugPrint("[BurdJournals] Cleared worn/bloody flags for debug-edited journal")
+        BurdJournals.debugPrint("[BurdJournals] Ensured clean journal uses player-journal claim mode")
     end
 
     -- Update sanitized version to current to prevent data removal
@@ -6446,10 +6759,27 @@ function BurdJournals.UI.DebugPanel.finalizeJournalEdit(journal)
         end
         journalUUID = modData.BurdJournals.uuid
 
-        -- Always ensure these flags are set for proper behavior
+        -- Always ensure these flags are set for proper behavior.
+        -- Preserve found-journal claim semantics for worn/bloody item types.
+        local fullType = journal.getFullType and journal:getFullType() or ""
+        local isWornType = type(fullType) == "string" and string.find(fullType, "_Worn", 1, true) ~= nil
+        local isBloodyType = type(fullType) == "string" and string.find(fullType, "_Bloody", 1, true) ~= nil
+        local isCursedType = fullType == (BurdJournals.CURSED_ITEM_TYPE or "BurdJournals.CursedJournal")
         modData.BurdJournals.isDebugSpawned = true
         modData.BurdJournals.isDebugEdited = true
-        modData.BurdJournals.isPlayerCreated = true
+        if isWornType then
+            modData.BurdJournals.isWorn = true
+            modData.BurdJournals.wasFromWorn = true
+        end
+        if isBloodyType then
+            modData.BurdJournals.isBloody = true
+            modData.BurdJournals.wasFromBloody = true
+        end
+        if isWornType or isBloodyType or isCursedType then
+            modData.BurdJournals.isPlayerCreated = false
+        else
+            modData.BurdJournals.isPlayerCreated = true
+        end
         modData.BurdJournals.sanitizedVersion = BurdJournals.SANITIZE_VERSION or 1
 
         -- Mark as written so it's recognized as a valid filled journal
@@ -6510,6 +6840,7 @@ function BurdJournals.UI.DebugPanel.backupJournalToGlobalCache(journal)
 
     -- Use journal UUID as key for stable persistence across reconnects.
     local journalKey = modData.BurdJournals.uuid or tostring(journal:getID())
+    local normalized = BurdJournals.normalizeJournalData(modData.BurdJournals) or modData.BurdJournals
 
     -- Build the backup data structure
     local backupData = {
@@ -6517,10 +6848,34 @@ function BurdJournals.UI.DebugPanel.backupJournalToGlobalCache(journal)
         traits = {},
         recipes = {},
         stats = {},
+        claims = {},
+        claimedSkills = {},
+        claimedTraits = {},
+        claimedRecipes = {},
+        claimedStats = {},
+        claimedForgetSlot = {},
         skillReadCounts = {},
+        forgetSlot = normalized.forgetSlot == true,
+        isCursedJournal = normalized.isCursedJournal == true,
+        cursedState = normalized.cursedState,
+        isCursedReward = normalized.isCursedReward == true,
+        cursedEffectType = normalized.cursedEffectType,
+        cursedUnleashedByCharacterId = normalized.cursedUnleashedByCharacterId,
+        cursedUnleashedByUsername = normalized.cursedUnleashedByUsername,
+        cursedUnleashedAtHours = tonumber(normalized.cursedUnleashedAtHours) or nil,
+        cursedSealSoundEvent = normalized.cursedSealSoundEvent,
+        cursedForcedEffectType = normalized.cursedForcedEffectType,
+        cursedForcedTraitId = normalized.cursedForcedTraitId,
+        cursedForcedSkillName = normalized.cursedForcedSkillName,
+        cursedPendingRewards = nil,
         isDebugSpawned = true,
         isDebugEdited = modData.BurdJournals.isDebugEdited,
         isPlayerCreated = modData.BurdJournals.isPlayerCreated,
+        isWorn = modData.BurdJournals.isWorn,
+        isBloody = modData.BurdJournals.isBloody,
+        wasFromWorn = modData.BurdJournals.wasFromWorn,
+        wasFromBloody = modData.BurdJournals.wasFromBloody,
+        wasRestored = modData.BurdJournals.wasRestored,
         sanitizedVersion = modData.BurdJournals.sanitizedVersion,
         uuid = modData.BurdJournals.uuid,
         readCount = tonumber(modData.BurdJournals.readCount) or 0,
@@ -6532,9 +6887,6 @@ function BurdJournals.UI.DebugPanel.backupJournalToGlobalCache(journal)
         itemType = journal:getFullType(),
         itemID = journal:getID(),
     }
-
-    -- Copy data with normalized tables to avoid Java-backed iteration issues
-    local normalized = BurdJournals.normalizeJournalData(modData.BurdJournals) or modData.BurdJournals
 
     -- Copy skills
     local skillsTable = normalized.skills or {}
@@ -6569,6 +6921,54 @@ function BurdJournals.UI.DebugPanel.backupJournalToGlobalCache(journal)
         if statId then
             backupData.stats[statId] = statData
         end
+    end
+
+    -- Copy claims and legacy claim maps
+    local claimsTable = normalized.claims or {}
+    for characterId, claimData in pairs(claimsTable) do
+        if characterId then
+            backupData.claims[characterId] = claimData
+        end
+    end
+
+    local claimedSkillsTable = normalized.claimedSkills or {}
+    for skillName, value in pairs(claimedSkillsTable) do
+        if skillName then
+            backupData.claimedSkills[skillName] = value
+        end
+    end
+
+    local claimedTraitsTable = normalized.claimedTraits or {}
+    for traitId, value in pairs(claimedTraitsTable) do
+        if traitId then
+            backupData.claimedTraits[traitId] = value
+        end
+    end
+
+    local claimedRecipesTable = normalized.claimedRecipes or {}
+    for recipeName, value in pairs(claimedRecipesTable) do
+        if recipeName then
+            backupData.claimedRecipes[recipeName] = value
+        end
+    end
+
+    local claimedStatsTable = normalized.claimedStats or {}
+    for statId, value in pairs(claimedStatsTable) do
+        if statId then
+            backupData.claimedStats[statId] = value
+        end
+    end
+
+    local claimedForgetTable = normalized.claimedForgetSlot or {}
+    for characterId, value in pairs(claimedForgetTable) do
+        if characterId then
+            backupData.claimedForgetSlot[characterId] = value
+        end
+    end
+
+    if type(normalized.cursedPendingRewards) == "table" then
+        backupData.cursedPendingRewards = BurdJournals.normalizeJournalData(normalized.cursedPendingRewards)
+            or normalized.cursedPendingRewards
     end
 
     -- Copy diminishing-returns per-skill tracking.
@@ -6629,6 +7029,11 @@ function BurdJournals.UI.DebugPanel.restoreJournalFromGlobalCache(journal)
         if BurdJournals.hasAnyEntries(data.traits) then return true end
         if BurdJournals.hasAnyEntries(data.recipes) then return true end
         if BurdJournals.hasAnyEntries(data.stats) then return true end
+        if data.forgetSlot == true then return true end
+        if BurdJournals.hasAnyEntries(data.claims) then return true end
+        if BurdJournals.hasAnyEntries(data.claimedForgetSlot) then return true end
+        if data.isCursedJournal == true or data.isCursedReward == true then return true end
+        if BurdJournals.hasAnyEntries(data.cursedPendingRewards) then return true end
         return false
     end
 
@@ -6687,6 +7092,20 @@ function BurdJournals.UI.DebugPanel.restoreJournalFromGlobalCache(journal)
     modData.BurdJournals.isPlayerCreated = normalizedBackup.isPlayerCreated or true  -- Ensure this is set
     modData.BurdJournals.sanitizedVersion = normalizedBackup.sanitizedVersion or (BurdJournals.SANITIZE_VERSION or 1)
     modData.BurdJournals.uuid = normalizedBackup.uuid
+    modData.BurdJournals.forgetSlot = normalizedBackup.forgetSlot == true
+    modData.BurdJournals.claimedForgetSlot = BurdJournals.normalizeTable(normalizedBackup.claimedForgetSlot) or {}
+    modData.BurdJournals.isCursedJournal = normalizedBackup.isCursedJournal == true
+    modData.BurdJournals.cursedState = normalizedBackup.cursedState
+    modData.BurdJournals.isCursedReward = normalizedBackup.isCursedReward == true
+    modData.BurdJournals.cursedEffectType = normalizedBackup.cursedEffectType
+    modData.BurdJournals.cursedUnleashedByCharacterId = normalizedBackup.cursedUnleashedByCharacterId
+    modData.BurdJournals.cursedUnleashedByUsername = normalizedBackup.cursedUnleashedByUsername
+    modData.BurdJournals.cursedUnleashedAtHours = tonumber(normalizedBackup.cursedUnleashedAtHours) or nil
+    modData.BurdJournals.cursedSealSoundEvent = normalizedBackup.cursedSealSoundEvent
+    modData.BurdJournals.cursedForcedEffectType = normalizedBackup.cursedForcedEffectType
+    modData.BurdJournals.cursedForcedTraitId = normalizedBackup.cursedForcedTraitId
+    modData.BurdJournals.cursedForcedSkillName = normalizedBackup.cursedForcedSkillName
+    modData.BurdJournals.cursedPendingRewards = BurdJournals.normalizeTable(normalizedBackup.cursedPendingRewards)
 
     if shouldRestoreCore then
         -- Restore skills
@@ -6715,6 +7134,12 @@ function BurdJournals.UI.DebugPanel.restoreJournalFromGlobalCache(journal)
         for statId, statData in pairs(normalizedBackup.stats or {}) do
             modData.BurdJournals.stats[statId] = statData
         end
+
+        modData.BurdJournals.claims = BurdJournals.normalizeTable(normalizedBackup.claims) or {}
+        modData.BurdJournals.claimedSkills = BurdJournals.normalizeTable(normalizedBackup.claimedSkills) or {}
+        modData.BurdJournals.claimedTraits = BurdJournals.normalizeTable(normalizedBackup.claimedTraits) or {}
+        modData.BurdJournals.claimedRecipes = BurdJournals.normalizeTable(normalizedBackup.claimedRecipes) or {}
+        modData.BurdJournals.claimedStats = BurdJournals.normalizeTable(normalizedBackup.claimedStats) or {}
     end
 
     if shouldRestoreDR then
@@ -7948,6 +8373,25 @@ function BurdJournals.UI.DebugPanel:onDiagCmd(button)
         local spawnOptions = {
             "EnableWornJournalSpawns",
             "EnableBloodyJournalSpawns",
+            "EnableCursedJournalSpawns",
+            "WornJournalForgetChance",
+            "BloodyJournalForgetChance",
+            "CursedJournalForgetChance",
+            "EnableWornJournalForgetSlot",
+            "EnableBloodyJournalForgetSlot",
+            "EnableCursedJournalForgetSlot",
+            "CursedJournalMinSkills",
+            "CursedJournalMaxSkills",
+            "CursedJournalMinXP",
+            "CursedJournalMaxXP",
+            "EnableCursedJournalTraits",
+            "CursedJournalTraitChance",
+            "CursedJournalMinTraits",
+            "CursedJournalMaxTraits",
+            "EnableCursedJournalRecipes",
+            "CursedJournalRecipeChance",
+            "CursedJournalMaxRecipes",
+            "CursedJournalSpawnChance",
         }
         for _, opt in ipairs(spawnOptions) do
             local value = BurdJournals.getSandboxOption and BurdJournals.getSandboxOption(opt)

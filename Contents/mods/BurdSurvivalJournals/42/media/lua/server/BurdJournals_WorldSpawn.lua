@@ -405,6 +405,8 @@ function BurdJournals.WorldSpawn.generateWornJournalData()
         end
     end
 
+    local forgetSlot = BurdJournals.rollForgetSlotForType and BurdJournals.rollForgetSlotForType("worn")
+
     local journalData = {
         uuid = BurdJournals.generateUUID(),
         author = survivorName,
@@ -415,6 +417,7 @@ function BurdJournals.WorldSpawn.generateWornJournalData()
         skills = skills,
         recipes = recipes,
         traits = traits,
+        forgetSlot = forgetSlot,
 
         isWorn = true,
         isBloody = false,
@@ -424,6 +427,7 @@ function BurdJournals.WorldSpawn.generateWornJournalData()
         claimedSkills = {},
         claimedTraits = {},
         claimedRecipes = {},
+        claimedForgetSlot = {},
     }
 
     return journalData
@@ -523,6 +527,8 @@ function BurdJournals.WorldSpawn.generateBloodyJournalData()
         BurdJournals.debugPrint("[BurdJournals] WorldSpawn Bloody: Recipe roll failed (" .. recipeRoll .. " >= " .. recipeChance .. ")")
     end
 
+    local forgetSlot = BurdJournals.rollForgetSlotForType and BurdJournals.rollForgetSlotForType("bloody")
+
     local journalData = {
         uuid = BurdJournals.generateUUID(),
         author = survivorName,
@@ -533,6 +539,7 @@ function BurdJournals.WorldSpawn.generateBloodyJournalData()
         skills = skills,
         traits = traits,
         recipes = recipes,
+        forgetSlot = forgetSlot,
 
         isWorn = false,
         isBloody = true,
@@ -543,6 +550,7 @@ function BurdJournals.WorldSpawn.generateBloodyJournalData()
         claimedSkills = {},
         claimedTraits = {},
         claimedRecipes = {},
+        claimedForgetSlot = {},
     }
 
     return journalData

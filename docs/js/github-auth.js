@@ -107,7 +107,11 @@ export async function handleOAuthCallback() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ code, state })
+            body: JSON.stringify({
+                code,
+                state,
+                callbackOrigin: window.location.origin
+            })
         });
 
         if (!response.ok) {

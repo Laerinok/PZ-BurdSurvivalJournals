@@ -14,6 +14,11 @@ let saveTimer = null;
  * @param {Object} translations - Translations object
  */
 export function saveLanguageTranslations(langCode, translations) {
+    if (!langCode || typeof langCode !== 'string') {
+        console.warn('Skipping saveLanguageTranslations: invalid language code');
+        return;
+    }
+
     const allTranslations = getAllTranslations();
     allTranslations[langCode] = {
         translations,
@@ -28,6 +33,10 @@ export function saveLanguageTranslations(langCode, translations) {
  * @param {Object} translations - Translations object
  */
 export function saveLanguageTranslationsDebounced(langCode, translations) {
+    if (!langCode || typeof langCode !== 'string') {
+        return;
+    }
+
     if (saveTimer) {
         clearTimeout(saveTimer);
     }
@@ -165,6 +174,57 @@ export function hasEnglishCache() {
 export function clearEnglishCache() {
     localStorage.removeItem(STORAGE_KEYS.cachedEnglish);
     localStorage.removeItem(STORAGE_KEYS.cachedEnglishVersion);
+}
+
+/**
+ * Cache discovered repository languages for resilient startup fallback
+ * @param {string[]} languages - Language codes discovered from GitHub
+ */
+export function cacheRepoLanguages(languages) {
+    if (!Array.isArray(languages) || languages.length === 0) {
+        return;
+    }
+
+    const normalized = languages
+        .filter(code => typeof code === 'string')
+        .map(code => code.trim().toUpperCase())
+        .filter(code => /^[A-Z]{2,4}$/.test(code));
+
+    if (normalized.length === 0) {
+        return;
+    }
+
+    localStorage.setItem(STORAGE_KEYS.cachedRepoLanguages, JSON.stringify(normalized));
+    localStorage.setItem(STORAGE_KEYS.cachedRepoLanguagesVersion, JSON.stringify({
+        version: TOOL_VERSION,
+        timestamp: new Date().toISOString()
+    }));
+}
+
+/**
+ * Get cached repository languages
+ * @returns {string[]|null} Cached language codes or null
+ */
+export function getCachedRepoLanguages() {
+    try {
+        const versionData = localStorage.getItem(STORAGE_KEYS.cachedRepoLanguagesVersion);
+        if (versionData) {
+            const { version } = JSON.parse(versionData);
+            if (version === TOOL_VERSION) {
+                const cached = localStorage.getItem(STORAGE_KEYS.cachedRepoLanguages);
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        return parsed;
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Failed to retrieve cached repo languages:', e);
+    }
+
+    return null;
 }
 
 /**

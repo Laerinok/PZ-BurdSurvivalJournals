@@ -1,9 +1,9 @@
 /**
  * Translation Manager
- * Coordinates translation loading, editing, and state management
+ * Coordinates translation loading, editing, validation, and submission preflight state
  */
 
-import { CATEGORIES, BASE_LANGUAGE } from './config.js';
+import { CATEGORIES, BASE_LANGUAGE, REPO_CONFIG, GITHUB_RAW_BASE } from './config.js';
 import {
     fetchEnglishBaseline,
     fetchAllCategoriesForLanguage,
@@ -20,23 +20,39 @@ import {
     getSavedLanguages,
     cacheEnglishBaseline,
     getCachedEnglishBaseline,
-    hasEnglishCache,
-    updateLastSync
+    updateLastSync,
+    cacheRepoLanguages,
+    getCachedRepoLanguages
 } from './storage-manager.js';
-import { categorizeTranslations } from './lua-parser.js';
+import { categorizeTranslations, getCategoryFromKey } from './lua-parser.js';
+
+const STATIC_REPO_LANGUAGE_FALLBACK = [
+    'EN', 'CN', 'ES', 'FR', 'ID', 'KO', 'PL', 'PTBR', 'RU', 'TR', 'UA'
+];
 
 // State
 let englishBaseline = null;
 let currentLanguage = null;
 let currentTranslations = {};
 let languageManifest = null;
-let discoveredRepoLanguages = []; // Dynamically discovered from GitHub API
+let discoveredRepoLanguages = [];
 let isLoading = false;
 let isOfflineMode = false;
 
 // Track original repo translations to detect changes
 // Structure: { langCode: { key: value, ... }, ... }
 let originalRepoTranslations = {};
+
+// Cached payload built by submission preflight
+let lastSubmissionPreflight = null;
+
+// Cached diagnostics report
+let lastDiagnosticsReport = {
+    duplicateKeys: [],
+    parseErrors: [],
+    legacyItemsPresent: [],
+    missingCategoriesByLang: {}
+};
 
 // Event callbacks
 const eventHandlers = {
@@ -47,6 +63,85 @@ const eventHandlers = {
     onTranslationChanged: [],
     onError: []
 };
+
+function normalizeLangCode(code) {
+    if (!code || typeof code !== 'string') return null;
+    return code.trim().toUpperCase();
+}
+
+function decodeWithCorrectEncoding(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let decoded;
+
+    if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) {
+        decoded = new TextDecoder('utf-16le').decode(buffer);
+    } else if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) {
+        decoded = new TextDecoder('utf-16be').decode(buffer);
+    } else if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+        decoded = new TextDecoder('utf-8').decode(buffer);
+    } else {
+        decoded = new TextDecoder('utf-8').decode(buffer);
+    }
+
+    if (decoded.charCodeAt(0) === 0xFEFF) {
+        decoded = decoded.substring(1);
+    }
+
+    return decoded;
+}
+
+async function detectDuplicateKeysInFile(url, langCode, category, path) {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) return [];
+
+        const buffer = await response.arrayBuffer();
+        const content = decodeWithCorrectEncoding(buffer);
+        const lines = content.split('\n');
+        const firstSeen = new Map();
+        const duplicates = [];
+
+        for (let i = 0; i < lines.length; i++) {
+            const match = lines[i].trim().match(/^([\w.]+)\s*=/);
+            if (!match) continue;
+
+            const key = match[1];
+            const line = i + 1;
+            if (firstSeen.has(key)) {
+                duplicates.push({
+                    langCode,
+                    category,
+                    key,
+                    lines: [firstSeen.get(key), line],
+                    path
+                });
+            } else {
+                firstSeen.set(key, line);
+            }
+        }
+
+        return duplicates;
+    } catch (e) {
+        return [];
+    }
+}
+
+function normalizeLanguageList(codes) {
+    if (!Array.isArray(codes)) return [];
+    return [...new Set(
+        codes
+            .map(normalizeLangCode)
+            .filter(code => !!code && /^[A-Z]{2,4}$/.test(code))
+    )].sort();
+}
+
+function ensureBaseLanguage(codes) {
+    const normalized = normalizeLanguageList(codes);
+    if (!normalized.includes(BASE_LANGUAGE)) {
+        normalized.unshift(BASE_LANGUAGE);
+    }
+    return normalized;
+}
 
 /**
  * Register event handler
@@ -76,6 +171,55 @@ function emit(event, data) {
     }
 }
 
+async function resolveRepoLanguages() {
+    const discovered = await discoverRepoLanguages();
+    const normalizedDiscovered = normalizeLanguageList(discovered);
+    if (normalizedDiscovered.length > 0) {
+        cacheRepoLanguages(normalizedDiscovered);
+        return {
+            source: 'github',
+            languages: ensureBaseLanguage(normalizedDiscovered)
+        };
+    }
+
+    const cached = normalizeLanguageList(getCachedRepoLanguages());
+    if (cached.length > 0) {
+        return {
+            source: 'cache',
+            languages: ensureBaseLanguage(cached)
+        };
+    }
+
+    return {
+        source: 'static',
+        languages: ensureBaseLanguage(STATIC_REPO_LANGUAGE_FALLBACK)
+    };
+}
+
+async function ensureRepoBaseline(langCode, onProgress = null) {
+    const normalized = normalizeLangCode(langCode);
+    if (!normalized) {
+        return {};
+    }
+
+    if (originalRepoTranslations[normalized]) {
+        return originalRepoTranslations[normalized];
+    }
+
+    if (!isLanguageInRepo(normalized)) {
+        originalRepoTranslations[normalized] = {};
+        return {};
+    }
+
+    const result = await fetchAllCategoriesForLanguage(normalized, onProgress);
+    if (result.errors.length === CATEGORIES.length) {
+        throw new Error(`Failed to load repository baseline for ${normalized}`);
+    }
+
+    originalRepoTranslations[normalized] = { ...result.translations };
+    return originalRepoTranslations[normalized];
+}
+
 /**
  * Initialize the translation manager
  * @param {Function} onProgress - Progress callback
@@ -89,41 +233,30 @@ export async function initialize(onProgress = null) {
         // Load language manifest (for display names)
         if (onProgress) onProgress('Loading language manifest...', 0, 4);
         languageManifest = await fetchLanguageManifest();
-
         if (!languageManifest) {
-            // Use default manifest structure
-            languageManifest = {
-                zomboidLanguages: []
-            };
+            languageManifest = { zomboidLanguages: [] };
         }
 
-        // Dynamically discover which languages exist in the repo
+        // Discover repo languages with resilient fallback
         if (onProgress) onProgress('Discovering available languages...', 1, 4);
-        const discovered = await discoverRepoLanguages();
-        if (discovered && discovered.length > 0) {
-            discoveredRepoLanguages = discovered;
-            console.log('Languages in repo:', discoveredRepoLanguages);
-        } else {
-            // Fallback to EN only if discovery fails
-            discoveredRepoLanguages = ['EN'];
-            console.warn('Language discovery failed, defaulting to EN only');
+        const resolved = await resolveRepoLanguages();
+        discoveredRepoLanguages = resolved.languages;
+        if (resolved.source !== 'github') {
+            console.warn(`Language discovery fallback in use: ${resolved.source}`);
         }
 
         // Load English baseline
         if (onProgress) onProgress('Loading English baseline...', 2, 4);
-
-        // Check cache first
         const cached = getCachedEnglishBaseline();
         if (cached) {
             englishBaseline = cached;
             isOfflineMode = false;
 
-            // Try to refresh in background
+            // Refresh in background
             refreshEnglishBaseline().catch(e => {
                 console.warn('Background refresh failed:', e);
             });
         } else {
-            // Must fetch from network
             const result = await fetchEnglishBaseline((category, index, total) => {
                 if (onProgress) {
                     onProgress(`Loading ${category}...`, 2 + (index / total), 4);
@@ -131,7 +264,6 @@ export async function initialize(onProgress = null) {
             });
 
             if (result.errors.length === CATEGORIES.length) {
-                // All categories failed
                 emit('onError', { message: 'Failed to load English translations. Check your internet connection.' });
                 isOfflineMode = true;
                 isLoading = false;
@@ -201,54 +333,50 @@ export function getCurrentTranslations() {
  * @returns {Promise<boolean>} True if successful
  */
 export async function switchLanguage(langCode, loadFromRepo = true, onProgress = null) {
-    if (langCode === currentLanguage) {
+    const normalized = normalizeLangCode(langCode);
+    if (!normalized) {
+        return false;
+    }
+
+    if (normalized === currentLanguage) {
         return true;
     }
 
     isLoading = true;
-    emit('onLoadingStart', { phase: 'switch', langCode });
+    emit('onLoadingStart', { phase: 'switch', langCode: normalized });
 
     try {
-        // Save current language if exists
         if (currentLanguage && Object.keys(currentTranslations).length > 0) {
             saveLanguageTranslations(currentLanguage, currentTranslations);
         }
 
-        currentLanguage = langCode;
+        currentLanguage = normalized;
         currentTranslations = {};
 
-        // Check for saved local translations first
-        const saved = getLanguageTranslations(langCode);
+        // Load local saved translations first
+        const saved = getLanguageTranslations(normalized);
         if (saved) {
             currentTranslations = { ...saved };
         }
 
-        // If loading from repo and language is in repo
-        if (loadFromRepo && isLanguageInRepo(langCode)) {
-            if (onProgress) onProgress(`Loading ${langCode} translations...`, 0, 1);
-
-            const result = await fetchAllCategoriesForLanguage(langCode, (category, index, total) => {
+        if (loadFromRepo && isLanguageInRepo(normalized)) {
+            if (onProgress) onProgress(`Loading ${normalized} translations...`, 0, 1);
+            const repoTranslations = await ensureRepoBaseline(normalized, (category, index, total) => {
                 if (onProgress) {
                     onProgress(`Loading ${category}...`, index / total, 1);
                 }
             });
 
-            // Store the original repo translations for this language (for change detection)
-            originalRepoTranslations[langCode] = { ...result.translations };
-
-            // Merge repo translations (repo takes precedence for existing keys)
-            // But preserve local additions
-            for (const [key, value] of Object.entries(result.translations)) {
+            for (const [key, value] of Object.entries(repoTranslations)) {
                 if (!(key in currentTranslations) || !currentTranslations[key]) {
                     currentTranslations[key] = value;
                 }
             }
-        } else if (!isLanguageInRepo(langCode)) {
-            // For new languages not in repo, there are no original translations
-            originalRepoTranslations[langCode] = {};
+        } else if (!isLanguageInRepo(normalized)) {
+            originalRepoTranslations[normalized] = {};
         }
 
-        emit('onLanguageChanged', { langCode, translations: currentTranslations });
+        emit('onLanguageChanged', { langCode: normalized, translations: currentTranslations });
         isLoading = false;
         emit('onLoadingEnd', { success: true });
         return true;
@@ -267,6 +395,11 @@ export async function switchLanguage(langCode, loadFromRepo = true, onProgress =
  * @param {string} value - Translation value
  */
 export function updateTranslation(key, value) {
+    if (!currentLanguage) {
+        console.warn('Skipping updateTranslation: no language selected');
+        return;
+    }
+
     currentTranslations[key] = value;
     saveLanguageTranslationsDebounced(currentLanguage, currentTranslations);
     emit('onTranslationChanged', { key, value, langCode: currentLanguage });
@@ -277,6 +410,11 @@ export function updateTranslation(key, value) {
  * @param {Object} translations - Object with key-value pairs
  */
 export function updateTranslations(translations) {
+    if (!currentLanguage) {
+        console.warn('Skipping updateTranslations: no language selected');
+        return;
+    }
+
     Object.assign(currentTranslations, translations);
     saveLanguageTranslations(currentLanguage, currentTranslations);
     emit('onTranslationChanged', { bulk: true, langCode: currentLanguage });
@@ -363,25 +501,9 @@ export function getCategorizedEnglish() {
  * @returns {boolean} True if in repo
  */
 export function isLanguageInRepo(langCode) {
-    return discoveredRepoLanguages.includes(langCode);
-}
-
-/**
- * Get available languages (dynamically discovered from repo)
- * @returns {Array} Array of language objects
- */
-export function getAvailableLanguages() {
-    // Build from discovered languages + display names from manifest
-    const allKnownLanguages = getAllKnownLanguages();
-
-    return discoveredRepoLanguages.map(code => {
-        const known = allKnownLanguages.find(l => l.code === code);
-        return {
-            code,
-            name: known?.name || code,
-            inRepo: true
-        };
-    });
+    const normalized = normalizeLangCode(langCode);
+    if (!normalized) return false;
+    return discoveredRepoLanguages.includes(normalized);
 }
 
 /**
@@ -421,13 +543,19 @@ function getAllKnownLanguages() {
         { code: 'VI', name: 'Vietnamese' }
     ];
 
-    // Merge with manifest's zomboidLanguages
     const fromManifest = languageManifest?.zomboidLanguages || [];
     const combined = [...builtIn];
 
     for (const lang of fromManifest) {
-        if (!combined.find(l => l.code === lang.code)) {
-            combined.push(lang);
+        const code = normalizeLangCode(lang.code);
+        if (!code) continue;
+
+        if (!combined.find(l => l.code === code)) {
+            combined.push({
+                ...lang,
+                code,
+                name: lang.name || code
+            });
         }
     }
 
@@ -435,28 +563,71 @@ function getAllKnownLanguages() {
 }
 
 /**
- * Get all Zomboid languages not yet in repo (for new translations)
+ * Get available languages (from repo)
+ * @returns {Array} Array of language objects
+ */
+export function getAvailableLanguages() {
+    const allKnown = getAllKnownLanguages();
+    const localWork = new Set(getLanguagesWithLocalWork());
+
+    return discoveredRepoLanguages.map(code => {
+        const known = allKnown.find(l => l.code === code);
+        return {
+            code,
+            name: known?.name || code,
+            inRepo: true,
+            hasLocalDraft: localWork.has(code)
+        };
+    });
+}
+
+/**
+ * Get local draft languages not currently in repo
+ * @returns {Array} Local draft language objects
+ */
+export function getLocalDraftLanguages() {
+    const allKnown = getAllKnownLanguages();
+    return getLanguagesWithLocalWork()
+        .filter(code => !isLanguageInRepo(code))
+        .map(code => {
+            const known = allKnown.find(l => l.code === code);
+            return {
+                code,
+                name: known?.name || code,
+                inRepo: false,
+                hasLocalDraft: true
+            };
+        })
+        .sort((a, b) => a.code.localeCompare(b.code));
+}
+
+/**
+ * Get all Zomboid languages not yet in repo and without local draft
  * @returns {Array} Array of language objects
  */
 export function getZomboidLanguages() {
     const allKnown = getAllKnownLanguages();
-    // Filter out languages already in the repo
-    return allKnown.filter(lang => !discoveredRepoLanguages.includes(lang.code));
+    const localWork = new Set(getLanguagesWithLocalWork());
+
+    return allKnown
+        .filter(lang => !discoveredRepoLanguages.includes(lang.code))
+        .filter(lang => !localWork.has(lang.code));
 }
 
 /**
- * Get all languages (available + zomboid)
+ * Get all languages (available + local drafts + new)
  * @returns {Array} Combined array
  */
 export function getAllLanguages() {
     const available = getAvailableLanguages();
+    const localDrafts = getLocalDraftLanguages();
     const zomboid = getZomboidLanguages();
-    const availableCodes = available.map(l => l.code);
+    const taken = new Set([...available, ...localDrafts].map(l => l.code));
 
-    // Combine, excluding duplicates
     return [
         ...available,
-        ...zomboid.filter(l => !availableCodes.includes(l.code))
+        ...localDrafts,
+        ...zomboid.filter(l => !taken.has(l.code))
     ];
 }
 
@@ -465,7 +636,7 @@ export function getAllLanguages() {
  * @returns {Array} Array of language codes
  */
 export function getLanguagesWithLocalWork() {
-    return getSavedLanguages();
+    return normalizeLanguageList(getSavedLanguages());
 }
 
 /**
@@ -493,56 +664,137 @@ export function forceSave() {
     }
 }
 
-/**
- * Get all saved translation data for PR submission
- * Only includes translations that are NEW or CHANGED compared to the repo
- * IMPORTANT: Only includes languages that have been loaded this session
- * (so we have a baseline to compare against)
- * @returns {Object} Changed/new translations by language
- */
-export function getAllSavedTranslationsForSubmission() {
-    const result = {};
-
-    // First, save current work to ensure we have the latest
+function getSavedSnapshots() {
     if (currentLanguage && Object.keys(currentTranslations).length > 0) {
         saveLanguageTranslations(currentLanguage, currentTranslations);
     }
+    return getAllTranslations();
+}
 
-    const saved = getAllTranslations();
+function getNonEmptyTranslations(translations) {
+    const cleaned = {};
+    for (const [key, value] of Object.entries(translations || {})) {
+        if (typeof value === 'string' && value.trim()) {
+            cleaned[key] = value;
+        }
+    }
+    return cleaned;
+}
 
-    for (const [langCode, data] of Object.entries(saved)) {
-        if (!data.translations || Object.keys(data.translations).length === 0) {
+function buildChangedTranslations(userTranslations, repoBaseline) {
+    const changed = {};
+    for (const [key, value] of Object.entries(userTranslations)) {
+        if (repoBaseline[key] === undefined || repoBaseline[key] !== value) {
+            changed[key] = value;
+        }
+    }
+    return changed;
+}
+
+/**
+ * Build deterministic submission payload by fetching repo baselines as needed.
+ * @param {Object} options - Options
+ * @param {string[]} options.includeLanguages - Optional language allowlist
+ * @returns {Promise<Object>} Preflight payload
+ */
+export async function buildSubmissionPreflight(options = {}) {
+    const includeLanguages = Array.isArray(options.includeLanguages)
+        ? new Set(normalizeLanguageList(options.includeLanguages))
+        : null;
+
+    const saved = getSavedSnapshots();
+    const result = {
+        changedByLang: {},
+        fullTranslationsByLang: {},
+        filesPlanned: [],
+        languagesIncluded: [],
+        blockingIssues: [],
+        warnings: []
+    };
+
+    for (const [rawCode, data] of Object.entries(saved)) {
+        const langCode = normalizeLangCode(rawCode);
+        if (!langCode || langCode === BASE_LANGUAGE) continue;
+        if (includeLanguages && !includeLanguages.has(langCode)) continue;
+
+        const userTranslations = getNonEmptyTranslations(data?.translations || {});
+        if (Object.keys(userTranslations).length === 0) continue;
+
+        let repoBaseline = {};
+        try {
+            repoBaseline = await ensureRepoBaseline(langCode);
+        } catch (e) {
+            result.blockingIssues.push(`Failed to load repository baseline for ${langCode}: ${e.message}`);
             continue;
         }
 
-        // CRITICAL: Only include languages that have been loaded this session
-        // If we haven't loaded the language, we don't have a baseline to compare against
-        // and we'd incorrectly mark all saved translations as "new"
-        if (!(langCode in originalRepoTranslations)) {
-            console.log(`Skipping ${langCode} - not loaded this session (no baseline for comparison)`);
-            continue;
+        const changed = buildChangedTranslations(userTranslations, repoBaseline);
+        if (Object.keys(changed).length === 0) continue;
+
+        const merged = { ...repoBaseline, ...userTranslations };
+        result.changedByLang[langCode] = changed;
+        result.fullTranslationsByLang[langCode] = merged;
+        result.languagesIncluded.push(langCode);
+
+        const categorized = categorizeTranslations(merged);
+        for (const category of CATEGORIES) {
+            const keyCount = Object.keys(categorized[category] || {}).length;
+            if (keyCount === 0) continue;
+
+            const filename = `${category}_${langCode}.txt`;
+            result.filesPlanned.push({
+                langCode,
+                category,
+                keyCount,
+                filename,
+                paths: {
+                    build42: `${REPO_CONFIG.translationPaths.build42}/${langCode}/${filename}`,
+                    build41: `${REPO_CONFIG.translationPaths.build41}/${langCode}/${filename}`
+                }
+            });
         }
+    }
 
-        // Get the original repo translations for this language
-        const originalRepo = originalRepoTranslations[langCode];
+    result.languagesIncluded.sort((a, b) => a.localeCompare(b));
 
-        // Find only changed or new translations
-        const changedTranslations = {};
-        for (const [key, value] of Object.entries(data.translations)) {
-            // Skip empty values
-            if (!value || !value.trim()) continue;
+    if (result.languagesIncluded.length === 0) {
+        result.blockingIssues.push('No changed translations found to submit.');
+    }
 
-            const originalValue = originalRepo[key];
+    lastSubmissionPreflight = result;
+    return result;
+}
 
-            // Include if: new key (not in repo) OR value has changed
-            if (originalValue === undefined || originalValue !== value) {
-                changedTranslations[key] = value;
-            }
-        }
+/**
+ * Get last computed submission preflight payload
+ * @returns {Object|null} Last payload
+ */
+export function getLastSubmissionPreflight() {
+    return lastSubmissionPreflight;
+}
 
-        // Only include language if there are actual changes
-        if (Object.keys(changedTranslations).length > 0) {
-            result[langCode] = changedTranslations;
+/**
+ * Backward-compatible helper for existing call sites
+ * @returns {Object} Changed/new translations by language
+ */
+export function getAllSavedTranslationsForSubmission() {
+    if (lastSubmissionPreflight?.changedByLang) {
+        return { ...lastSubmissionPreflight.changedByLang };
+    }
+
+    const result = {};
+    const saved = getSavedSnapshots();
+
+    for (const [rawCode, data] of Object.entries(saved)) {
+        const langCode = normalizeLangCode(rawCode);
+        if (!langCode || langCode === BASE_LANGUAGE) continue;
+        const userTranslations = getNonEmptyTranslations(data?.translations || {});
+        if (Object.keys(userTranslations).length === 0) continue;
+
+        const baseline = originalRepoTranslations[langCode] || {};
+        const changed = buildChangedTranslations(userTranslations, baseline);
+        if (Object.keys(changed).length > 0) {
+            result[langCode] = changed;
         }
     }
 
@@ -555,53 +807,120 @@ export function getAllSavedTranslationsForSubmission() {
  * @returns {Object} Original translations from repo
  */
 export function getOriginalRepoTranslations(langCode) {
-    return originalRepoTranslations[langCode] || {};
+    const normalized = normalizeLangCode(langCode);
+    if (!normalized) return {};
+    return originalRepoTranslations[normalized] || {};
 }
 
 /**
- * Get full merged translations for PR submission
- * This returns complete translation files (repo + user edits merged)
+ * Backward-compatible helper for existing call sites
  * @returns {Object} Full merged translations by language code
  */
 export function getFullMergedTranslationsForSubmission() {
-    const result = {};
-
-    // First, save current work to ensure we have the latest
-    if (currentLanguage && Object.keys(currentTranslations).length > 0) {
-        saveLanguageTranslations(currentLanguage, currentTranslations);
+    if (lastSubmissionPreflight?.fullTranslationsByLang) {
+        return { ...lastSubmissionPreflight.fullTranslationsByLang };
     }
 
-    const saved = getAllTranslations();
+    const result = {};
+    const saved = getSavedSnapshots();
 
-    for (const [langCode, data] of Object.entries(saved)) {
-        if (!data.translations || Object.keys(data.translations).length === 0) {
-            continue;
-        }
+    for (const [rawCode, data] of Object.entries(saved)) {
+        const langCode = normalizeLangCode(rawCode);
+        if (!langCode || langCode === BASE_LANGUAGE) continue;
+        const userTranslations = getNonEmptyTranslations(data?.translations || {});
+        if (Object.keys(userTranslations).length === 0) continue;
 
-        // CRITICAL: Only include languages that have been loaded this session
-        if (!(langCode in originalRepoTranslations)) {
-            console.log(`Skipping ${langCode} for full merge - not loaded this session`);
-            continue;
-        }
-
-        // Merge: start with original repo translations, overlay user edits
-        const originalRepo = originalRepoTranslations[langCode];
-        const userEdits = data.translations;
-
-        // Create full merged translations
-        const mergedTranslations = { ...originalRepo };
-
-        // Apply user edits (only non-empty values)
-        for (const [key, value] of Object.entries(userEdits)) {
-            if (value && value.trim()) {
-                mergedTranslations[key] = value;
-            }
-        }
-
-        result[langCode] = mergedTranslations;
+        const baseline = originalRepoTranslations[langCode] || {};
+        result[langCode] = { ...baseline, ...userTranslations };
     }
 
     return result;
+}
+
+/**
+ * Build diagnostics report for maintainer tooling and translation health UI
+ * @param {Object} options - Options
+ * @param {string[]} options.langCodes - Optional language subset
+ * @returns {Promise<Object>} Diagnostics report
+ */
+export async function buildDiagnosticsReport(options = {}) {
+    const langCodes = Array.isArray(options.langCodes) && options.langCodes.length > 0
+        ? normalizeLanguageList(options.langCodes)
+        : [...discoveredRepoLanguages];
+
+    const report = {
+        duplicateKeys: [...(lastDiagnosticsReport.duplicateKeys || [])],
+        parseErrors: [...(lastDiagnosticsReport.parseErrors || [])],
+        legacyItemsPresent: [...(lastDiagnosticsReport.legacyItemsPresent || [])],
+        missingCategoriesByLang: { ...(lastDiagnosticsReport.missingCategoriesByLang || {}) }
+    };
+
+    // Remove old parse/missing data for refreshed languages.
+    report.parseErrors = report.parseErrors.filter(entry => !langCodes.includes(entry.langCode));
+    report.duplicateKeys = report.duplicateKeys.filter(entry => !langCodes.includes(entry.langCode));
+    for (const langCode of langCodes) {
+        delete report.missingCategoriesByLang[langCode];
+    }
+
+    for (const langCode of langCodes) {
+        const result = await fetchAllCategoriesForLanguage(langCode);
+
+        const missing = [];
+        for (const category of CATEGORIES) {
+            const catResult = result.categories?.[category];
+            if (!catResult || catResult.status !== 'loaded') {
+                missing.push(category);
+            }
+        }
+        if (missing.length > 0) {
+            report.missingCategoriesByLang[langCode] = missing;
+        }
+
+        for (const err of result.errors || []) {
+            report.parseErrors.push({
+                langCode,
+                error: err
+            });
+        }
+
+        for (const category of CATEGORIES) {
+            const filename = `${category}_${langCode}.txt`;
+            const path = `${REPO_CONFIG.translationPaths.build42}/${langCode}/${filename}`;
+            const url = `${GITHUB_RAW_BASE}/${path}`;
+            const duplicates = await detectDuplicateKeysInFile(url, langCode, category, path);
+            report.duplicateKeys.push(...duplicates);
+        }
+    }
+
+    // Legacy Items_XX.txt detection (read-only warning surface)
+    for (const langCode of langCodes) {
+        report.legacyItemsPresent = report.legacyItemsPresent.filter(item => item.langCode !== langCode);
+        const legacyPath = `${REPO_CONFIG.translationPaths.build42}/${langCode}/Items_${langCode}.txt`;
+        const legacyUrl = `${GITHUB_RAW_BASE}/${legacyPath}`;
+
+        try {
+            const response = await fetch(legacyUrl, { method: 'HEAD' });
+            if (response.ok) {
+                report.legacyItemsPresent.push({
+                    langCode,
+                    path: legacyPath
+                });
+            }
+        } catch (e) {
+            // Non-blocking diagnostic check
+        }
+    }
+
+    lastDiagnosticsReport = report;
+    return report;
+}
+
+/**
+ * Get the last diagnostics report
+ * @returns {Object} Diagnostics report
+ */
+export function getDiagnosticsReport() {
+    return lastDiagnosticsReport;
 }
 
 /**
@@ -618,4 +937,55 @@ export function getLanguageManifest() {
  */
 export function getDiscoveredRepoLanguages() {
     return [...discoveredRepoLanguages];
+}
+
+/**
+ * Get translation health for current language
+ * @returns {Object} Basic local translation health metrics
+ */
+export function getTranslationHealth() {
+    const english = englishBaseline || {};
+    const current = currentTranslations || {};
+    const stats = calculateCompletionStats(current, english);
+
+    const emptyKeys = [];
+    for (const key of Object.keys(english)) {
+        if (!current[key] || !current[key].trim()) {
+            emptyKeys.push(key);
+        }
+    }
+
+    return {
+        langCode: currentLanguage,
+        coverage: stats,
+        emptyKeyCount: emptyKeys.length
+    };
+}
+
+/**
+ * Validate key category distribution for arbitrary translations
+ * @param {Object} translations - Flat translation key/value map
+ * @returns {Object} Categorized key counts and uncategorized keys
+ */
+export function getTranslationCategoryDiagnostics(translations) {
+    const byCategory = {};
+    const uncategorized = [];
+
+    for (const category of CATEGORIES) {
+        byCategory[category] = 0;
+    }
+
+    for (const key of Object.keys(translations || {})) {
+        const category = getCategoryFromKey(key);
+        if (category && byCategory[category] !== undefined) {
+            byCategory[category]++;
+        } else {
+            uncategorized.push(key);
+        }
+    }
+
+    return {
+        byCategory,
+        uncategorized
+    };
 }

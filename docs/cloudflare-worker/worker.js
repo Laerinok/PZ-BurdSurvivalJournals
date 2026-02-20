@@ -3,12 +3,99 @@
  * Cloudflare Worker for securely exchanging OAuth codes for tokens
  *
  * Environment Variables (set via wrangler secret):
- * - GITHUB_CLIENT_ID: Your GitHub OAuth App Client ID
- * - GITHUB_CLIENT_SECRET: Your GitHub OAuth App Client Secret
- * - ALLOWED_ORIGINS: Comma-separated list of allowed origins (e.g., "https://theburd.github.io")
+ * - GITHUB_CLIENT_ID
+ * - GITHUB_CLIENT_SECRET
+ * - ALLOWED_ORIGINS (comma-separated exact origins)
  */
 
 const GITHUB_OAUTH_URL = 'https://github.com/login/oauth/access_token';
+
+function parseAllowedOrigins(env) {
+    return (env?.ALLOWED_ORIGINS || 'https://theburd.github.io')
+        .split(',')
+        .map(o => o.trim())
+        .filter(Boolean);
+}
+
+function isOriginAllowed(origin, env) {
+    if (!origin) return false;
+    const allowedOrigins = parseAllowedOrigins(env);
+    return allowedOrigins.includes(origin);
+}
+
+function getCorsHeaders(origin, env, allowed) {
+    const headers = {
+        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Max-Age': '86400',
+        Vary: 'Origin'
+    };
+
+    if (allowed) {
+        headers['Access-Control-Allow-Origin'] = origin;
+    }
+
+    return headers;
+}
+
+function jsonResponse(payload, status, origin, env, allowedOrigin) {
+    return new Response(JSON.stringify(payload), {
+        status,
+        headers: {
+            ...getCorsHeaders(origin, env, allowedOrigin),
+            'Content-Type': 'application/json'
+        }
+    });
+}
+
+function errorResponse(code, message, status, origin, env, allowedOrigin) {
+    return jsonResponse({
+        error: {
+            code,
+            message
+        }
+    }, status, origin, env, allowedOrigin);
+}
+
+async function parseJsonBody(request) {
+    try {
+        const body = await request.json();
+        if (!body || typeof body !== 'object' || Array.isArray(body)) {
+            return { ok: false, error: 'Body must be a JSON object' };
+        }
+        return { ok: true, body };
+    } catch (e) {
+        return { ok: false, error: 'Invalid JSON body' };
+    }
+}
+
+function validateTokenRequest(body, origin) {
+    if (typeof body.code !== 'string' || !body.code.trim()) {
+        return 'Missing code parameter';
+    }
+
+    if (typeof body.state !== 'string' || !/^[a-f0-9]{32}$/i.test(body.state)) {
+        return 'Missing or invalid state parameter';
+    }
+
+    if (body.callbackOrigin !== undefined) {
+        if (typeof body.callbackOrigin !== 'string' || !body.callbackOrigin.trim()) {
+            return 'Invalid callbackOrigin parameter';
+        }
+        if (origin && body.callbackOrigin !== origin) {
+            return 'callbackOrigin does not match request Origin';
+        }
+    }
+
+    return null;
+}
+
+function validateRevokeRequest(body) {
+    if (typeof body.token !== 'string' || body.token.trim().length < 10) {
+        return 'Missing or invalid token parameter';
+    }
+    return null;
+}
 
 /**
  * Build GitHub app authorization headers
@@ -17,16 +104,14 @@ const GITHUB_OAUTH_URL = 'https://github.com/login/oauth/access_token';
  */
 function getGitHubAppHeaders(env) {
     return {
-        'Accept': 'application/vnd.github+json',
-        'Authorization': 'Basic ' + btoa(`${env.GITHUB_CLIENT_ID}:${env.GITHUB_CLIENT_SECRET}`),
+        Accept: 'application/vnd.github+json',
+        Authorization: 'Basic ' + btoa(`${env.GITHUB_CLIENT_ID}:${env.GITHUB_CLIENT_SECRET}`),
         'X-GitHub-Api-Version': '2022-11-28'
     };
 }
 
 /**
- * Revoke OAuth authorization on GitHub.
- * First tries to delete the app grant (all tokens for this app+user),
- * then falls back to deleting the specific token.
+ * Revoke OAuth authorization on GitHub
  * @param {string} accessToken - OAuth access token
  * @param {Object} env - Worker environment
  * @returns {Promise<Object>} Revoke result
@@ -36,7 +121,6 @@ async function revokeGitHubAuthorization(accessToken, env) {
     const baseUrl = `https://api.github.com/applications/${env.GITHUB_CLIENT_ID}`;
     const body = JSON.stringify({ access_token: accessToken });
 
-    // 1) Revoke full grant (preferred)
     try {
         const grantResponse = await fetch(`${baseUrl}/grant`, {
             method: 'DELETE',
@@ -44,15 +128,13 @@ async function revokeGitHubAuthorization(accessToken, env) {
             body
         });
 
-        // 204 = revoked, 404 = already gone
         if (grantResponse.status === 204 || grantResponse.status === 404) {
             return { success: true, endpoint: 'grant', status: grantResponse.status };
         }
     } catch (e) {
-        // Fall through to token revoke attempt
+        // Fall through to token revoke attempt.
     }
 
-    // 2) Fallback: revoke only the provided token
     const tokenResponse = await fetch(`${baseUrl}/token`, {
         method: 'DELETE',
         headers,
@@ -70,138 +152,120 @@ async function revokeGitHubAuthorization(accessToken, env) {
     };
 }
 
-// CORS headers
-function getCorsHeaders(origin, env) {
-    const allowedOrigins = (env?.ALLOWED_ORIGINS || 'https://theburd.github.io').split(',').map(o => o.trim());
-
-    // Check if origin is allowed
-    const isAllowed = allowedOrigins.includes(origin) ||
-                      allowedOrigins.includes('*') ||
-                      origin?.includes('localhost');
-
-    return {
-        'Access-Control-Allow-Origin': isAllowed ? origin : allowedOrigins[0],
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Max-Age': '86400',
-    };
+function assertOriginAllowed(origin, env) {
+    const allowed = isOriginAllowed(origin, env);
+    if (!allowed) {
+        return {
+            ok: false,
+            response: errorResponse(
+                'forbidden_origin',
+                'Origin is not allowed',
+                403,
+                origin,
+                env,
+                false
+            )
+        };
+    }
+    return { ok: true };
 }
 
-// Handle CORS preflight
-function handleOptions(request, env) {
-    const origin = request.headers.get('Origin');
-    return new Response(null, {
-        status: 204,
-        headers: getCorsHeaders(origin, env)
-    });
-}
-
-// Main handler
 export default {
     async fetch(request, env) {
         const url = new URL(request.url);
         const origin = request.headers.get('Origin');
-        const corsHeaders = getCorsHeaders(origin, env);
 
-        // Handle CORS preflight
         if (request.method === 'OPTIONS') {
-            return handleOptions(request, env);
+            const originResult = assertOriginAllowed(origin, env);
+            if (!originResult.ok) {
+                return originResult.response;
+            }
+            return new Response(null, {
+                status: 204,
+                headers: getCorsHeaders(origin, env, true)
+            });
         }
 
-        // Route: POST /token - Exchange code for access token
+        if (url.pathname === '/health') {
+            return jsonResponse({
+                status: 'ok',
+                timestamp: new Date().toISOString()
+            }, 200, origin, env, isOriginAllowed(origin, env));
+        }
+
         if (url.pathname === '/token' && request.method === 'POST') {
+            const originResult = assertOriginAllowed(origin, env);
+            if (!originResult.ok) return originResult.response;
+
+            const parsed = await parseJsonBody(request);
+            if (!parsed.ok) {
+                return errorResponse('invalid_request', parsed.error, 400, origin, env, true);
+            }
+
+            const tokenRequestError = validateTokenRequest(parsed.body, origin);
+            if (tokenRequestError) {
+                return errorResponse('invalid_request', tokenRequestError, 400, origin, env, true);
+            }
+
             try {
-                const body = await request.json();
-                const { code, state } = body;
-
-                if (!code) {
-                    return new Response(JSON.stringify({ error: 'Missing code parameter' }), {
-                        status: 400,
-                        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                    });
-                }
-
-                // Exchange code for token with GitHub
                 const tokenResponse = await fetch(GITHUB_OAUTH_URL, {
                     method: 'POST',
                     headers: {
-                        'Accept': 'application/json',
+                        Accept: 'application/json',
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         client_id: env.GITHUB_CLIENT_ID,
                         client_secret: env.GITHUB_CLIENT_SECRET,
-                        code: code
+                        code: parsed.body.code
                     })
                 });
 
                 const tokenData = await tokenResponse.json();
-
-                // Return token to client
-                return new Response(JSON.stringify(tokenData), {
-                    status: tokenResponse.ok ? 200 : 400,
-                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                });
+                return jsonResponse(
+                    tokenData,
+                    tokenResponse.ok ? 200 : 400,
+                    origin,
+                    env,
+                    true
+                );
             } catch (error) {
-                return new Response(JSON.stringify({ error: error.message }), {
-                    status: 500,
-                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                });
+                return errorResponse('upstream_error', error.message, 500, origin, env, true);
             }
         }
 
-        // Route: POST /revoke - Revoke an access token
         if (url.pathname === '/revoke' && request.method === 'POST') {
+            const originResult = assertOriginAllowed(origin, env);
+            if (!originResult.ok) return originResult.response;
+
+            const parsed = await parseJsonBody(request);
+            if (!parsed.ok) {
+                return errorResponse('invalid_request', parsed.error, 400, origin, env, true);
+            }
+
+            const revokeRequestError = validateRevokeRequest(parsed.body);
+            if (revokeRequestError) {
+                return errorResponse('invalid_request', revokeRequestError, 400, origin, env, true);
+            }
+
             try {
-                const body = await request.json();
-                const { token } = body;
-
-                if (!token) {
-                    return new Response(JSON.stringify({ error: 'Missing token parameter' }), {
-                        status: 400,
-                        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                    });
-                }
-
-                const revokeResult = await revokeGitHubAuthorization(token, env);
-
+                const revokeResult = await revokeGitHubAuthorization(parsed.body.token, env);
                 if (revokeResult.success) {
-                    return new Response(JSON.stringify({ success: true }), {
-                        status: 200,
-                        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                    });
+                    return jsonResponse({ success: true }, 200, origin, env, true);
                 }
-
-                return new Response(JSON.stringify({
-                    error: 'Failed to revoke authorization',
-                    status: revokeResult.status,
-                    endpoint: revokeResult.endpoint
-                }), {
-                    status: revokeResult.status || 500,
-                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                });
+                return errorResponse(
+                    'revoke_failed',
+                    `Failed to revoke authorization (status: ${revokeResult.status || 'unknown'})`,
+                    revokeResult.status || 500,
+                    origin,
+                    env,
+                    true
+                );
             } catch (error) {
-                return new Response(JSON.stringify({ error: error.message }), {
-                    status: 500,
-                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                });
+                return errorResponse('internal_error', error.message, 500, origin, env, true);
             }
         }
 
-        // Route: GET /health - Health check
-        if (url.pathname === '/health') {
-            return new Response(JSON.stringify({
-                status: 'ok',
-                timestamp: new Date().toISOString()
-            }), {
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            });
-        }
-
-        // 404 for unknown routes
-        return new Response(JSON.stringify({ error: 'Not found' }), {
-            status: 404,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        return errorResponse('not_found', 'Not found', 404, origin, env, isOriginAllowed(origin, env));
     }
 };

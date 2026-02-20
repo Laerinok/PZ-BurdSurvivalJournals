@@ -81,7 +81,16 @@
         <div class="controls" style="justify-content: flex-start;">
             <button class="btn btn-secondary" id="importBtn">Import</button>
             <button class="btn btn-export" id="exportBtn">Export</button>
+            <button class="btn btn-secondary" id="exportTemplateBtn">Export Template</button>
+            <button class="btn btn-secondary" id="exportLlmBtn">Export LLM Pack</button>
             <button class="btn btn-primary" id="submitPrBtn" disabled>Submit to GitHub</button>
+        </div>
+
+        <div class="controls health-controls">
+            <div id="healthPanel" class="health-panel">
+                <div class="health-title">Translation Health</div>
+                <div class="health-row">Loading diagnostics...</div>
+            </div>
         </div>
 
         <!-- Translation container -->

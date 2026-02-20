@@ -882,7 +882,7 @@ function BurdJournals.LearnFromJournalAction:perform()
         panel:refreshJournalData()
     end
     if panel.checkDissolution then
-        panel:checkDissolution()
+        panel:checkDissolution(true)
     end
 
     ISBaseTimedAction.perform(self)

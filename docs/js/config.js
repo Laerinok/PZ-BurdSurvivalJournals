@@ -40,7 +40,9 @@ export const STORAGE_KEYS = {
     githubToken: 'bsj_github_token',
     lastSync: 'bsj_last_sync',
     cachedEnglish: 'bsj_cached_english',
-    cachedEnglishVersion: 'bsj_cached_english_version'
+    cachedEnglishVersion: 'bsj_cached_english_version',
+    cachedRepoLanguages: 'bsj_cached_repo_languages',
+    cachedRepoLanguagesVersion: 'bsj_cached_repo_languages_version'
 };
 
 // GitHub raw content base URL
@@ -65,4 +67,4 @@ export const EXPORT_PATHS = {
 export const AUTOSAVE_DELAY = 500;
 
 // Version for cache invalidation
-export const TOOL_VERSION = '3.0.0';
+export const TOOL_VERSION = '3.1.0';

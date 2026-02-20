@@ -95,5 +95,7 @@ This starts a local server at `http://localhost:8787` for testing.
 ## Security Notes
 
 - The `GITHUB_CLIENT_SECRET` is stored securely in Cloudflare's environment
-- CORS is configured to only allow requests from approved origins
+- CORS is configured with exact-origin allowlisting from `ALLOWED_ORIGINS`
+- `/token` and `/revoke` validate JSON request shape and reject malformed bodies
+- OAuth callback `state` is required and validated for format before token exchange
 - The worker never logs or exposes the client secret
