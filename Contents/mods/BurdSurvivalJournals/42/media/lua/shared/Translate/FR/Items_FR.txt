@@ -5,5 +5,5 @@ Items_FR = {
     DisplayName_FilledSurvivalJournal = "Journal de survie rempli",
     DisplayName_FilledSurvivalJournal_Worn = "Journal de survie usé",
     DisplayName_FilledSurvivalJournal_Bloody = "Journal de survie ensanglanté",
-    DisplayName_CursedJournal = "Cursed Journal",
+    DisplayName_CursedJournal = "Journal maudit",
 }
