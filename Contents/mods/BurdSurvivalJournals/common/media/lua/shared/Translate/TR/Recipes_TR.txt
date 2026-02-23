@@ -1,27 +1,18 @@
 Recipes_TR = {
-    -- Erase/Reset (both formats for compatibility)
     EraseFilledJournal = "Doldurulmuş Günlüğü Sil",
     Recipe_EraseFilledJournal = "Doldurulmuş Günlüğü Sil",
-
-    -- Bind Recipes (Thread-based) - accepts Journal or Notebook
     Bind_Thread_Leather = "Hayatta Kalma Günlüğü Ciltle (İp + Deri)",
     Recipe_Bind_Thread_Leather = "Hayatta Kalma Günlüğü Ciltle (İp + Deri)",
     Bind_Thread_AnyCover = "Hayatta Kalma Günlüğü Ciltle (İp + Kumaş)",
     Recipe_Bind_Thread_AnyCover = "Hayatta Kalma Günlüğü Ciltle (İp + Kumaş)",
-
-    -- Bind Recipes (Adhesive-based) - accepts Journal or Notebook
     Bind_Adhesive_Leather = "Hayatta Kalma Günlüğü Ciltle (Yapıştırıcı + Deri)",
     Recipe_Bind_Adhesive_Leather = "Hayatta Kalma Günlüğü Ciltle (Yapıştırıcı + Deri)",
     Bind_Adhesive_AnyCover = "Hayatta Kalma Günlüğü Ciltle (Yapıştırıcı + Kumaş)",
     Recipe_Bind_Adhesive_AnyCover = "Hayatta Kalma Günlüğü Ciltle (Yapıştırıcı + Kumaş)",
-
-    -- Restore Journal Recipes (Thread-based)
     RestoreJournal_Thread_Leather = "Günlüğü Onar (İp + Deri)",
     Recipe_RestoreJournal_Thread_Leather = "Günlüğü Onar (İp + Deri)",
     RestoreJournal_Thread_AnyCover = "Günlüğü Onar (İp + Kumaş)",
     Recipe_RestoreJournal_Thread_AnyCover = "Günlüğü Onar (İp + Kumaş)",
-
-    -- Restore Journal Recipes (Adhesive-based)
     RestoreJournal_Adhesive_Leather = "Günlüğü Onar (Yapıştırıcı + Deri)",
     Recipe_RestoreJournal_Adhesive_Leather = "Günlüğü Onar (Yapıştırıcı + Deri)",
     RestoreJournal_Adhesive_AnyCover = "Günlüğü Onar (Yapıştırıcı + Kumaş)",

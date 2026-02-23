@@ -1,11 +1,9 @@
 Items_PTBR = {
-    /* Blank Journals */
     DisplayName_BlankSurvivalJournal = "Diário de Sobrevivência em Branco",
     DisplayName_BlankSurvivalJournal_Worn = "Diário em Branco Desgastado",
     DisplayName_BlankSurvivalJournal_Bloody = "Diário em Branco Ensanguentado",
-
-    /* Filled Journals */
     DisplayName_FilledSurvivalJournal = "Diário de Sobrevivência Preenchido",
     DisplayName_FilledSurvivalJournal_Worn = "Diário de Sobrevivência Desgastado",
     DisplayName_FilledSurvivalJournal_Bloody = "Diário de Sobrevivência Ensanguentado",
+    DisplayName_CursedJournal = "Cursed Journal",
 }

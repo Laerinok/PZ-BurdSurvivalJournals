@@ -1,11 +1,9 @@
-﻿ItemName_PL = {
-    -- Blank Journals
+ItemName_PL = {
     ItemName_BurdJournals.BlankSurvivalJournal = "Pusty dziennik przetrwania",
     ItemName_BurdJournals.BlankSurvivalJournal_Worn = "Zuzyty pusty dziennik",
     ItemName_BurdJournals.BlankSurvivalJournal_Bloody = "Zakrwawiony pusty dziennik",
-
-    -- Filled Journals
     ItemName_BurdJournals.FilledSurvivalJournal = "Wypelniony dziennik przetrwania",
     ItemName_BurdJournals.FilledSurvivalJournal_Worn = "Zuzyty dziennik przetrwania",
     ItemName_BurdJournals.FilledSurvivalJournal_Bloody = "Zakrwawiony dziennik przetrwania",
+    ItemName_BurdJournals.CursedJournal = "Cursed Journal",
 }

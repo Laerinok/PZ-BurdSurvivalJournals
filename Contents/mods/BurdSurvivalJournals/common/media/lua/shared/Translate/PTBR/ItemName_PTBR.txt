@@ -1,11 +1,9 @@
 ItemName_PTBR = {
-    -- Blank Journals
     ItemName_BurdJournals.BlankSurvivalJournal = "Diário de Sobrevivência em Branco",
     ItemName_BurdJournals.BlankSurvivalJournal_Worn = "Diário em Branco Desgastado",
     ItemName_BurdJournals.BlankSurvivalJournal_Bloody = "Diário em Branco Ensanguentado",
-
-    -- Filled Journals
     ItemName_BurdJournals.FilledSurvivalJournal = "Diário de Sobrevivência Preenchido",
     ItemName_BurdJournals.FilledSurvivalJournal_Worn = "Diário de Sobrevivência Desgastado",
     ItemName_BurdJournals.FilledSurvivalJournal_Bloody = "Diário de Sobrevivência Ensanguentado",
+    ItemName_BurdJournals.CursedJournal = "Cursed Journal",
 }

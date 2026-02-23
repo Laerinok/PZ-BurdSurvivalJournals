@@ -1,27 +1,18 @@
 Recipes_ES = {
-    -- Erase/Reset (both formats for compatibility)
     EraseFilledJournal = "Borrar Diario Lleno",
     Recipe_EraseFilledJournal = "Borrar Diario Lleno",
-
-    -- Bind Recipes (Thread-based) - accepts Journal or Notebook
     Bind_Thread_Leather = "Encuadernar Diario de Supervivencia (Hilo + Cuero)",
     Recipe_Bind_Thread_Leather = "Encuadernar Diario de Supervivencia (Hilo + Cuero)",
     Bind_Thread_AnyCover = "Encuadernar Diario de Supervivencia (Hilo + Tela)",
     Recipe_Bind_Thread_AnyCover = "Encuadernar Diario de Supervivencia (Hilo + Tela)",
-
-    -- Bind Recipes (Adhesive-based) - accepts Journal or Notebook
     Bind_Adhesive_Leather = "Encuadernar Diario de Supervivencia (Adhesivo + Cuero)",
     Recipe_Bind_Adhesive_Leather = "Encuadernar Diario de Supervivencia (Adhesivo + Cuero)",
     Bind_Adhesive_AnyCover = "Encuadernar Diario de Supervivencia (Adhesivo + Tela)",
     Recipe_Bind_Adhesive_AnyCover = "Encuadernar Diario de Supervivencia (Adhesivo + Tela)",
-
-    -- Restore Journal Recipes (Thread-based)
     RestoreJournal_Thread_Leather = "Restaurar Diario (Hilo + Cuero)",
     Recipe_RestoreJournal_Thread_Leather = "Restaurar Diario (Hilo + Cuero)",
     RestoreJournal_Thread_AnyCover = "Restaurar Diario (Hilo + Tela)",
     Recipe_RestoreJournal_Thread_AnyCover = "Restaurar Diario (Hilo + Tela)",
-
-    -- Restore Journal Recipes (Adhesive-based)
     RestoreJournal_Adhesive_Leather = "Restaurar Diario (Adhesivo + Cuero)",
     Recipe_RestoreJournal_Adhesive_Leather = "Restaurar Diario (Adhesivo + Cuero)",
     RestoreJournal_Adhesive_AnyCover = "Restaurar Diario (Adhesivo + Tela)",

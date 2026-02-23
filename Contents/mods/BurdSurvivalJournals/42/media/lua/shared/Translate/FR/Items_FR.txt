@@ -1,11 +1,9 @@
 Items_FR = {
-    /* Blank Journals */
     DisplayName_BlankSurvivalJournal = "Journal de survie vierge",
     DisplayName_BlankSurvivalJournal_Worn = "Journal vierge usé",
     DisplayName_BlankSurvivalJournal_Bloody = "Journal vierge ensanglanté",
-    
-    /* Filled Journals */
     DisplayName_FilledSurvivalJournal = "Journal de survie rempli",
     DisplayName_FilledSurvivalJournal_Worn = "Journal de survie usé",
     DisplayName_FilledSurvivalJournal_Bloody = "Journal de survie ensanglanté",
+    DisplayName_CursedJournal = "Cursed Journal",
 }

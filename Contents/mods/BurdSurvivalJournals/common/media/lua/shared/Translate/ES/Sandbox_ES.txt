@@ -1,18 +1,9 @@
-﻿Sandbox_ES = {
-    -- TAB NAMES
+Sandbox_ES = {
     Sandbox_BurdJournals_Player = "Diarios - Jugador",
     Sandbox_BurdJournals_Loot = "Diarios - Botin",
-    Sandbox_BurdJournals_Advanced = "Diarios - Avanzado",
-
-    -- ============================================================
-    -- TAB 1: PLAYER SETTINGS
-    -- ============================================================
-
-    -- Master Toggle
+    Sandbox_BurdJournals_OtherMods = "Journals - Other Mods",
     Sandbox_BurdJournals_EnableJournals = "Habilitar Diarios de Supervivencia",
     Sandbox_BurdJournals_EnableJournals_tooltip = "Interruptor principal para todo el sistema de diarios de supervivencia.",
-
-    -- XP Recovery (Clean Journals)
     Sandbox_BurdJournals_XPRecoveryMode = "Modo de XP en Diario Limpio",
     Sandbox_BurdJournals_XPRecoveryMode_tooltip = "Cuanta XP se recupera al leer un diario LIMPIO (modo ESTABLECER). No afecta a diarios desgastados/sangrientos.",
     Sandbox_BurdJournals_XPRecoveryMode_option1 = "Recuperacion Total (100%)",
@@ -24,227 +15,187 @@
     Sandbox_BurdJournals_DiminishingTrackingMode_option3 = "Per Skill (Persistent)",
     Sandbox_BurdJournals_DiminishingFirstRead = "% XP Primera Lectura",
     Sandbox_BurdJournals_DiminishingFirstRead_tooltip = "Porcentaje de XP en la primera lectura (50-100%). Solo aplica con Rendimientos Decrecientes.",
-
     Sandbox_BurdJournals_DiminishingDecayRate = "% Decaimiento por Lectura",
     Sandbox_BurdJournals_DiminishingDecayRate_tooltip = "Reduccion de XP por cada lectura subsiguiente (5-50%).",
-
     Sandbox_BurdJournals_DiminishingMinimum = "% XP Minimo",
     Sandbox_BurdJournals_DiminishingMinimum_tooltip = "Porcentaje base por debajo del cual la recuperacion no puede bajar (0-50%).",
-
-    -- XP Multiplier
     Sandbox_BurdJournals_JournalXPMultiplier = "Multiplicador de XP del Diario",
     Sandbox_BurdJournals_JournalXPMultiplier_tooltip = "Multiplicador para XP ganada de diarios (0.25 = 25%, 1.0 = 100%, 2.0 = 200%). Aplica tanto a diarios desgastados como sangrientos.",
-
-    -- Skill Book Multiplier
     Sandbox_BurdJournals_SkillBookMultiplierForJournals = "Aplicar Multiplicadores de Libros de Habilidad",
     Sandbox_BurdJournals_SkillBookMultiplierForJournals_tooltip = "Cuando está activado, los multiplicadores de XP de los libros de habilidad se aplican ÚNICAMENTE al XP absorbido de diarios desgastados y sangrientos. Los diarios personales no se ven afectados. El multiplicador está limitado por la configuración de abajo.",
-    
     Sandbox_BurdJournals_SkillBookMultiplierCap = "Límite del Multiplicador de Libros",
     Sandbox_BurdJournals_SkillBookMultiplierCap_tooltip = "Multiplicador máximo de XP de libros al absorber habilidades de diarios desgastados y sangrientos. El valor predeterminado de 2x previene la progresión excesiva al inicio. Establezca a 16 para permitir multiplicadores completos. No afecta los diarios personales.",
-
-    -- Writing Requirements
+    Sandbox_BurdJournals_RequireLightForJournalUse = "Require Light for Journal Use",
+    Sandbox_BurdJournals_RequireLightForJournalUse_tooltip = "When enabled, opening journals and reading/writing journal actions require enough light, following vanilla reading darkness rules.",
     Sandbox_BurdJournals_RequirePenToWrite = "Requerir Boligrafo para Escribir",
     Sandbox_BurdJournals_RequirePenToWrite_tooltip = "Requerir un boligrafo o lapiz para registrar habilidades en un diario limpio.",
-
     Sandbox_BurdJournals_PenUsesPerLog = "Usos de Boligrafo por Registro",
     Sandbox_BurdJournals_PenUsesPerLog_tooltip = "Durabilidad del boligrafo consumida al registrar habilidades (1-10).",
-
     Sandbox_BurdJournals_RequireEraserToErase = "Requerir Borrador para Borrar",
     Sandbox_BurdJournals_RequireEraserToErase_tooltip = "Requerir un borrador para limpiar el contenido de un diario limpio.",
-
-    -- Learning Time Settings
     Sandbox_BurdJournals_LearningTimePerSkill = "Tiempo de Aprendizaje por Habilidad (seg)",
     Sandbox_BurdJournals_LearningTimePerSkill_tooltip = "Tiempo base en segundos para aprender cada habilidad de un diario. Simula leer/estudiar.",
-
     Sandbox_BurdJournals_LearningTimePerTrait = "Tiempo de Aprendizaje por Rasgo (seg)",
     Sandbox_BurdJournals_LearningTimePerTrait_tooltip = "Tiempo base en segundos para absorber cada rasgo de un diario.",
-
     Sandbox_BurdJournals_LearningTimeMultiplier = "Multiplicador de Tiempo de Aprendizaje",
     Sandbox_BurdJournals_LearningTimeMultiplier_tooltip = "Multiplicador global para todos los tiempos de aprendizaje. 0.5 = doble de rapido, 2.0 = doble de lento.",
-
-    -- Player Stats Recording
     Sandbox_BurdJournals_EnableStatRecording = "Habilitar Registro de Estadisticas",
     Sandbox_BurdJournals_EnableStatRecording_tooltip = "Interruptor principal para registrar estadisticas del jugador (bajas, tiempo sobrevivido, etc.) en diarios personales.",
-
     Sandbox_BurdJournals_RecordZombieKills = "Registrar Bajas Zombi",
     Sandbox_BurdJournals_RecordZombieKills_tooltip = "Permitir a los jugadores registrar su recuento de zombis eliminados en los diarios.",
-
     Sandbox_BurdJournals_RecordHoursSurvived = "Registrar Horas Sobrevividas",
     Sandbox_BurdJournals_RecordHoursSurvived_tooltip = "Permitir a los jugadores registrar su tiempo de supervivencia en los diarios.",
-
-    -- Baseline Restriction
     Sandbox_BurdJournals_EnableBaselineRestriction = "Solo Registrar Progreso Ganado",
     Sandbox_BurdJournals_EnableBaselineRestriction_tooltip = "Cuando esta habilitado, los diarios solo registran XP ganada a traves del juego - no los bonos iniciales de profesion o rasgos. Esto previene exploits donde los jugadores granjean habilidades de profesion creando multiples personajes. Recomendado ENCENDIDO para servidores multijugador.",
-
-    -- Recipe Recording
-
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer = "Habilitar Registro de Rasgos (Jugador)",
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer_tooltip = "Permite a los jugadores registrar rasgos en sus diarios personales. Si esta desactivado, la pestana de rasgos estara oculta pero los datos existentes se preservaran.",
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer = "Habilitar Registro de Recetas (Jugador)",
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer_tooltip = "Permite a los jugadores registrar recetas de revistas en sus diarios personales. Si esta desactivado, la pestana de recetas estara oculta pero los datos existentes se preservaran.",
+    Sandbox_BurdJournals_EnablePassiveSkillsPlayer = "Enable Passive Skills (Player)",
+    Sandbox_BurdJournals_EnablePassiveSkillsPlayer_tooltip = "When enabled, Fitness/Strength can be recorded and claimed from player journals. When disabled, passive skill entries are hidden but preserved.",
     Sandbox_BurdJournals_LearningTimePerRecipe = "Tiempo de Aprendizaje por Receta (seg)",
     Sandbox_BurdJournals_LearningTimePerRecipe_tooltip = "Tiempo base en segundos para aprender cada receta de un diario.",
-
-    -- ============================================================
-    -- TAB 2: LOOT SETTINGS
-    -- ============================================================
-
-    -- Worn Journal Spawns
-    Sandbox_BurdJournals_EnableWornJournalSpawns = "Habilitar Aparicion de Diarios Desgastados",
-    Sandbox_BurdJournals_EnableWornJournalSpawns_tooltip = "Permitir que aparezcan diarios desgastados en contenedores del mundo (estanterias, escritorios, armarios). Estos ofrecen recompensas ligeras de XP.",
-
-    Sandbox_BurdJournals_WornJournalSpawnChance = "% Aparicion Diario Desgastado",
-    Sandbox_BurdJournals_WornJournalSpawnChance_tooltip = "Probabilidad de que aparezcan diarios desgastados en contenedores del mundo (0.1-100%).",
-
-    Sandbox_BurdJournals_WornJournalMinSkills = "Habilidades Min. Desgastado",
-    Sandbox_BurdJournals_WornJournalMinSkills_tooltip = "Minimo de habilidades en diarios desgastados encontrados en el mundo.",
-
-    Sandbox_BurdJournals_WornJournalMaxSkills = "Habilidades Max. Desgastado",
-    Sandbox_BurdJournals_WornJournalMaxSkills_tooltip = "Maximo de habilidades en diarios desgastados encontrados en el mundo.",
-
-    Sandbox_BurdJournals_WornJournalMinXP = "XP Min./Habilidad Desgastado",
-    Sandbox_BurdJournals_WornJournalMinXP_tooltip = "XP minima por habilidad en diarios desgastados.",
-
-    Sandbox_BurdJournals_WornJournalMaxXP = "XP Max./Habilidad Desgastado",
-    Sandbox_BurdJournals_WornJournalMaxXP_tooltip = "XP maxima por habilidad en diarios desgastados.",
-
-    -- Bloody Journal Spawns
-    Sandbox_BurdJournals_EnableBloodyJournalSpawns = "Habilitar Aparicion de Diarios Sangrientos",
-    Sandbox_BurdJournals_EnableBloodyJournalSpawns_tooltip = "Permitir que los zombis suelten diarios sangrientos. Estos ofrecen mejores recompensas y rasgos raros.",
-
-    Sandbox_BurdJournals_BloodyJournalSpawnChance = "% Aparicion Diario Sangriento",
-    Sandbox_BurdJournals_BloodyJournalSpawnChance_tooltip = "Probabilidad de que un zombi suelte un diario sangriento (0.1-100%).",
-
-    Sandbox_BurdJournals_BloodyJournalMinSkills = "Habilidades Min. Sangriento",
-    Sandbox_BurdJournals_BloodyJournalMinSkills_tooltip = "Minimo de habilidades en diarios sangrientos soltados por zombis.",
-
-    Sandbox_BurdJournals_BloodyJournalMaxSkills = "Habilidades Max. Sangriento",
-    Sandbox_BurdJournals_BloodyJournalMaxSkills_tooltip = "Maximo de habilidades en diarios sangrientos soltados por zombis.",
-
-    Sandbox_BurdJournals_BloodyJournalMinXP = "XP Min./Habilidad Sangriento",
-    Sandbox_BurdJournals_BloodyJournalMinXP_tooltip = "XP minima por habilidad en diarios sangrientos.",
-
-    Sandbox_BurdJournals_BloodyJournalMaxXP = "XP Max./Habilidad Sangriento",
-    Sandbox_BurdJournals_BloodyJournalMaxXP_tooltip = "XP maxima por habilidad en diarios sangrientos.",
-
-    Sandbox_BurdJournals_BloodyJournalTraitChance = "% Probabilidad Rasgo Raro",
-    Sandbox_BurdJournals_BloodyJournalTraitChance_tooltip = "Probabilidad de que los diarios sangrientos incluyan un rasgo otorgable (Valiente, Organizado, etc.).",
-
-    Sandbox_BurdJournals_BloodyJournalMaxTraits = "Max. Rasgos por Sangriento",
-    Sandbox_BurdJournals_BloodyJournalMaxTraits_tooltip = "Numero maximo de rasgos que pueden aparecer en un solo diario sangriento (0-5).",
-
-    -- Recipe Spawns in Loot Journals
-    Sandbox_BurdJournals_WornJournalRecipeChance = "% Receta en Desgastado",
-    Sandbox_BurdJournals_WornJournalRecipeChance_tooltip = "Probabilidad de que diarios desgastados incluyan una receta de revista (0-100%). Los desgastados tienen menor probabilidad que los sangrientos.",
-
-    Sandbox_BurdJournals_WornJournalMaxRecipes = "Max. Recetas por Desgastado",
-    Sandbox_BurdJournals_WornJournalMaxRecipes_tooltip = "Numero maximo de recetas de revista que pueden aparecer en un solo diario desgastado (1-5).",
-
-    Sandbox_BurdJournals_BloodyJournalRecipeChance = "% Receta en Sangriento",
-    Sandbox_BurdJournals_BloodyJournalRecipeChance_tooltip = "Probabilidad de que diarios sangrientos incluyan recetas de revista (0-100%). Los sangrientos tienen mayor probabilidad que los desgastados.",
-
-    Sandbox_BurdJournals_BloodyJournalMaxRecipes = "Max. Recetas por Sangriento",
-    Sandbox_BurdJournals_BloodyJournalMaxRecipes_tooltip = "Numero maximo de recetas de revista que pueden aparecer en un solo diario sangriento (1-5).",
-
-    -- ============================================================
-    -- TAB 3: ADVANCED SETTINGS
-    -- ============================================================
-
-    Sandbox_BurdJournals_EnablePlayerJournals = "Habilitar Diarios de Jugador",
-    Sandbox_BurdJournals_EnablePlayerJournals_tooltip = "Permitir a los jugadores fabricar y usar diarios personales para registrar/recuperar habilidades. Desactivar para permitir solo diarios saqueados.",
-
-    Sandbox_BurdJournals_ReadingSkillAffectsSpeed = "Hab. Lectura Afecta Velocidad",
-    Sandbox_BurdJournals_ReadingSkillAffectsSpeed_tooltip = "Niveles mas altos de lectura reducen el tiempo de aprendizaje al absorber de los diarios.",
-
-    Sandbox_BurdJournals_ReadingSpeedBonus = "Bono de Velocidad de Lectura",
-    Sandbox_BurdJournals_ReadingSpeedBonus_tooltip = "Bono de velocidad por nivel de lectura (0.1 = 10% mas rapido por nivel, max 100% al nivel 10).",
-
-    Sandbox_BurdJournals_EraseTime = "Tiempo de Borrado (segundos)",
-    Sandbox_BurdJournals_EraseTime_tooltip = "Tiempo en segundos para borrar el contenido de un diario.",
-
-    Sandbox_BurdJournals_ConvertTime = "Tiempo de Conversion (segundos)",
-    Sandbox_BurdJournals_ConvertTime_tooltip = "Tiempo en segundos para convertir un diario desgastado a un diario limpio.",
-
-    Sandbox_BurdJournals_AllowOthersToOpenJournals = "Permitir a Otros Abrir Diarios Personales",
-    Sandbox_BurdJournals_AllowOthersToOpenJournals_tooltip = "Si se habilita, otros jugadores pueden abrir y ver diarios personales que no crearon. Si se deshabilita, solo el autor del diario puede abrirlo.",
-
-    Sandbox_BurdJournals_AllowOthersToClaimFromJournals = "Permitir a Otros Reclamar de Diarios Personales",
-    Sandbox_BurdJournals_AllowOthersToClaimFromJournals_tooltip = "Si se habilita, otros jugadores pueden reclamar habilidades/rasgos de diarios personales que no crearon. Requiere que 'Permitir a Otros Abrir' este habilitado. Si se deshabilita, solo el autor puede reclamar de sus propios diarios.",
-
-    Sandbox_BurdJournals_AllowNegativeTraits = "Permitir Rasgos Negativos",
-    Sandbox_BurdJournals_AllowNegativeTraits_tooltip = "Si se habilita, los rasgos negativos (como Torpe, Aprendiz Lento, etc.) pueden aparecer en diarios y ser registrados. Util para rasgos de mods o desafios. Predeterminado: APAGADO (solo rasgos positivos).",
-
     Sandbox_BurdJournals_MaxSkillsPerJournal = "Max. Habilidades por Diario",
     Sandbox_BurdJournals_MaxSkillsPerJournal_tooltip = "Numero maximo de habilidades que se pueden registrar en un solo diario. El juego base tiene ~30 habilidades. Aumentar para juegos muy moddeados.",
-
     Sandbox_BurdJournals_MaxTraitsPerJournal = "Max. Rasgos por Diario",
     Sandbox_BurdJournals_MaxTraitsPerJournal_tooltip = "Numero maximo de rasgos que se pueden registrar en un solo diario. El juego base tiene ~50 rasgos otorgables. Aumentar para juegos muy moddeados.",
-
     Sandbox_BurdJournals_MaxRecipesPerJournal = "Max. Recetas por Diario",
     Sandbox_BurdJournals_MaxRecipesPerJournal_tooltip = "Numero maximo de recetas que se pueden registrar en un solo diario. Juegos muy moddeados pueden tener 400+ recetas de revistas. Aumentar si recibes advertencias de capacidad.",
-
-    -- Player Journal Dissolution
+    Sandbox_BurdJournals_EnablePassiveSkillsLoot = "Enable Passive Skills (Loot)",
+    Sandbox_BurdJournals_EnablePassiveSkillsLoot_tooltip = "When enabled, Fitness/Strength can appear and be claimed on worn/bloody journals. When disabled, passive skill entries are hidden but preserved.",
+    Sandbox_BurdJournals_EnableWornJournalSpawns = "Habilitar Aparicion de Diarios Desgastados",
+    Sandbox_BurdJournals_EnableWornJournalSpawns_tooltip = "Permitir que aparezcan diarios desgastados en contenedores del mundo (estanterias, escritorios, armarios). Estos ofrecen recompensas ligeras de XP.",
+    Sandbox_BurdJournals_WornJournalSpawnChance = "% Aparicion Diario Desgastado",
+    Sandbox_BurdJournals_WornJournalSpawnChance_tooltip = "Probabilidad de que aparezcan diarios desgastados en contenedores del mundo (0.1-100%).",
+    Sandbox_BurdJournals_WornJournalMinSkills = "Habilidades Min. Desgastado",
+    Sandbox_BurdJournals_WornJournalMinSkills_tooltip = "Minimo de habilidades en diarios desgastados encontrados en el mundo.",
+    Sandbox_BurdJournals_WornJournalMaxSkills = "Habilidades Max. Desgastado",
+    Sandbox_BurdJournals_WornJournalMaxSkills_tooltip = "Maximo de habilidades en diarios desgastados encontrados en el mundo.",
+    Sandbox_BurdJournals_WornJournalMinXP = "XP Min./Habilidad Desgastado",
+    Sandbox_BurdJournals_WornJournalMinXP_tooltip = "XP minima por habilidad en diarios desgastados.",
+    Sandbox_BurdJournals_WornJournalMaxXP = "XP Max./Habilidad Desgastado",
+    Sandbox_BurdJournals_WornJournalMaxXP_tooltip = "XP maxima por habilidad en diarios desgastados.",
+    Sandbox_BurdJournals_WornJournalRecipeChance = "% Receta en Desgastado",
+    Sandbox_BurdJournals_WornJournalRecipeChance_tooltip = "Probabilidad de que diarios desgastados incluyan una receta de revista (0-100%). Los desgastados tienen menor probabilidad que los sangrientos.",
+    Sandbox_BurdJournals_WornJournalMaxRecipes = "Max. Recetas por Desgastado",
+    Sandbox_BurdJournals_WornJournalMaxRecipes_tooltip = "Numero maximo de recetas de revista que pueden aparecer en un solo diario desgastado (1-5).",
+    Sandbox_BurdJournals_EnableWornJournalRecipes = "Habilitar Recetas en Desgastados",
+    Sandbox_BurdJournals_EnableWornJournalRecipes_tooltip = "Si esta habilitado, las recetas se pueden reclamar de los diarios desgastados. Si esta desactivado, la pestana de recetas estara oculta pero los datos existentes se preservaran.",
+    Sandbox_BurdJournals_WornJournalTraitChance = "% Probabilidad Rasgo Desgastado",
+    Sandbox_BurdJournals_WornJournalTraitChance_tooltip = "Probabilidad de que los diarios desgastados contengan rasgos (0-100%). Pon 0% (predeterminado) para el comportamiento clasico donde solo los diarios sangrientos tienen rasgos.",
+    Sandbox_BurdJournals_WornJournalMinTraits = "Min. Rasgos por Desgastado",
+    Sandbox_BurdJournals_WornJournalMinTraits_tooltip = "Numero minimo de rasgos que pueden aparecer en un diario desgastado (1-5).",
+    Sandbox_BurdJournals_WornJournalMaxTraits = "Max. Rasgos por Desgastado",
+    Sandbox_BurdJournals_WornJournalMaxTraits_tooltip = "Numero maximo de rasgos que pueden aparecer en un diario desgastado (1-5).",
+    Sandbox_BurdJournals_EnableWornJournalForgetSlot = "Enable Worn Forget Slot",
+    Sandbox_BurdJournals_EnableWornJournalForgetSlot_tooltip = "When enabled, worn journals may spawn with a claimable forget slot.",
+    Sandbox_BurdJournals_WornJournalForgetChance = "Worn Forget Slot Chance %",
+    Sandbox_BurdJournals_WornJournalForgetChance_tooltip = "Chance for worn journals to include a special forget slot that removes one removable trait you currently have.",
+    Sandbox_BurdJournals_EnableWornJournalTraits = "Habilitar Rasgos en Desgastados",
+    Sandbox_BurdJournals_EnableWornJournalTraits_tooltip = "Si esta habilitado, los rasgos se pueden reclamar de los diarios desgastados. Si esta desactivado, la pestana de rasgos estara oculta pero los datos existentes se preservaran.",
+    Sandbox_BurdJournals_EnableBloodyJournalSpawns = "Habilitar Aparicion de Diarios Sangrientos",
+    Sandbox_BurdJournals_EnableBloodyJournalSpawns_tooltip = "Permitir que los zombis suelten diarios sangrientos. Estos ofrecen mejores recompensas y rasgos raros.",
+    Sandbox_BurdJournals_BloodyJournalSpawnChance = "% Aparicion Diario Sangriento",
+    Sandbox_BurdJournals_BloodyJournalSpawnChance_tooltip = "Probabilidad de que un zombi suelte un diario sangriento (0.1-100%).",
+    Sandbox_BurdJournals_BloodyJournalMinSkills = "Habilidades Min. Sangriento",
+    Sandbox_BurdJournals_BloodyJournalMinSkills_tooltip = "Minimo de habilidades en diarios sangrientos soltados por zombis.",
+    Sandbox_BurdJournals_BloodyJournalMaxSkills = "Habilidades Max. Sangriento",
+    Sandbox_BurdJournals_BloodyJournalMaxSkills_tooltip = "Maximo de habilidades en diarios sangrientos soltados por zombis.",
+    Sandbox_BurdJournals_BloodyJournalMinXP = "XP Min./Habilidad Sangriento",
+    Sandbox_BurdJournals_BloodyJournalMinXP_tooltip = "XP minima por habilidad en diarios sangrientos.",
+    Sandbox_BurdJournals_BloodyJournalMaxXP = "XP Max./Habilidad Sangriento",
+    Sandbox_BurdJournals_BloodyJournalMaxXP_tooltip = "XP maxima por habilidad en diarios sangrientos.",
+    Sandbox_BurdJournals_BloodyJournalTraitChance = "% Probabilidad Rasgo Raro",
+    Sandbox_BurdJournals_BloodyJournalTraitChance_tooltip = "Probabilidad de que los diarios sangrientos incluyan un rasgo otorgable (Valiente, Organizado, etc.).",
+    Sandbox_BurdJournals_BloodyJournalMaxTraits = "Max. Rasgos por Sangriento",
+    Sandbox_BurdJournals_BloodyJournalMaxTraits_tooltip = "Numero maximo de rasgos que pueden aparecer en un solo diario sangriento (0-5).",
+    Sandbox_BurdJournals_EnableBloodyJournalForgetSlot = "Enable Bloody Forget Slot",
+    Sandbox_BurdJournals_EnableBloodyJournalForgetSlot_tooltip = "When enabled, bloody journals may spawn with a claimable forget slot.",
+    Sandbox_BurdJournals_BloodyJournalForgetChance = "Bloody Forget Slot Chance %",
+    Sandbox_BurdJournals_BloodyJournalForgetChance_tooltip = "Chance for bloody journals to include a special forget slot that removes one removable trait you currently have.",
+    Sandbox_BurdJournals_EnableBloodyJournalTraits = "Habilitar Rasgos en Sangrientos",
+    Sandbox_BurdJournals_EnableBloodyJournalTraits_tooltip = "Si esta habilitado, los rasgos se pueden reclamar de los diarios sangrientos. Si esta desactivado, la pestana de rasgos estara oculta pero los datos existentes se preservaran.",
+    Sandbox_BurdJournals_BloodyJournalRecipeChance = "% Receta en Sangriento",
+    Sandbox_BurdJournals_BloodyJournalRecipeChance_tooltip = "Probabilidad de que diarios sangrientos incluyan recetas de revista (0-100%). Los sangrientos tienen mayor probabilidad que los desgastados.",
+    Sandbox_BurdJournals_BloodyJournalMaxRecipes = "Max. Recetas por Sangriento",
+    Sandbox_BurdJournals_BloodyJournalMaxRecipes_tooltip = "Numero maximo de recetas de revista que pueden aparecer en un solo diario sangriento (1-5).",
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes = "Habilitar Recetas en Sangrientos",
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes_tooltip = "Si esta habilitado, las recetas se pueden reclamar de los diarios sangrientos. Si esta desactivado, la pestana de recetas estara oculta pero los datos existentes se preservaran.",
+    Sandbox_BurdJournals_EnableCursedJournalSpawns = "III. Enable Cursed Journal Drops",
+    Sandbox_BurdJournals_EnableCursedJournalSpawns_tooltip = "Allow zombies to rarely drop dormant cursed journals. The first opener is cursed, then the journal becomes a richer bloody reward.",
+    Sandbox_BurdJournals_CursedJournalSpawnChance = "Cursed Drop Chance %",
+    Sandbox_BurdJournals_CursedJournalSpawnChance_tooltip = "Chance for a zombie to drop a cursed journal (0-100%). If this rolls, normal bloody drop is skipped for that zombie.",
+    Sandbox_BurdJournals_CursedJournalMinSkills = "Cursed Min Skills",
+    Sandbox_BurdJournals_CursedJournalMinSkills_tooltip = "Minimum skills generated on a cursed reward journal.",
+    Sandbox_BurdJournals_CursedJournalMaxSkills = "Cursed Max Skills",
+    Sandbox_BurdJournals_CursedJournalMaxSkills_tooltip = "Maximum skills generated on a cursed reward journal.",
+    Sandbox_BurdJournals_CursedJournalMinXP = "Cursed Min XP/Skill",
+    Sandbox_BurdJournals_CursedJournalMinXP_tooltip = "Minimum XP per skill on a cursed reward journal.",
+    Sandbox_BurdJournals_CursedJournalMaxXP = "Cursed Max XP/Skill",
+    Sandbox_BurdJournals_CursedJournalMaxXP_tooltip = "Maximum XP per skill on a cursed reward journal.",
+    Sandbox_BurdJournals_EnableCursedJournalTraits = "Enable Cursed Journal Traits",
+    Sandbox_BurdJournals_EnableCursedJournalTraits_tooltip = "When enabled, cursed reward journals can generate and allow trait claims.",
+    Sandbox_BurdJournals_CursedJournalTraitChance = "Cursed Trait Chance %",
+    Sandbox_BurdJournals_CursedJournalTraitChance_tooltip = "Chance for cursed reward journals to include traits (0-100%).",
+    Sandbox_BurdJournals_CursedJournalMinTraits = "Min Traits Per Cursed",
+    Sandbox_BurdJournals_CursedJournalMinTraits_tooltip = "Minimum traits generated on cursed reward journals when trait roll succeeds.",
+    Sandbox_BurdJournals_CursedJournalMaxTraits = "Max Traits Per Cursed",
+    Sandbox_BurdJournals_CursedJournalMaxTraits_tooltip = "Maximum traits generated on cursed reward journals.",
+    Sandbox_BurdJournals_EnableCursedJournalRecipes = "Enable Cursed Journal Recipes",
+    Sandbox_BurdJournals_EnableCursedJournalRecipes_tooltip = "When enabled, cursed reward journals can generate and allow recipe claims.",
+    Sandbox_BurdJournals_CursedJournalRecipeChance = "Cursed Recipe Chance %",
+    Sandbox_BurdJournals_CursedJournalRecipeChance_tooltip = "Chance for cursed reward journals to include recipes (0-100%).",
+    Sandbox_BurdJournals_CursedJournalMaxRecipes = "Max Recipes Per Cursed",
+    Sandbox_BurdJournals_CursedJournalMaxRecipes_tooltip = "Maximum recipes generated on cursed reward journals.",
+    Sandbox_BurdJournals_EnableCursedJournalForgetSlot = "Enable Cursed Forget Slot",
+    Sandbox_BurdJournals_EnableCursedJournalForgetSlot_tooltip = "When enabled, cursed reward journals may generate a claimable forget slot.",
+    Sandbox_BurdJournals_CursedJournalForgetChance = "Cursed Forget Slot Chance %",
+    Sandbox_BurdJournals_CursedJournalForgetChance_tooltip = "Chance for cursed reward journals to include a forget slot when cursed forget slots are enabled.",
+    Sandbox_BurdJournals_Advanced = "Diarios - Avanzado",
+    Sandbox_BurdJournals_EnablePlayerJournals = "Habilitar Diarios de Jugador",
+    Sandbox_BurdJournals_EnablePlayerJournals_tooltip = "Permitir a los jugadores fabricar y usar diarios personales para registrar/recuperar habilidades. Desactivar para permitir solo diarios saqueados.",
+    Sandbox_BurdJournals_EnablePlayerJournalCrafting = "Enable Player Journal Crafting",
+    Sandbox_BurdJournals_EnablePlayerJournalCrafting_tooltip = "Allow crafting/restore conversion recipes for personal journals. Disable to prevent journal crafting while still allowing reading/claiming from existing player journals.",
+    Sandbox_BurdJournals_ReadingSkillAffectsSpeed = "Hab. Lectura Afecta Velocidad",
+    Sandbox_BurdJournals_ReadingSkillAffectsSpeed_tooltip = "Niveles mas altos de lectura reducen el tiempo de aprendizaje al absorber de los diarios.",
+    Sandbox_BurdJournals_ReadingSpeedBonus = "Bono de Velocidad de Lectura",
+    Sandbox_BurdJournals_ReadingSpeedBonus_tooltip = "Bono de velocidad por nivel de lectura (0.1 = 10% mas rapido por nivel, max 100% al nivel 10).",
+    Sandbox_BurdJournals_EraseTime = "Tiempo de Borrado (segundos)",
+    Sandbox_BurdJournals_EraseTime_tooltip = "Tiempo en segundos para borrar el contenido de un diario.",
+    Sandbox_BurdJournals_ConvertTime = "Tiempo de Conversion (segundos)",
+    Sandbox_BurdJournals_ConvertTime_tooltip = "Tiempo en segundos para convertir un diario desgastado a un diario limpio.",
+    Sandbox_BurdJournals_AllowOthersToOpenJournals = "Permitir a Otros Abrir Diarios Personales",
+    Sandbox_BurdJournals_AllowOthersToOpenJournals_tooltip = "Si se habilita, otros jugadores pueden abrir y ver diarios personales que no crearon. Si se deshabilita, solo el autor del diario puede abrirlo.",
+    Sandbox_BurdJournals_AllowOthersToClaimFromJournals = "Permitir a Otros Reclamar de Diarios Personales",
+    Sandbox_BurdJournals_AllowOthersToClaimFromJournals_tooltip = "Si se habilita, otros jugadores pueden reclamar habilidades/rasgos de diarios personales que no crearon. Requiere que 'Permitir a Otros Abrir' este habilitado. Si se deshabilita, solo el autor puede reclamar de sus propios diarios.",
+    Sandbox_BurdJournals_AllowNegativeTraits = "Permitir Rasgos Negativos",
+    Sandbox_BurdJournals_AllowNegativeTraits_tooltip = "Si se habilita, los rasgos negativos (como Torpe, Aprendiz Lento, etc.) pueden aparecer en diarios y ser registrados. Util para rasgos de mods o desafios. Predeterminado: APAGADO (solo rasgos positivos).",
     Sandbox_BurdJournals_AllowPlayerJournalDissolution = "Permitir Disolucion de Diarios Restaurados",
     Sandbox_BurdJournals_AllowPlayerJournalDissolution_tooltip = "Controla si los diarios 'Restaurados' (diarios de jugador creados de diarios desgastados/sangrientos en blanco) se disuelven despues de reclamar todo el contenido. Los diarios restaurados siempre muestran su estado de origen. Predeterminado: APAGADO (los diarios restaurados persisten para siempre como los diarios limpios).",
-
-    -- ============================================================
-    -- PERFORMANCE SETTINGS
-    -- ============================================================
-
-    -- Record Batch Size
+    Sandbox_BurdJournals_AllowMutualExclusionCancellation = "Trait Conflict Resolution",
+    Sandbox_BurdJournals_AllowMutualExclusionCancellation_tooltip = "When claiming a trait that conflicts with one you already have, the conflicting trait is automatically removed.",
+    Sandbox_BurdJournals_EnableBaselineSnapshots = "Enable Baseline Snapshots",
+    Sandbox_BurdJournals_EnableBaselineSnapshots_tooltip = "When enabled, BSJ stores SteamID-anchored baseline snapshots for admin recovery and rollback safety.",
+    Sandbox_BurdJournals_BaselineSnapshotsPerSteamLimit = "Snapshots Per SteamID Limit",
+    Sandbox_BurdJournals_BaselineSnapshotsPerSteamLimit_tooltip = "Maximum baseline snapshots kept per SteamID before old entries are pruned. Active snapshots are preserved.",
+    Sandbox_BurdJournals_BaselineSnapshotsAutoCapture = "Auto-Capture Baseline Snapshots",
+    Sandbox_BurdJournals_BaselineSnapshotsAutoCapture_tooltip = "Automatically captures snapshots when baseline data is registered, recovered, or debug-edited.",
+    Sandbox_BurdJournals_BaselineSnapshotsCaptureOnDeath = "Capture Snapshot On Death",
+    Sandbox_BurdJournals_BaselineSnapshotsCaptureOnDeath_tooltip = "When enabled, baseline snapshot lineage is finalized with death metadata during death cleanup.",
+    Sandbox_BurdJournals_BaselineSnapshotsProtectOnRestore = "Protect Restored Baselines",
+    Sandbox_BurdJournals_BaselineSnapshotsProtectOnRestore_tooltip = "When enabled, applying a snapshot sets debugModified=true by default so automatic recapture cannot immediately overwrite the restore.",
     Sandbox_BurdJournals_RecordBatchSize = "Tamano de Lote de Registro",
     Sandbox_BurdJournals_RecordBatchSize_tooltip = "Cuantas habilidades/rasgos/recetas registrar en una sola accion al usar 'Registrar Todo'. Valores mas altos completan mas rapido pero muestran barras de progreso individuales mas largas. Establecer en 1 para comportamiento clasico uno-a-la-vez. Predeterminado: 15",
-
-    -- Absorb Batch Size
     Sandbox_BurdJournals_AbsorbBatchSize = "Tamano de Lote de Absorcion",
     Sandbox_BurdJournals_AbsorbBatchSize_tooltip = "Cuantas habilidades/rasgos/recetas absorber en una sola accion al usar 'Absorber Todo'. Valores mas altos completan mas rapido pero muestran barras de progreso individuales mas largas. Establecer en 1 para comportamiento clasico uno-a-la-vez. Predeterminado: 15",
-
-    -- Batch Time Multiplier
     Sandbox_BurdJournals_BatchTimeMultiplier = "Multiplicador de Tiempo de Lote",
     Sandbox_BurdJournals_BatchTimeMultiplier_tooltip = "Multiplicador para duracion de acciones en lote. Menor = lotes mas rapidos. Ejemplo: 15 recetas a 0.8s cada una = 12s normalmente. Con multiplicador 0.25 = 3s. Solo afecta 'Registrar Todo' y 'Absorber Todo', no clics individuales. Predeterminado: 0.25 (4x mas rapido)",
     Sandbox_BurdJournals_AllowDebugCommands = "Permitir Comandos de Depuracion",
     Sandbox_BurdJournals_AllowDebugCommands_tooltip = "Habilita comandos de depuracion (/bsjgive, /bsjdump, /bsjdebug, etc.) sin requerir el parametro de lanzamiento -debug. En un jugador, todos los jugadores pueden usarlos. En multijugador, solo los administradores pueden usarlos. Util para pruebas de servidor y desarrollo.",
-    Sandbox_BurdJournals_EnableBloodyJournalRecipes = "Habilitar Recetas en Sangrientos",
-    Sandbox_BurdJournals_EnableBloodyJournalRecipes_tooltip = "Si esta habilitado, las recetas se pueden reclamar de los diarios sangrientos. Si esta desactivado, la pestana de recetas estara oculta pero los datos existentes se preservaran.",
-    Sandbox_BurdJournals_EnableBloodyJournalTraits = "Habilitar Rasgos en Sangrientos",
-    Sandbox_BurdJournals_EnableBloodyJournalTraits_tooltip = "Si esta habilitado, los rasgos se pueden reclamar de los diarios sangrientos. Si esta desactivado, la pestana de rasgos estara oculta pero los datos existentes se preservaran.",
-    Sandbox_BurdJournals_EnableRecipeRecordingPlayer = "Habilitar Registro de Recetas (Jugador)",
-    Sandbox_BurdJournals_EnableRecipeRecordingPlayer_tooltip = "Permite a los jugadores registrar recetas de revistas en sus diarios personales. Si esta desactivado, la pestana de recetas estara oculta pero los datos existentes se preservaran.",
-    Sandbox_BurdJournals_EnableTraitRecordingPlayer = "Habilitar Registro de Rasgos (Jugador)",
-    Sandbox_BurdJournals_EnableTraitRecordingPlayer_tooltip = "Permite a los jugadores registrar rasgos en sus diarios personales. Si esta desactivado, la pestana de rasgos estara oculta pero los datos existentes se preservaran.",
-    Sandbox_BurdJournals_EnableWornJournalRecipes = "Habilitar Recetas en Desgastados",
-    Sandbox_BurdJournals_EnableWornJournalRecipes_tooltip = "Si esta habilitado, las recetas se pueden reclamar de los diarios desgastados. Si esta desactivado, la pestana de recetas estara oculta pero los datos existentes se preservaran.",
-    Sandbox_BurdJournals_EnableWornJournalTraits = "Habilitar Rasgos en Desgastados",
-    Sandbox_BurdJournals_EnableWornJournalTraits_tooltip = "Si esta habilitado, los rasgos se pueden reclamar de los diarios desgastados. Si esta desactivado, la pestana de rasgos estara oculta pero los datos existentes se preservaran.",
-    Sandbox_BurdJournals_WornJournalMaxTraits = "Max. Rasgos por Desgastado",
-    Sandbox_BurdJournals_WornJournalMaxTraits_tooltip = "Numero maximo de rasgos que pueden aparecer en un diario desgastado (1-5).",
-    Sandbox_BurdJournals_WornJournalMinTraits = "Min. Rasgos por Desgastado",
-    Sandbox_BurdJournals_WornJournalMinTraits_tooltip = "Numero minimo de rasgos que pueden aparecer en un diario desgastado (1-5).",
-    Sandbox_BurdJournals_WornJournalTraitChance = "% Probabilidad Rasgo Desgastado",
-    Sandbox_BurdJournals_WornJournalTraitChance_tooltip = "Probabilidad de que los diarios desgastados contengan rasgos (0-100%). Pon 0% (predeterminado) para el comportamiento clasico donde solo los diarios sangrientos tienen rasgos.",
-    Sandbox_BurdJournals_EnablePassiveSkillsLoot = "Enable Passive Skills (Loot)",
-    Sandbox_BurdJournals_EnablePassiveSkillsLoot_tooltip = "When enabled, Fitness/Strength can appear and be claimed on worn/bloody journals. When disabled, passive skill entries are hidden but preserved.",
-    Sandbox_BurdJournals_EnablePassiveSkillsPlayer = "Enable Passive Skills (Player)",
-    Sandbox_BurdJournals_EnablePassiveSkillsPlayer_tooltip = "When enabled, Fitness/Strength can be recorded and claimed from player journals. When disabled, passive skill entries are hidden but preserved.",
-    Sandbox_BurdJournals_RequireLightForJournalUse = "Require Light for Journal Use",
-    Sandbox_BurdJournals_RequireLightForJournalUse_tooltip = "When enabled, opening journals and reading/writing journal actions require enough light, following vanilla reading darkness rules.",
     Sandbox_BurdJournals_AllowTraitPurchaseSkillRecording = "Allow Trait Purchase Skill Recording",
     Sandbox_BurdJournals_AllowTraitPurchaseSkillRecording_tooltip = "Compatibility toggle for Traits Purchase System (Mod ID: TraitsPurchaseSystem). When disabled (default), its trait-currency skills (Traits/Traits1/Traits2/Traits3) are hidden from journal recording and claiming, while existing data remains preserved.",
-    Sandbox_BurdJournals_OtherMods = "Journals - Other Mods",
     Sandbox_BurdJournals_AllowAdaptiveTraitsManagedTraitRecording = "Allow Adaptive Traits Managed Trait Recording",
     Sandbox_BurdJournals_AllowAdaptiveTraitsManagedTraitRecording_tooltip = "Compatibility toggle for Adaptive Traits (Mod ID: AdaptiveTraits). When disabled (default), AdaptiveTraits-managed traits are hidden from player journal recording and claiming while existing journal data is preserved.",
     Sandbox_BurdJournals_AllowVhsSkillRecording = "Allow VHS Skill Recording",
     Sandbox_BurdJournals_AllowVhsSkillRecording_tooltip = "Compatibility toggle for recorded-media VHS skill XP. When disabled (default), tracked VHS-derived skill XP is excluded from player journal recording.",
-    Sandbox_BurdJournals_AllowMutualExclusionCancellation = "Trait Conflict Resolution",
-    Sandbox_BurdJournals_AllowMutualExclusionCancellation_tooltip = "When claiming a trait that conflicts with one you already have, the conflicting trait is automatically removed.",
-    Sandbox_BurdJournals_BloodyJournalForgetChance = "Bloody Forget Slot Chance %",
-    Sandbox_BurdJournals_BloodyJournalForgetChance_tooltip = "Chance for bloody journals to include a special forget slot that removes one removable trait you currently have.",
-    Sandbox_BurdJournals_WornJournalForgetChance = "Worn Forget Slot Chance %",
-    Sandbox_BurdJournals_WornJournalForgetChance_tooltip = "Chance for worn journals to include a special forget slot that removes one removable trait you currently have.",
 }
-
-
-
-
-
-
-
-
-
-

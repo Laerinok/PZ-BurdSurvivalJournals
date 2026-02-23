@@ -1,5 +1,4 @@
 ContextMenu_PTBR = {
-    -- Journal Actions
     ContextMenu_BurdJournals_OpenJournal = "Abrir Diário...",
     ContextMenu_BurdJournals_Read = "Ler Diário",
     ContextMenu_BurdJournals_Rename = "Renomear",
@@ -7,22 +6,15 @@ ContextMenu_PTBR = {
     ContextMenu_BurdJournals_RecordProgress = "Gravar Progresso",
     ContextMenu_BurdJournals_UpdateRecords = "Atualizar Registros",
     ContextMenu_BurdJournals_ClaimAll = "Reivindicar Todas as Habilidades",
-
-    -- Bind Journal (Context Menu Crafting)
     ContextMenu_BurdJournals_BindAsSurvivalJournal = "Encadernar como Diário de Sobrevivência",
     ContextMenu_BurdJournals_BindAsSurvivalJournal_Missing = "Encadernar como Diário de Sobrevivência (Materiais Insuficientes)",
     ContextMenu_BurdJournals_BindAsSurvivalJournal_NoTailoring = "Encadernar como Diário de Sobrevivência (Requer Costura 1)",
-
-    -- Bloody Journal
     ContextMenu_BurdJournals_BloodyBlank = "Diário em Branco Ensanguentado",
+    ContextMenu_BurdJournals_OpenCursedJournal = "Break the Seal...",
     ContextMenu_BurdJournals_ConvertViaCrafting = "Converter em Diário Pessoal (Crafting)",
-
-    -- Worn Journal
     ContextMenu_BurdJournals_WornBlank = "Diário em Branco Desgastado",
     ContextMenu_BurdJournals_AbsorbAll = "Receber Todas as Recompensas",
     ContextMenu_BurdJournals_ConvertToClean = "Reencadernar como Diário Pessoal",
-
-    -- Absorb All Dynamic Labels (for context menu)
     ContextMenu_BurdJournals_AbsorbAllFormat = "Absorver Tudo (%s)",
     ContextMenu_BurdJournals_SkillCount = "%d habilidade",
     ContextMenu_BurdJournals_SkillsCount = "%d habilidades",
@@ -30,18 +22,12 @@ ContextMenu_PTBR = {
     ContextMenu_BurdJournals_TraitsCount = "%d traços",
     ContextMenu_BurdJournals_RecipeCount = "%d receita",
     ContextMenu_BurdJournals_RecipesCount = "%d receitas",
-
-    -- Personal Journal (Clean)
     ContextMenu_BurdJournals_RecordAll = "Gravar Todo o Progresso",
     ContextMenu_BurdJournals_Disassemble = "Desmontar Diário",
-
-    -- Legacy (Clean/Repair)
+    ContextMenu_BurdJournals_CannotRead = "Não Pode Ler (Analfabeto)",
     ContextMenu_BurdJournals_CleanRepair = "Limpar/Reparar",
     ContextMenu_BurdJournals_CleanSoap = "Limpar com Sabão e Pano",
     ContextMenu_BurdJournals_RepairTape = "Remendar com Fita Adesiva",
     ContextMenu_BurdJournals_RepairLeather = "Reencadernar com Couro",
     ContextMenu_BurdJournals_RepairGlue = "Colar Páginas",
-
-    -- Illiterate Trait Block
-    ContextMenu_BurdJournals_CannotRead = "Não Pode Ler (Analfabeto)",
 }

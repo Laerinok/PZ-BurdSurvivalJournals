@@ -1,38 +1,27 @@
 IG_UI_PTBR = {
-    -- Context Menu - Main Options
     ContextMenu_BurdJournals_OpenJournal = "Abrir Diário...",
     ContextMenu_BurdJournals_Read = "Ler",
     ContextMenu_BurdJournals_Rename = "Renomear",
     ContextMenu_BurdJournals_EraseJournal = "Apagar Diário",
     ContextMenu_BurdJournals_RecordProgress = "Gravar Progresso",
-
-    -- Context Menu - Clean/Repair
     ContextMenu_BurdJournals_CleanRepair = "Limpar/Reparar",
     ContextMenu_BurdJournals_CleanSoap = "Limpar com Sabão e Pano",
     ContextMenu_BurdJournals_RepairTape = "Remendar com Fita Adesiva",
     ContextMenu_BurdJournals_RepairLeather = "Reencadernar com Couro",
     ContextMenu_BurdJournals_RepairGlue = "Colar Páginas",
-
-    -- UI Panel Titles
     UI_BurdJournals_BlankJournal = "Diário de Sobrevivência em Branco",
     UI_BurdJournals_FilledJournal = "Diário de Sobrevivência Preenchido",
     UI_BurdJournals_WornJournal = "Diário de Sobrevivência Desgastado",
-
-    -- Data Category Headers
     UI_BurdJournals_CategoryCharacter = "Informações do Personagem",
     UI_BurdJournals_CategorySurvival = "Registro de Sobrevivência",
     UI_BurdJournals_CategoryKills = "Contagem de Mortes",
     UI_BurdJournals_CategoryTraits = "Traços de Personalidade",
     UI_BurdJournals_CategorySkills = "Habilidades Aprendidas",
-
-    -- UI Panel Labels
     UI_BurdJournals_Author = "Autor",
     UI_BurdJournals_Written = "Escrito em",
     UI_BurdJournals_TimesRead = "Vezes lido",
     UI_BurdJournals_Condition = "Estado",
     UI_BurdJournals_NeedsCleaning = "Necessita Limpeza",
-
-    -- UI Buttons
     UI_BurdJournals_SelectAll = "Selecionar Tudo",
     UI_BurdJournals_DeselectAll = "Desmarcar Tudo",
     UI_BurdJournals_Log = "Registrar Habilidades",
@@ -40,52 +29,36 @@ IG_UI_PTBR = {
     UI_BurdJournals_Update = "Atualizar",
     UI_BurdJournals_Erase = "Apagar",
     UI_BurdJournals_Close = "Fechar",
-
-    -- Confirmation Dialogs
     UI_BurdJournals_ConfirmErase = "Tem certeza de que deseja apagar este diário? Todas as habilidades registradas serão perdidas para sempre.",
     UI_BurdJournals_ConfirmOverwrite = "Isso substituirá o conteúdo atual do diário pelas suas habilidades atuais. Tem certeza?",
     UI_BurdJournals_RenamePrompt = "Insira um novo nome para este diário:",
     UI_BurdJournals_NoSkillsSelected = "Selecione pelo menos uma habilidade primeiro.",
     UI_BurdJournals_NoSkillsInJournal = "Este diário não contém habilidades para aprender.",
-
-    -- Condition States
     UI_BurdJournals_ConditionPristine = "Impecável",
     UI_BurdJournals_ConditionGood = "Bom",
     UI_BurdJournals_ConditionWorn = "Desgastado",
     UI_BurdJournals_ConditionDamaged = "Danificado",
     UI_BurdJournals_ConditionCritical = "Crítico",
-
-    -- Inspect Messages
     UI_BurdJournals_InspectBlank = "Um diário em branco em estado %1.",
     UI_BurdJournals_InspectFilled = "Um diário escrito por %1. Estado: %2",
-
-    -- Tooltips - Journal Info
     Tooltip_BlankSurvivalJournal = "Um diário em branco pronto para registrar seu conhecimento de sobrevivência.",
     Tooltip_FilledSurvivalJournal = "Um diário contendo habilidades de sobrevivência registradas. Clique com o botão direito para ler.",
     Tooltip_BurdJournals_ContainsSkills = "Contém %1 habilidade(s) registrada(s)",
-
-    -- Tooltips - Requirements
     Tooltip_BurdJournals_NeedPen = "Requer uma caneta ou lápis para escrever.",
     Tooltip_BurdJournals_NeedEraser = "Requer uma borracha para apagar o conteúdo.",
     Tooltip_BurdJournals_NeedsCleaning = "Este diário está desgastado demais para ser lido.",
     Tooltip_BurdJournals_NeedsCleaningDesc = "Use sabão e pano para limpá-lo, fita adesiva para remendá-lo ou tiras de couro para reencaderná-lo.",
-
-    -- Tooltips - Cleaning Materials
     Tooltip_BurdJournals_MissingMaterials = "Materiais Faltando",
     Tooltip_BurdJournals_NeedsSoapCloth = "Requer: Sabão + Pano Rasgado ou Pano de Prato",
     Tooltip_BurdJournals_NeedsTape = "Requer: Fita Adesiva",
     Tooltip_BurdJournals_NeedsLeatherBinding = "Requer: Tiras de Couro + Linha + Agulha",
     Tooltip_BurdJournals_NeedsGluePaper = "Requer: Cola + Folha de Papel",
-
-    -- Illiterate Trait Block
-    Tooltip_BurdJournals_IlliterateName = "Analfabeto",
-    Tooltip_BurdJournals_IlliterateDesc = "Você não sabe ler nem escrever. Diários são inúteis para você.",
-
-    -- Feedback Messages
     UI_BurdJournals_SkillsLogged = "Habilidades registradas no diário.",
     UI_BurdJournals_SkillsLearned = "Conhecimento absorvido do diário!",
     UI_BurdJournals_JournalErased = "Conteúdo do diário apagado.",
     UI_BurdJournals_JournalCleaned = "O diário foi limpo e agora está legível.",
     UI_BurdJournals_JournalUpdated = "Habilidades do diário atualizadas.",
     UI_BurdJournals_JournalRenamed = "Diário renomeado.",
+    Tooltip_BurdJournals_IlliterateDesc = "Você não sabe ler nem escrever. Diários são inúteis para você.",
+    Tooltip_BurdJournals_IlliterateName = "Analfabeto",
 }

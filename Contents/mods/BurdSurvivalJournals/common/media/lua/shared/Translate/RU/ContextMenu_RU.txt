@@ -10,12 +10,11 @@ ContextMenu_RU = {
     ContextMenu_BurdJournals_BindAsSurvivalJournal_Missing = "Переплести Как Журнал Выживающего (Не Хватает Материалов)",
     ContextMenu_BurdJournals_BindAsSurvivalJournal_NoTailoring = "Переплести Как Журнал Выживающего (Требует Шитьё 1)",
     ContextMenu_BurdJournals_BloodyBlank = "Окровавленный Пустой Журнал",
+    ContextMenu_BurdJournals_OpenCursedJournal = "Break the Seal...",
     ContextMenu_BurdJournals_ConvertViaCrafting = "Превратить В Персональный Журнал (Создание)",
     ContextMenu_BurdJournals_WornBlank = "Потрёпанный пустой журнал",
     ContextMenu_BurdJournals_AbsorbAll = "Изучить Все Награды",
     ContextMenu_BurdJournals_ConvertToClean = "Переплести Как Перснальный Журнал",
-
-    -- Absorb All Dynamic Labels (for context menu)
     ContextMenu_BurdJournals_AbsorbAllFormat = "Получить Все (%s)",
     ContextMenu_BurdJournals_SkillCount = "%d навык",
     ContextMenu_BurdJournals_SkillsCount = "%d навыка(ов)",
@@ -23,13 +22,12 @@ ContextMenu_RU = {
     ContextMenu_BurdJournals_TraitsCount = "%d черт(ы)",
     ContextMenu_BurdJournals_RecipeCount = "%d рецепт",
     ContextMenu_BurdJournals_RecipesCount = "%d рецепта(ов)",
-
     ContextMenu_BurdJournals_RecordAll = "Записать Весь Прогресс",
     ContextMenu_BurdJournals_Disassemble = "Разобрать Журнал",
+    ContextMenu_BurdJournals_CannotRead = "Не Может Читать (Безграмотен(на))",
     ContextMenu_BurdJournals_CleanRepair = "Отчистить/Починить",
     ContextMenu_BurdJournals_CleanSoap = "Отчистить Мылом И Тряпкой",
     ContextMenu_BurdJournals_RepairTape = "Залатать Изолентой",
     ContextMenu_BurdJournals_RepairLeather = "Переплести Кожей",
     ContextMenu_BurdJournals_RepairGlue = "Склеить Страницы Вместе",
-    ContextMenu_BurdJournals_CannotRead = "Не Может Читать (Безграмотен(на))",
 }

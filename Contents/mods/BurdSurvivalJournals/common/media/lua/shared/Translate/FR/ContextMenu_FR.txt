@@ -1,5 +1,4 @@
 ContextMenu_FR = {
-    -- Journal Actions
     ContextMenu_BurdJournals_OpenJournal = "Ouvrir le journal...",
     ContextMenu_BurdJournals_Read = "Lire le journal",
     ContextMenu_BurdJournals_Rename = "Renommer",
@@ -7,22 +6,15 @@ ContextMenu_FR = {
     ContextMenu_BurdJournals_RecordProgress = "Consigner les progrès",
     ContextMenu_BurdJournals_UpdateRecords = "Mettre à jour les notes",
     ContextMenu_BurdJournals_ClaimAll = "Récupérer toutes les compétences",
-
-    -- Bind Journal (Context Menu Crafting)
     ContextMenu_BurdJournals_BindAsSurvivalJournal = "Relier comme journal de survie",
     ContextMenu_BurdJournals_BindAsSurvivalJournal_Missing = "Relier comme journal de survie (Matériaux manquants)",
     ContextMenu_BurdJournals_BindAsSurvivalJournal_NoTailoring = "Relier comme journal de survie (Couture niveau 1 requis)",
-
-    -- Bloody Journal
     ContextMenu_BurdJournals_BloodyBlank = "Journal vierge ensanglanté",
+    ContextMenu_BurdJournals_OpenCursedJournal = "Break the Seal...",
     ContextMenu_BurdJournals_ConvertViaCrafting = "Convertir en journal personnel (Artisanat)",
-
-    -- Worn Journal
     ContextMenu_BurdJournals_WornBlank = "Journal vierge usé",
     ContextMenu_BurdJournals_AbsorbAll = "Récupérer toutes les récompenses",
     ContextMenu_BurdJournals_ConvertToClean = "Relier comme journal personnel",
-
-    -- Absorb All Dynamic Labels (for context menu)
     ContextMenu_BurdJournals_AbsorbAllFormat = "Tout absorber (%s)",
     ContextMenu_BurdJournals_SkillCount = "%d compétence",
     ContextMenu_BurdJournals_SkillsCount = "%d compétences",
@@ -30,15 +22,9 @@ ContextMenu_FR = {
     ContextMenu_BurdJournals_TraitsCount = "%d traits",
     ContextMenu_BurdJournals_RecipeCount = "%d recette",
     ContextMenu_BurdJournals_RecipesCount = "%d recettes",
-
-    -- Personal Journal (Clean)
     ContextMenu_BurdJournals_RecordAll = "Consigner tous les progrès",
     ContextMenu_BurdJournals_Disassemble = "Démonter le journal",
-
-    -- Illiterate Trait Block
     ContextMenu_BurdJournals_CannotRead = "Impossible de lire (Illettré)",
-
-    -- Legacy (keeping for compatibility)
     ContextMenu_BurdJournals_CleanRepair = "Nettoyer/Réparer",
     ContextMenu_BurdJournals_CleanSoap = "Nettoyer (Savon & Chiffon)",
     ContextMenu_BurdJournals_RepairTape = "Réparer avec du ruban adhésif",

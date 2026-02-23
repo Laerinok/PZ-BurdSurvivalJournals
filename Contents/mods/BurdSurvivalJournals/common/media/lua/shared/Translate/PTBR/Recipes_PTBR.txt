@@ -1,27 +1,18 @@
 Recipes_PTBR = {
-    -- Erase/Reset (ambos os formatos para compatibilidade)
     EraseFilledJournal = "Apagar Diário Preenchido",
     Recipe_EraseFilledJournal = "Apagar Diário Preenchido",
-
-    -- Bind Recipes (Thread-based) - aceita Diário ou Caderno
     Bind_Thread_Leather = "Encadernar Diário de Sobrevivência (Linha + Couro)",
     Recipe_Bind_Thread_Leather = "Encadernar Diário de Sobrevivência (Linha + Couro)",
     Bind_Thread_AnyCover = "Encadernar Diário de Sobrevivência (Linha + Tecido)",
     Recipe_Bind_Thread_AnyCover = "Encadernar Diário de Sobrevivência (Linha + Tecido)",
-
-    -- Bind Recipes (Adhesive-based) - aceita Diário ou Caderno
     Bind_Adhesive_Leather = "Encadernar Diário de Sobrevivência (Fita ou cola + Couro)",
     Recipe_Bind_Adhesive_Leather = "Encadernar Diário de Sobrevivência (Fita ou cola + Couro)",
     Bind_Adhesive_AnyCover = "Encadernar Diário de Sobrevivência (Fita ou cola + Tecido)",
     Recipe_Bind_Adhesive_AnyCover = "Encadernar Diário de Sobrevivência (Fita ou cola + Tecido)",
-
-    -- Restore Journal Recipes (Thread-based)
     RestoreJournal_Thread_Leather = "Restaurar Diário (Linha + Couro)",
     Recipe_RestoreJournal_Thread_Leather = "Restaurar Diário (Linha + Couro)",
     RestoreJournal_Thread_AnyCover = "Restaurar Diário (Linha + Tecido)",
     Recipe_RestoreJournal_Thread_AnyCover = "Restaurar Diário (Linha + Tecido)",
-
-    -- Restore Journal Recipes (Adhesive-based)
     RestoreJournal_Adhesive_Leather = "Restaurar Diário (Fita ou cola + Couro)",
     Recipe_RestoreJournal_Adhesive_Leather = "Restaurar Diário (Fita ou cola + Couro)",
     RestoreJournal_Adhesive_AnyCover = "Restaurar Diário (Fita ou cola + Tecido)",

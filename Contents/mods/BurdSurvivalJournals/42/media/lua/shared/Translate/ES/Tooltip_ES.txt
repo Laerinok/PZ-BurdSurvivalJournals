@@ -1,56 +1,42 @@
 Tooltip_ES = {
-    -- Item Tooltips
     Tooltip_BlankSurvivalJournal = "Un diario en blanco listo para registrar tu conocimiento de supervivencia.",
     Tooltip_FilledSurvivalJournal = "Un diario que contiene habilidades de supervivencia registradas. Clic derecho para leer.",
-
-    -- Skill Info
     Tooltip_BurdJournals_ContainsSkills = "Contiene %d habilidad(es) registrada(s)",
     Tooltip_BurdJournals_RewardsRemaining = "recompensas restantes",
-    Tooltip_BurdJournals_SetModeDesc = "Leer ESTABLECERA tu XP para igualar los niveles registrados (si son mayores).\\n\\n",
-
-    -- Tool Requirements
+    Tooltip_BurdJournals_SetModeDesc = "Leer ESTABLECERA tu XP para igualar los niveles registrados (si son mayores).\n\n",
     Tooltip_BurdJournals_NeedPen = "Requiere un boligrafo o lapiz para escribir.",
     Tooltip_BurdJournals_NeedEraser = "Requiere un borrador para limpiar el contenido.",
-
-    -- Bloody Journal
     Tooltip_BurdJournals_BloodyJournal = "Diario Sangriento",
     Tooltip_BurdJournals_BloodyJournalDesc = "Un diario de un superviviente caido. Contiene habilidades y rasgos que pueden ser absorbidos.",
     Tooltip_BurdJournals_BloodyDesc = "Hallazgo raro! Puede contener rasgos valiosos.",
+    Tooltip_CursedJournal = "A sealed journal that feels wrong to hold.",
+    Tooltip_BurdJournals_CursedJournalName = "Cursed Journal",
+    Tooltip_BurdJournals_CursedJournalDesc = "Breaking the seal marks the first reader, but unlocks a richer bloody reward journal.",
     Tooltip_BurdJournals_ConvertBloodyToClean = "Convertir a Diario Limpio",
     Tooltip_BurdJournals_ConvertBloodyToCleanDesc = "Usa la fabricacion para convertir este diario sangriento en un diario personal limpio.",
-    Tooltip_BurdJournals_ConvertBloodyDesc = "Abre el menu de fabricacion (B) para encontrar 'Limpiar y Convertir Diario Sangriento'.\\nRequiere: Jabon, Tela, Cuero, Hilo, Aguja, Sastreria Nvl1.\\nADVERTENCIA: Destruye cualquier recompensa restante!",
-    Tooltip_BurdJournals_CraftingRequired = "Fabricacion Requerida",
-
-    -- Worn Journal
     Tooltip_BurdJournals_WornJournal = "Diario Desgastado",
     Tooltip_BurdJournals_NeedsCleaning = "Este diario esta demasiado desgastado para leer.",
     Tooltip_BurdJournals_NeedsCleaningDesc = "Usa jabon y pano para limpiarlo, cinta americana para parchearlo, o tiras de cuero para reencuadernarlo.",
     Tooltip_BurdJournals_AbsorbAll = "Absorber Todo",
     Tooltip_BurdJournals_AbsorbAllDesc = "Reclamar todas las habilidades y rasgos restantes de una vez. El diario se disolvera.",
-    Tooltip_BurdJournals_AbsorbAllRewards = "Absorber Todas las Recompensas",
-    Tooltip_BurdJournals_AbsorbAllSkillsTraits = "Absorber Todo (%d habilidades, %d rasgos)",
-    Tooltip_BurdJournals_AbsorbAllSkills = "Absorber Todo (%d habilidades)",
-
-    -- Personal Journal (Clean)
     Tooltip_BurdJournals_PersonalJournal = "Diario de Supervivencia Personal",
     Tooltip_BurdJournals_BlankJournal = "Diario de Supervivencia En Blanco",
-    Tooltip_BurdJournals_BlankJournalDesc = "Abre el diario para registrar tu progreso de supervivencia.\\nRequiere una herramienta de escritura.",
+    Tooltip_BurdJournals_BlankJournalDesc = "Abre el diario para registrar tu progreso de supervivencia.\nRequiere una herramienta de escritura.",
     Tooltip_BurdJournals_RecordProgress = "Registrar Tu Progreso",
-    Tooltip_BurdJournals_RecordProgressDesc = "Abre el diario para registrar tus habilidades y rasgos actuales.\\nLos valores registrados solo se actualizan si tu nivel actual es mayor.",
+    Tooltip_BurdJournals_RecordProgressDesc = "Abre el diario para registrar tus habilidades y rasgos actuales.\nLos valores registrados solo se actualizan si tu nivel actual es mayor.",
     Tooltip_BurdJournals_ClaimAll = "Reclamar Todas las Habilidades",
-    Tooltip_BurdJournals_ClaimAllDesc = "Abre el diario y reclama todas las habilidades disponibles.\\nEsto tomara tiempo basado en tu velocidad de lectura.",
-    Tooltip_BurdJournals_UpdateRecords = "Actualizar Registros del Diario",
-    Tooltip_BurdJournals_UpdateRecordsDesc = "Abre el diario para actualizar tus habilidades registradas.\\nLos valores registrados solo se actualizan si tu nivel actual es mayor.",
+    Tooltip_BurdJournals_ClaimAllDesc = "Abre el diario y reclama todas las habilidades disponibles.\nEsto tomara tiempo basado en tu velocidad de lectura.",
     Tooltip_BurdJournals_Disassemble = "Desmontar Diario",
-    Tooltip_BurdJournals_DisassembleDesc = "Despedaza este diario por materiales.\\n\\nRecibiras:\\n  2x Papel\\n  1x Tiras de Cuero",
-    Tooltip_BurdJournals_EraseContents = "Borrar Todo el Contenido",
-    Tooltip_BurdJournals_EraseContentsDesc = "Borra todos los datos registrados, devolviendo el diario a un estado en blanco.\\nRequiere un borrador.",
-
-    -- Tooltip Dynamic Text
+    Tooltip_BurdJournals_DisassembleDesc = "Despedaza este diario por materiales.\n\nRecibiras:\n  2x Papel\n  1x Tiras de Cuero",
     Tooltip_BurdJournals_SkillsAvailable = "Habilidades: %d/%d disponibles",
     Tooltip_BurdJournals_TraitsAvailable = "Rasgos: %d/%d disponibles",
     Tooltip_BurdJournals_RecipesAvailable = "Recetas: %d/%d disponibles",
     Tooltip_BurdJournals_NoRewardsFound = "No se encontraron recompensas",
+    Tooltip_BurdJournals_AbsorbAllRewards = "Absorber Todas las Recompensas",
+    Tooltip_BurdJournals_AbsorbAllSkillsTraits = "Absorber Todo (%d habilidades, %d rasgos)",
+    Tooltip_BurdJournals_AbsorbAllSkills = "Absorber Todo (%d habilidades)",
+    Tooltip_BurdJournals_CraftingRequired = "Fabricacion Requerida",
+    Tooltip_BurdJournals_ConvertBloodyDesc = "Abre el menu de fabricacion (B) para encontrar 'Limpiar y Convertir Diario Sangriento'.\nRequiere: Jabon, Tela, Cuero, Hilo, Aguja, Sastreria Nvl1.\nADVERTENCIA: Destruye cualquier recompensa restante!",
     Tooltip_BurdJournals_WrittenBy = "Escrito por: %s",
     Tooltip_BurdJournals_RecordedItem = "Contiene %d objeto registrado",
     Tooltip_BurdJournals_RecordedItems = "Contiene %d objetos registrados",
@@ -59,37 +45,33 @@ Tooltip_ES = {
     Tooltip_BurdJournals_SkillsCount = "- %d habilidades",
     Tooltip_BurdJournals_TraitCount = "- %d rasgo",
     Tooltip_BurdJournals_TraitsCount = "- %d rasgos",
+    Tooltip_BurdJournals_ViewOnly = "Solo ver",
+    Tooltip_BurdJournals_CannotClaimDefault = "No puedes reclamar de este diario.",
+    Tooltip_BurdJournals_NoNewRewards = "Sin nuevas recompensas disponibles.",
+    Tooltip_BurdJournals_ClaimingInfo = "Reclamar establece tu XP al nivel registrado (si es mayor).",
+    Tooltip_BurdJournals_UpdateRecords = "Actualizar Registros del Diario",
+    Tooltip_BurdJournals_UpdateRecordsDesc = "Abre el diario para actualizar tus habilidades registradas.\nLos valores registrados solo se actualizan si tu nivel actual es mayor.",
+    Tooltip_BurdJournals_CannotClaim = "No se puede Reclamar",
+    Tooltip_BurdJournals_NoPermissionClaim = "No tienes permiso para reclamar de este diario.",
     Tooltip_BurdJournals_AvailableSkill = "Disponible: %d habilidad",
     Tooltip_BurdJournals_AvailableSkills = "Disponible: %d habilidades",
     Tooltip_BurdJournals_AndTrait = ", %d rasgo",
     Tooltip_BurdJournals_AndTraits = ", %d rasgos",
     Tooltip_BurdJournals_ReadingSpeedNote = "Esto tomara tiempo basado en tu velocidad de lectura.",
-    Tooltip_BurdJournals_NoNewRewards = "Sin nuevas recompensas disponibles.",
-    Tooltip_BurdJournals_ClaimingInfo = "Reclamar establece tu XP al nivel registrado (si es mayor).",
-    Tooltip_BurdJournals_ViewOnly = "Solo ver",
-    Tooltip_BurdJournals_CannotClaimDefault = "No puedes reclamar de este diario.",
-    Tooltip_BurdJournals_CannotClaim = "No se puede Reclamar",
-    Tooltip_BurdJournals_NoPermissionClaim = "No tienes permiso para reclamar de este diario.",
+    Tooltip_BurdJournals_EraseContents = "Borrar Todo el Contenido",
+    Tooltip_BurdJournals_EraseContentsDesc = "Borra todos los datos registrados, devolviendo el diario a un estado en blanco.\nRequiere un borrador.",
     Tooltip_BurdJournals_CannotOpen = "No se puede Abrir",
-
-    -- Conversion
     Tooltip_BurdJournals_ConvertToClean = "Reencuadernar como Diario de Supervivencia Personal",
     Tooltip_BurdJournals_ConvertToCleanDesc = "Reencuaderna este diario desgastado en un diario de supervivencia en blanco y limpio para uso personal. Requiere suministros de sastreria.",
     Tooltip_BurdJournals_CannotConvert = "No se puede Convertir",
     Tooltip_BurdJournals_NeedsConvertMaterials = "Requiere: Tiras de Cuero + Hilo + Aguja + Sastreria Nvl1",
-
-    -- Materials
     Tooltip_BurdJournals_MissingMaterials = "Faltan Materiales",
     Tooltip_BurdJournals_NeedsSoapCloth = "Requiere: Jabon + Jirones de Tela o Pano de Cocina",
     Tooltip_BurdJournals_NeedsTape = "Requiere: Cinta Americana",
     Tooltip_BurdJournals_NeedsLeatherBinding = "Requiere: Tiras de Cuero + Hilo + Aguja",
     Tooltip_BurdJournals_NeedsGluePaper = "Requiere: Pegamento + Hoja de Papel",
-
-    -- Illiterate Trait Block
     Tooltip_BurdJournals_IlliterateName = "Analfabeto",
     Tooltip_BurdJournals_IlliterateDesc = "No puedes leer ni escribir. Los diarios son inutiles para ti.",
-
-    -- Inventory Tooltip Labels
     Tooltip_BurdJournals_Owner = "Dueno: %s",
     Tooltip_BurdJournals_OwnerYou = "(Tu)",
     Tooltip_BurdJournals_Author = "Autor: %s",
@@ -101,6 +83,7 @@ Tooltip_ES = {
     Tooltip_BurdJournals_TraitsLine = "Rasgos: %d/%d",
     Tooltip_BurdJournals_RecipesLine = "Recetas: %d/%d",
     Tooltip_BurdJournals_ConditionBloody = "Condicion: Sangriento",
+    Tooltip_BurdJournals_TagCursed = "[Cursed]",
     Tooltip_BurdJournals_ConditionWorn = "Condicion: Desgastado",
     Tooltip_BurdJournals_ConditionRestored = "Condicion: Restaurado",
     Tooltip_BurdJournals_ConditionClean = "Condicion: Limpio",

@@ -1,4 +1,4 @@
-﻿ContextMenu_ID = {
+ContextMenu_ID = {
     ContextMenu_BurdJournals_OpenJournal = "Buka Jurnal...",
     ContextMenu_BurdJournals_Read = "Baca",
     ContextMenu_BurdJournals_Rename = "Ubah nama",
@@ -10,6 +10,7 @@
     ContextMenu_BurdJournals_BindAsSurvivalJournal_Missing = "Ikat sebagai Jurnal Bertahan Hidup (Material Kurang)",
     ContextMenu_BurdJournals_BindAsSurvivalJournal_NoTailoring = "Ikat sebagai Jurnal Bertahan Hidup (Butuh Tailoring Lv. 1)",
     ContextMenu_BurdJournals_BloodyBlank = "Bloody Jurnal Kosong",
+    ContextMenu_BurdJournals_OpenCursedJournal = "Break the Seal...",
     ContextMenu_BurdJournals_ConvertViaCrafting = "Ubah menjadi Jurnal Pribadi (Crafting)",
     ContextMenu_BurdJournals_WornBlank = "Worn Jurnal Kosong",
     ContextMenu_BurdJournals_AbsorbAll = "Serap Semua Hadiah",
@@ -23,4 +24,10 @@
     ContextMenu_BurdJournals_RecipesCount = "%d reseps",
     ContextMenu_BurdJournals_RecordAll = "Catat Semua Progres",
     ContextMenu_BurdJournals_Disassemble = "Bongkar Jurnal",
+    ContextMenu_BurdJournals_CannotRead = "Cannot Read (Illiterate)",
+    ContextMenu_BurdJournals_CleanRepair = "Clean/Repair",
+    ContextMenu_BurdJournals_CleanSoap = "Clean with Soap & Cloth",
+    ContextMenu_BurdJournals_RepairTape = "Patch with Duct Tape",
+    ContextMenu_BurdJournals_RepairLeather = "Rebind with Leather",
+    ContextMenu_BurdJournals_RepairGlue = "Glue Pages Together",
 }

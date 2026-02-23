@@ -189,6 +189,53 @@ local function applyServerJournalUpdate(player, journalId, args, sourceTag)
     return applied
 end
 
+local function markTraitClaimedLocally(player, journalId, traitId)
+    if not player or not journalId or not traitId then
+        return
+    end
+
+    local function applyClaimToJournal(journal)
+        if not journal then
+            return false
+        end
+        local data = BurdJournals.getJournalData and BurdJournals.getJournalData(journal) or nil
+        if data then
+            BurdJournals.markTraitClaimedByCharacter(data, player, traitId)
+            if journal.transmitModData then
+                journal:transmitModData()
+            end
+            return true
+        end
+        BurdJournals.claimTrait(journal, traitId)
+        return true
+    end
+
+    local inventoryJournal = BurdJournals.findItemById(player, journalId)
+    applyClaimToJournal(inventoryJournal)
+
+    if BurdJournals.UI and BurdJournals.UI.MainPanel and BurdJournals.UI.MainPanel.instance then
+        local panel = BurdJournals.UI.MainPanel.instance
+        if panel.journal and journalIdsMatch(panel.journal:getID(), journalId) then
+            applyClaimToJournal(panel.journal)
+        end
+    end
+end
+
+local function markTraitSessionClaim(panel, traitId)
+    if not panel or not traitId then
+        return
+    end
+    local normalizedTraitId = BurdJournals.normalizeTraitId and BurdJournals.normalizeTraitId(traitId) or traitId
+    local traitSessionKey = string.lower(tostring(normalizedTraitId or traitId))
+    if not panel.sessionClaimedTraits then panel.sessionClaimedTraits = {} end
+    panel.sessionClaimedTraits[traitId] = true
+    panel.sessionClaimedTraits[traitSessionKey] = true
+    if panel.pendingClaims and panel.pendingClaims.traits then
+        panel.pendingClaims.traits[traitId] = nil
+        panel.pendingClaims.traits[traitSessionKey] = nil
+    end
+end
+
 function BurdJournals.Client.registerTickHandler(handlerFunc, debugName)
     BurdJournals.Client._tickHandlerIdCounter = BurdJournals.Client._tickHandlerIdCounter + 1
     local handlerId = BurdJournals.Client._tickHandlerIdCounter
@@ -261,6 +308,121 @@ BurdJournals.Client._pendingNewCharacterBaseline = false
 BurdJournals.Client._newCharacterBaselineCaptureHandlerId = nil
 BurdJournals.Client._baselineMissRetryCount = 0
 BurdJournals.Client._baselineMissRetryHandlerId = nil
+BurdJournals.Client._runtimeBaselineCache = BurdJournals.Client._runtimeBaselineCache or {}
+
+local function copyBaselineMap(source)
+    local out = {}
+    if type(source) ~= "table" then
+        return out
+    end
+    for key, value in pairs(source) do
+        if key ~= nil and value ~= nil then
+            out[key] = value
+        end
+    end
+    return out
+end
+
+local function buildRuntimeBaselineRecord(characterId, payload)
+    if not characterId then
+        return nil
+    end
+    local key = tostring(characterId)
+    if key == "" then
+        return nil
+    end
+    local source = type(payload) == "table" and payload or {}
+    return {
+        characterId = key,
+        skillBaseline = copyBaselineMap(source.skillBaseline),
+        mediaSkillBaseline = copyBaselineMap(source.mediaSkillBaseline),
+        traitBaseline = copyBaselineMap(source.traitBaseline),
+        recipeBaseline = copyBaselineMap(source.recipeBaseline),
+        debugModified = source.debugModified == true,
+        cachedAtMs = getTimestampMs and getTimestampMs() or ((os.time() or 0) * 1000),
+    }
+end
+
+function BurdJournals.Client.storeRuntimeBaseline(characterId, payload)
+    local record = buildRuntimeBaselineRecord(characterId, payload)
+    if not record then
+        return false
+    end
+    BurdJournals.Client._runtimeBaselineCache[record.characterId] = record
+    return true
+end
+
+function BurdJournals.Client.getCachedBaselineForPlayer(player)
+    if not player or not BurdJournals.getPlayerCharacterId then
+        return nil
+    end
+    local characterId = BurdJournals.getPlayerCharacterId(player)
+    if not characterId then
+        return nil
+    end
+    return BurdJournals.Client._runtimeBaselineCache[tostring(characterId)]
+end
+
+local function isLocalBaselineTarget(player, args)
+    if not player then
+        return false
+    end
+    local targetUsername = args and args.targetUsername or nil
+    if targetUsername == nil or tostring(targetUsername) == "" then
+        return true
+    end
+    local localUsername = player.getUsername and player:getUsername() or nil
+    return localUsername ~= nil and tostring(localUsername) == tostring(targetUsername)
+end
+
+local function hasBaselinePayloadInCommandArgs(args)
+    return type(args) == "table"
+        and (
+            type(args.skillBaseline) == "table"
+            or type(args.mediaSkillBaseline) == "table"
+            or type(args.traitBaseline) == "table"
+            or type(args.recipeBaseline) == "table"
+        )
+end
+
+function BurdJournals.Client.applyAuthoritativeBaselinePayloadToLocalPlayer(player, args)
+    if not isLocalBaselineTarget(player, args) then
+        return false
+    end
+    if not hasBaselinePayloadInCommandArgs(args) then
+        return false
+    end
+
+    local modData = player and player.getModData and player:getModData() or nil
+    if not modData then
+        return false
+    end
+    modData.BurdJournals = modData.BurdJournals or {}
+    modData.BurdJournals.skillBaseline = copyBaselineMap(args.skillBaseline)
+    modData.BurdJournals.mediaSkillBaseline = copyBaselineMap(args.mediaSkillBaseline)
+    modData.BurdJournals.traitBaseline = copyBaselineMap(args.traitBaseline)
+    modData.BurdJournals.recipeBaseline = copyBaselineMap(args.recipeBaseline)
+    modData.BurdJournals.debugModified = args.debugModified == true
+    modData.BurdJournals.baselineCaptured = true
+    modData.BurdJournals.baselineVersion = BurdJournals.Client.BASELINE_VERSION
+    modData.BurdJournals.fromServerCache = true
+
+    local runtimeCharacterId = args.characterId
+        or (BurdJournals.getPlayerCharacterId and BurdJournals.getPlayerCharacterId(player))
+        or nil
+    if runtimeCharacterId and BurdJournals.Client.storeRuntimeBaseline then
+        BurdJournals.Client.storeRuntimeBaseline(runtimeCharacterId, {
+            characterId = runtimeCharacterId,
+            skillBaseline = modData.BurdJournals.skillBaseline,
+            mediaSkillBaseline = modData.BurdJournals.mediaSkillBaseline,
+            traitBaseline = modData.BurdJournals.traitBaseline,
+            recipeBaseline = modData.BurdJournals.recipeBaseline,
+            debugModified = modData.BurdJournals.debugModified == true,
+        })
+    end
+
+    return true
+end
 
 local function hasBaselineCapturedLocal(player)
     if not player then
@@ -916,6 +1078,48 @@ end
 
 local function buildFallbackCurseMessage(curseType, focusText, focusType)
     local focus = normalizeCursedLine(focusText)
+    if curseType == "barbed_seal" then
+        local template = getCursedClientText("UI_BurdJournals_CursedMsgBarbedSeal", "Barbed wire bites your %s as you tear the seal free.")
+        if focus then
+            return template:gsub("%%s", focus)
+        end
+        return getCursedClientText("UI_BurdJournals_CursedMsgBarbedSealGeneric", "Barbed wire bites your hand as you tear the seal free.")
+    end
+    if curseType == "jammed_breath" then
+        return getCursedClientText(
+            "UI_BurdJournals_CursedMsgJammedBreath",
+            "Your lungs seize as if something is gripping your chest."
+        )
+    end
+    if curseType == "hexed_tooling" then
+        local template = getCursedClientText("UI_BurdJournals_CursedMsgHexedTooling", "Your %s dulls and cracks under a sudden malignant strain.")
+        if focus then
+            return template:gsub("%%s", focus)
+        end
+        return getCursedClientText("UI_BurdJournals_CursedMsgHexedToolingGeneric", "Your gear dulls and cracks under a sudden malignant strain.")
+    end
+    if curseType == "torn_gear" then
+        local template = getCursedClientText("UI_BurdJournals_CursedMsgTornGear", "Something invisible rakes across your clothes, leaving %d fresh tears.")
+        if focus and tonumber(focus) then
+            local ok, formatted = pcall(string.format, template, math.floor(tonumber(focus)))
+            if ok and normalizeCursedLine(formatted) then
+                return formatted
+            end
+        end
+        return getCursedClientText("UI_BurdJournals_CursedMsgTornGearGeneric", "Something invisible rakes across your clothes.")
+    end
+    if curseType == "seasonal_wave" then
+        if focusType == "seasonal_wave" and focus then
+            local lowered = string.lower(focus)
+            if string.find(lowered, "cold", 1, true) then
+                return getCursedClientText("UI_BurdJournals_CursedMsgSeasonalCold", "The air turns hostile in an instant. Cold sinks into your bones.")
+            end
+        end
+        return getCursedClientText("UI_BurdJournals_CursedMsgSeasonalHeat", "The air turns hostile in an instant. Heat claws at your skin.")
+    end
+    if curseType == "pantsed" then
+        return getCursedClientText("UI_BurdJournals_CursedMsgPantsed", "Caught you with your pants down.")
+    end
     if curseType == "gain_negative_trait" then
         local template = getCursedClientText("UI_BurdJournals_CursedMsgGainNegative", "The curse brands you with: %s")
         if focus then
@@ -1075,16 +1279,89 @@ local function styleCursedModalButton(button, keepRed)
     }
 end
 
+local function getCursedModalViewport(player)
+    local core = getCore and getCore() or nil
+    local left = 0
+    local top = 0
+    local width = (core and core.getScreenWidth and core:getScreenWidth()) or 1280
+    local height = (core and core.getScreenHeight and core:getScreenHeight()) or 720
+
+    if player and player.getPlayerNum and getPlayerScreenWidth and getPlayerScreenHeight and getPlayerScreenLeft and getPlayerScreenTop then
+        local pnum = player:getPlayerNum()
+        local pwidth = tonumber(getPlayerScreenWidth(pnum)) or 0
+        local pheight = tonumber(getPlayerScreenHeight(pnum)) or 0
+        if pwidth > 0 and pheight > 0 then
+            width = pwidth
+            height = pheight
+            left = tonumber(getPlayerScreenLeft(pnum)) or 0
+            top = tonumber(getPlayerScreenTop(pnum)) or 0
+        end
+    end
+
+    return left, top, width, height
+end
+
+local function measureCursedRichTextHeight(richText, richWidth)
+    if not ensureCursedRichTextPanelClass() then
+        return nil
+    end
+
+    local probeWidth = math.max(140, tonumber(richWidth) or 140)
+    local probe = ISRichTextPanel:new(0, 0, probeWidth, 2000)
+    probe:initialise()
+    probe:instantiate()
+    probe.defaultFont = UIFont.Small
+    probe.clip = true
+    probe:setMargins(0, 0, 0, 0)
+    probe:setText(richText or "")
+    probe:paginate()
+
+    local measured = tonumber((probe.getScrollHeight and probe:getScrollHeight()) or 0) or 0
+    if measured <= 0 then
+        measured = tonumber(probe.height) or 0
+    end
+    if measured <= 0 then
+        return nil
+    end
+    return math.ceil(measured)
+end
+
 local function showCursedThemedModal(player, yesNo, richText, plainText, callback, journalId)
     if not ISModalDialog then
         return nil
     end
 
-    local width = 430
-    local height = 220
+    local screenLeft, screenTop, screenWidth, screenHeight = getCursedModalViewport(player)
+
+    local width = math.max(400, math.min(640, math.floor(screenWidth * 0.82)))
+    if width > (screenWidth - 24) then
+        width = math.max(280, screenWidth - 24)
+    end
+
+    local bodyX = 18
+    local bodyY = 20
+    local bodyWidth = math.max(220, width - 36)
+    local footerHeight = 84 -- leave extra room for scaled/translated buttons
+    local minBodyHeight = 108
+    local maxBodyHeight = math.max(minBodyHeight, math.floor(screenHeight * 0.62))
+
+    local measuredBodyHeight = measureCursedRichTextHeight(richText, bodyWidth) or minBodyHeight
+    local bodyHeight = math.max(minBodyHeight, math.min(maxBodyHeight, measuredBodyHeight + 6))
+    local height = bodyY + bodyHeight + footerHeight
+    local maxHeight = math.max(180, screenHeight - 20)
+    if height > maxHeight then
+        height = maxHeight
+        bodyHeight = math.max(84, height - bodyY - footerHeight)
+    end
+
+    local modalX = screenLeft + math.floor((screenWidth - width) / 2)
+    local modalY = screenTop + math.floor((screenHeight - height) / 2)
+    modalX = math.max(screenLeft + 4, modalX)
+    modalY = math.max(screenTop + 4, modalY)
+
     local modal = ISModalDialog:new(
-        getCore():getScreenWidth() / 2 - width / 2,
-        getCore():getScreenHeight() / 2 - height / 2,
+        modalX,
+        modalY,
         width, height,
         "",
         yesNo,
@@ -1118,10 +1395,34 @@ local function showCursedThemedModal(player, yesNo, richText, plainText, callbac
         styleCursedModalButton(modal.ok, false)
     end
 
+    -- Final guard: ensure body region stays above the actual button row.
+    local buttonTop = nil
+    local function recordButtonTop(btn)
+        if not btn then
+            return
+        end
+        local y = tonumber((btn.getY and btn:getY()) or btn.y) or nil
+        if y and y > 0 and (not buttonTop or y < buttonTop) then
+            buttonTop = y
+        end
+    end
+    recordButtonTop(modal.yes)
+    recordButtonTop(modal.no)
+    recordButtonTop(modal.ok)
+    if buttonTop and buttonTop > (bodyY + 20) then
+        local maxBodyFromButtons = math.floor(buttonTop - bodyY - 10)
+        if maxBodyFromButtons > 80 then
+            bodyHeight = math.min(bodyHeight, maxBodyFromButtons)
+        end
+    end
+
     if ensureCursedRichTextPanelClass() then
-        local rich = ISRichTextPanel:new(18, 20, width - 36, height - 78)
+        local rich = ISRichTextPanel:new(bodyX, bodyY, bodyWidth, bodyHeight)
         rich:initialise()
         rich:instantiate()
+        -- Keep the text panel fixed and clipped. This prevents long localized
+        -- strings from expanding over button hitboxes.
+        rich.autosetheight = false
         rich.backgroundColor = { r = 0, g = 0, b = 0, a = 0 }
         rich.borderColor = { r = 0, g = 0, b = 0, a = 0 }
         rich.defaultFont = UIFont.Small
@@ -1131,6 +1432,29 @@ local function showCursedThemedModal(player, yesNo, richText, plainText, callbac
         rich:paginate()
         modal.text = ""
         modal:addChild(rich)
+
+        local scrollHeight = tonumber((rich.getScrollHeight and rich:getScrollHeight()) or 0) or 0
+        if scrollHeight > (bodyHeight + 2) then
+            local hintText = getCursedClientText("UI_BurdJournals_CursedScrollHint", "Scroll for more")
+            local hintWidth = (getTextManager and getTextManager():MeasureStringX(UIFont.Small, hintText)) or 120
+            local hintX = math.max(bodyX + 2, bodyX + bodyWidth - hintWidth)
+            local hintY = bodyY + bodyHeight - (FONT_HGT_SMALL + 2)
+            local hint = ISLabel:new(
+                hintX,
+                hintY,
+                FONT_HGT_SMALL,
+                hintText,
+                CURSED_PROMPT_THEME.highlight.r,
+                CURSED_PROMPT_THEME.highlight.g,
+                CURSED_PROMPT_THEME.highlight.b,
+                0.9,
+                UIFont.Small,
+                true
+            )
+            hint:initialise()
+            hint:instantiate()
+            modal:addChild(hint)
+        end
     end
 
     modal:addToUIManager()
@@ -1391,19 +1715,23 @@ local function nudgeClientAmbushZombiesTowardDelayed(player, radius, delayMs)
 end
 
 local function shouldPlayCursedSealSound(journalId, soundName)
-    local now = getTimestampMs and getTimestampMs() or (os.time() * 1000)
-    local state = BurdJournals.Client._lastCursedSealSound or {}
-    local sameJournal = state.journalId ~= nil and state.journalId == journalId
-    local sameSound = state.soundName ~= nil and state.soundName == soundName
-    local recent = state.timeMs ~= nil and (now - state.timeMs) <= 250
-    if sameJournal and sameSound and recent then
+    if type(soundName) ~= "string" or soundName == "" then
         return false
     end
-    BurdJournals.Client._lastCursedSealSound = {
-        journalId = journalId,
-        soundName = soundName,
-        timeMs = now,
-    }
+
+    local now = getTimestampMs and getTimestampMs() or (os.time() * 1000)
+    local journalKey = tostring(journalId or "nil")
+    local soundKey = string.lower(soundName)
+    local historyByJournal = BurdJournals.Client._lastCursedSealSoundByJournal or {}
+    local journalHistory = historyByJournal[journalKey] or {}
+    local lastAt = tonumber(journalHistory[soundKey]) or 0
+    if lastAt > 0 and (now - lastAt) <= 250 then
+        return false
+    end
+
+    journalHistory[soundKey] = now
+    historyByJournal[journalKey] = journalHistory
+    BurdJournals.Client._lastCursedSealSoundByJournal = historyByJournal
     return true
 end
 
@@ -1566,6 +1894,18 @@ function BurdJournals.Client.handleCursedOpened(player, args)
 
     if shouldPlayCursedSealSound(journalId, requestedSound) then
         playCursedSealSound(player, requestedSound)
+    end
+    if curseType == "barbed_seal" then
+        local barbedInjurySound = nil
+        if BurdJournals.getRandomCursedBarbedInjurySoundEvent then
+            barbedInjurySound = BurdJournals.getRandomCursedBarbedInjurySoundEvent()
+        end
+        if not barbedInjurySound or barbedInjurySound == "" then
+            barbedInjurySound = "ZombieScratch"
+        end
+        if shouldPlayCursedSealSound(journalId, barbedInjurySound) then
+            playCursedSealSound(player, barbedInjurySound)
+        end
     end
 
     if not ISModalDialog then
@@ -1784,6 +2124,11 @@ function BurdJournals.Client.onServerCommand(module, command, args)
         if BurdJournals.notifyBaselineChanged then
             BurdJournals.notifyBaselineChanged()
         end
+        if isLocalBaselineTarget(player, args)
+            and BurdJournals.Client.requestServerBaseline
+        then
+            BurdJournals.Client.requestServerBaseline()
+        end
     
     elseif command == "debugBaselineTraitSet" then
         -- Server finished updating a trait baseline
@@ -1801,25 +2146,45 @@ function BurdJournals.Client.onServerCommand(module, command, args)
         if BurdJournals.notifyBaselineChanged then
             BurdJournals.notifyBaselineChanged()
         end
+        if isLocalBaselineTarget(player, args)
+            and BurdJournals.Client.requestServerBaseline
+        then
+            BurdJournals.Client.requestServerBaseline()
+        end
+
+    elseif command == "debugBaselineDraftSaved" then
+        local appliedLocalBaseline = BurdJournals.Client.applyAuthoritativeBaselinePayloadToLocalPlayer
+            and BurdJournals.Client.applyAuthoritativeBaselinePayloadToLocalPlayer(player, args)
+        if isLocalBaselineTarget(player, args)
+            and not appliedLocalBaseline
+            and BurdJournals.Client.requestServerBaseline
+        then
+            BurdJournals.Client.requestServerBaseline()
+        end
+        local message = getText("UI_BurdJournals_BaselineDraftSaved") or "Baseline draft saved."
+        BurdJournals.Client.showHaloMessage(player, message, BurdJournals.Client.HaloColors.INFO)
+        BurdJournals.debugPrint("[BSJ DEBUG] Server: " .. message)
+        if BurdJournals.UI and BurdJournals.UI.DebugPanel and BurdJournals.UI.DebugPanel.instance then
+            local panel = BurdJournals.UI.DebugPanel.instance
+            panel:setStatus(message, {r=0.3, g=1, b=0.5})
+            if panel.refreshBaselineData then
+                panel:refreshBaselineData()
+            end
+            if panel.refreshSnapshotPanelData then
+                panel:refreshSnapshotPanelData()
+            end
+        end
+        if BurdJournals.notifyBaselineChanged then
+            BurdJournals.notifyBaselineChanged()
+        end
     
     elseif command == "recalculateBaseline" then
         local message = args and args.message or "Baseline recalculated"
-        local targetUsername = args and args.targetUsername or nil
-        local localUsername = player and player.getUsername and player:getUsername() or nil
-        local isLocalTarget = (not targetUsername) or (localUsername and targetUsername == localUsername)
+        local isLocalTarget = isLocalBaselineTarget(player, args)
+        local appliedLocalBaseline = BurdJournals.Client.applyAuthoritativeBaselinePayloadToLocalPlayer
+            and BurdJournals.Client.applyAuthoritativeBaselinePayloadToLocalPlayer(player, args)
 
-        if isLocalTarget and args and type(args.skillBaseline) == "table" then
-            local modData = player:getModData()
-            modData.BurdJournals = modData.BurdJournals or {}
-            modData.BurdJournals.skillBaseline = args.skillBaseline or {}
-            modData.BurdJournals.mediaSkillBaseline = args.mediaSkillBaseline or {}
-            modData.BurdJournals.traitBaseline = args.traitBaseline or {}
-            modData.BurdJournals.recipeBaseline = args.recipeBaseline or {}
-            modData.BurdJournals.debugModified = args.debugModified == true
-            modData.BurdJournals.baselineCaptured = true
-            modData.BurdJournals.baselineVersion = BurdJournals.Client.BASELINE_VERSION
-            modData.BurdJournals.fromServerCache = true
-        elseif isLocalTarget and BurdJournals.Client.requestServerBaseline then
+        if isLocalTarget and not appliedLocalBaseline and BurdJournals.Client.requestServerBaseline then
             BurdJournals.Client.requestServerBaseline()
         end
 
@@ -1915,6 +2280,92 @@ function BurdJournals.Client.onServerCommand(module, command, args)
 
     elseif command == "debugJournalUUIDDeleteResult" then
         BurdJournals.Client.handleDebugJournalUUIDDeleteResult(player, args)
+
+    elseif command == "debugBaselineSnapshotList" then
+        if BurdJournals.Client and BurdJournals.Client.Debug then
+            BurdJournals.Client.Debug._baselineSnapshotLastList = args or {}
+        end
+        if args and args.items then
+            BurdJournals.debugPrint("[BSJ] Baseline snapshot list: " .. tostring(args.total or #args.items)
+                .. " total (page " .. tostring(args.page or 1) .. ")")
+            for i, entry in ipairs(args.items) do
+                local counts = entry.counts or {}
+                BurdJournals.debugPrint(string.format(
+                    "  %d) %s | %s | S:%d M:%d T:%d R:%d",
+                    i,
+                    tostring(entry.snapshotId or "?"),
+                    tostring(entry.source or "unknown"),
+                    tonumber(counts.skills) or 0,
+                    tonumber(counts.mediaSkills) or 0,
+                    tonumber(counts.traits) or 0,
+                    tonumber(counts.recipes) or 0
+                ))
+            end
+        end
+        if BurdJournals.UI and BurdJournals.UI.DebugPanel and BurdJournals.UI.DebugPanel.instance
+            and BurdJournals.UI.DebugPanel.instance.applyBaselineSnapshotList
+        then
+            BurdJournals.UI.DebugPanel.instance:applyBaselineSnapshotList(args or {})
+        end
+
+    elseif command == "debugBaselineSnapshotDetail" then
+        if BurdJournals.Client and BurdJournals.Client.Debug then
+            BurdJournals.Client.Debug._baselineSnapshotLastDetail = args and args.snapshot or nil
+        end
+        if BurdJournals.UI and BurdJournals.UI.DebugPanel and BurdJournals.UI.DebugPanel.instance
+            and BurdJournals.UI.DebugPanel.instance.applyBaselineSnapshotDetail
+        then
+            BurdJournals.UI.DebugPanel.instance:applyBaselineSnapshotDetail(args and args.snapshot or nil)
+        end
+
+    elseif command == "debugTargetBaselinePayload" then
+        if BurdJournals.UI and BurdJournals.UI.DebugPanel and BurdJournals.UI.DebugPanel.instance
+            and BurdJournals.UI.DebugPanel.instance.applySnapshotLiveBaselinePayload
+        then
+            BurdJournals.UI.DebugPanel.instance:applySnapshotLiveBaselinePayload(args or {})
+        end
+
+    elseif command == "debugBaselineSnapshotSaved" then
+        local msg = getText("UI_BurdJournals_BaselineSnapshotSaved") or "Baseline snapshot saved."
+        BurdJournals.Client.showHaloMessage(player, msg, BurdJournals.Client.HaloColors.INFO)
+        if BurdJournals.UI and BurdJournals.UI.DebugPanel and BurdJournals.UI.DebugPanel.instance then
+            BurdJournals.UI.DebugPanel.instance:setStatus(msg, {r=0.3, g=1, b=0.5})
+            if BurdJournals.UI.DebugPanel.instance.refreshSnapshotPanelData then
+                BurdJournals.UI.DebugPanel.instance:refreshSnapshotPanelData()
+            end
+        end
+
+    elseif command == "debugBaselineSnapshotApplied" then
+        local appliedLocalBaseline = BurdJournals.Client.applyAuthoritativeBaselinePayloadToLocalPlayer
+            and BurdJournals.Client.applyAuthoritativeBaselinePayloadToLocalPlayer(player, args)
+        if isLocalBaselineTarget(player, args)
+            and not appliedLocalBaseline
+            and BurdJournals.Client.requestServerBaseline
+        then
+            BurdJournals.Client.requestServerBaseline()
+        end
+        local msg = getText("UI_BurdJournals_BaselineSnapshotApplied") or "Baseline snapshot applied."
+        BurdJournals.Client.showHaloMessage(player, msg, BurdJournals.Client.HaloColors.INFO)
+        if BurdJournals.UI and BurdJournals.UI.DebugPanel and BurdJournals.UI.DebugPanel.instance then
+            BurdJournals.UI.DebugPanel.instance:setStatus(msg, {r=0.3, g=1, b=0.5})
+            BurdJournals.UI.DebugPanel.instance:refreshBaselineData()
+            if BurdJournals.UI.DebugPanel.instance.refreshSnapshotPanelData then
+                BurdJournals.UI.DebugPanel.instance:refreshSnapshotPanelData()
+            end
+        end
+        if BurdJournals.notifyBaselineChanged then
+            BurdJournals.notifyBaselineChanged()
+        end
+
+    elseif command == "debugBaselineSnapshotDeleted" then
+        local msg = getText("UI_BurdJournals_BaselineSnapshotDeleted") or "Baseline snapshot deleted."
+        BurdJournals.Client.showHaloMessage(player, msg, BurdJournals.Client.HaloColors.INFO)
+        if BurdJournals.UI and BurdJournals.UI.DebugPanel and BurdJournals.UI.DebugPanel.instance then
+            BurdJournals.UI.DebugPanel.instance:setStatus(msg, {r=0.3, g=1, b=0.5})
+            if BurdJournals.UI.DebugPanel.instance.refreshSnapshotPanelData then
+                BurdJournals.UI.DebugPanel.instance:refreshSnapshotPanelData()
+            end
+        end
     end
 end
 
@@ -3188,6 +3639,19 @@ function BurdJournals.Client.handleBaselineResponse(player, args)
         modData.BurdJournals.fromServerCache = true
         modData.BurdJournals.debugModified = args.debugModified or false  -- Preserve debug flag from server
 
+        local runtimeCharacterId = args.characterId
+            or (BurdJournals.getPlayerCharacterId and BurdJournals.getPlayerCharacterId(player))
+        if runtimeCharacterId and BurdJournals.Client.storeRuntimeBaseline then
+            BurdJournals.Client.storeRuntimeBaseline(runtimeCharacterId, {
+                characterId = runtimeCharacterId,
+                skillBaseline = args.skillBaseline or {},
+                mediaSkillBaseline = args.mediaSkillBaseline or {},
+                traitBaseline = args.traitBaseline or {},
+                recipeBaseline = args.recipeBaseline or {},
+                debugModified = args.debugModified == true,
+            })
+        end
+
         BurdJournals.debugPrint("[BurdJournals] Applied server-cached baseline: " ..
               tostring(BurdJournals.countTable(modData.BurdJournals.skillBaseline)) .. " skills, " ..
               tostring(BurdJournals.countTable(modData.BurdJournals.traitBaseline)) .. " traits, " ..
@@ -4320,6 +4784,57 @@ function BurdJournals.Client.Debug.feedback(player, msg, color, alsoConsole)
     if alsoConsole then
         BurdJournals.debugPrint("[BSJ-DEBUG] " .. msg)
     end
+end
+
+BurdJournals.Client.Debug._baselineSnapshotLastList = BurdJournals.Client.Debug._baselineSnapshotLastList or nil
+BurdJournals.Client.Debug._baselineSnapshotLastDetail = BurdJournals.Client.Debug._baselineSnapshotLastDetail or nil
+
+function BurdJournals.Client.Debug.sendServer(command, args, player)
+    if BurdJournals.Client and BurdJournals.Client.sendToServer then
+        return BurdJournals.Client.sendToServer(command, args, player)
+    end
+    local target = player or getPlayer()
+    if not target or not sendClientCommand then
+        return false
+    end
+    sendClientCommand(target, "BurdJournals", command, args or {})
+    return true
+end
+
+function BurdJournals.Client.Debug.listBaselineCache(player)
+    return BurdJournals.Client.Debug.sendServer("debugListBaselineCache", {}, player)
+end
+
+function BurdJournals.Client.Debug.listBaselineSnapshots(args, player)
+    return BurdJournals.Client.Debug.sendServer("debugListBaselineSnapshots", args or {}, player)
+end
+
+function BurdJournals.Client.Debug.getBaselineSnapshot(snapshotId, player)
+    return BurdJournals.Client.Debug.sendServer("debugGetBaselineSnapshot", {
+        snapshotId = snapshotId
+    }, player)
+end
+
+function BurdJournals.Client.Debug.getTargetBaselinePayload(args, player)
+    return BurdJournals.Client.Debug.sendServer("debugGetTargetBaselinePayload", args or {}, player)
+end
+
+function BurdJournals.Client.Debug.saveBaselineDraft(args, player)
+    return BurdJournals.Client.Debug.sendServer("debugSaveBaselineDraft", args or {}, player)
+end
+
+function BurdJournals.Client.Debug.saveBaselineSnapshot(args, player)
+    return BurdJournals.Client.Debug.sendServer("debugSaveBaselineSnapshot", args or {}, player)
+end
+
+function BurdJournals.Client.Debug.applyBaselineSnapshot(args, player)
+    return BurdJournals.Client.Debug.sendServer("debugApplyBaselineSnapshot", args or {}, player)
+end
+
+function BurdJournals.Client.Debug.deleteBaselineSnapshot(snapshotId, player)
+    return BurdJournals.Client.Debug.sendServer("debugDeleteBaselineSnapshot", {
+        snapshotId = snapshotId
+    }, player)
 end
 
 -- ============================================================================
@@ -5528,6 +6043,35 @@ function BurdJournals.Client.Debug.spawnJournal(player, params)
     
     local journalType = params.journalType or "filled"
     local cursedUnleashed = params.cursedUnleashed == true
+    local spawnProfile = tostring(params.spawnProfile or "normal")
+    if spawnProfile ~= "debug" then
+        spawnProfile = "normal"
+    end
+    local isDebugProfile = spawnProfile == "debug"
+
+    local function normalizeOriginMode(mode)
+        local value = tostring(mode or "auto")
+        if value == "personal" or value == "found" or value == "world" or value == "zombie" then
+            return value
+        end
+        return "auto"
+    end
+
+    local function getDefaultOriginModeForType(t)
+        local journalKind = tostring(t or "filled")
+        if journalKind == "worn" then
+            return "found"
+        end
+        if journalKind == "bloody" or journalKind == "cursed" then
+            return "zombie"
+        end
+        return "personal"
+    end
+
+    local originMode = normalizeOriginMode(params.originMode)
+    if originMode == "auto" then
+        originMode = getDefaultOriginModeForType(journalType)
+    end
     
     -- In dedicated server MP mode, create journal SERVER-SIDE for proper persistence
     -- Server-created items survive restarts and mod updates
@@ -5572,7 +6116,10 @@ function BurdJournals.Client.Debug.spawnJournal(player, params)
         -- Send to server for authoritative creation
         sendClientCommand(player, "BurdJournals", "debugSpawnJournal", {
             journalType = journalType,
-            owner = params.owner or params.ownerCharacterName or "Debug Spawn",
+            spawnProfile = spawnProfile,
+            originMode = originMode,
+            ownerMode = tostring(params.ownerMode or "none"),
+            owner = params.owner or params.ownerCharacterName,
             skills = skillsTable,
             traits = traitsTable,
             recipes = recipesTable,
@@ -5648,8 +6195,9 @@ function BurdJournals.Client.Debug.spawnJournal(player, params)
         end
         data.lastModified = worldAge
         
-        -- CRITICAL: Persistence fields - same as server-side handler
-        data.isDebugSpawned = true  -- Flag to bypass origin restrictions
+        -- Spawn profile controls whether this behaves like a debug artifact or a natural journal.
+        data.isDebugSpawned = isDebugProfile
+        data.isDebugEdited = isDebugProfile and true or nil
         data.isWritten = true       -- Mark as properly initialized
         data.journalVersion = BurdJournals.VERSION or "dev"  -- Version tracking
         data.sanitizedVersion = BurdJournals.SANITIZE_VERSION or 1  -- Prevent re-sanitization
@@ -5679,13 +6227,14 @@ function BurdJournals.Client.Debug.spawnJournal(player, params)
         data.cursedForcedTraitId = params.forceCurseTraitId
         data.cursedForcedSkillName = params.forceCurseSkillName
         
-        -- Handle owner assignment
-        -- For Filled journals with a player assigned, set full ownership info to make it editable
-        if params.ownerSteamId and params.ownerUsername then
-            -- Full player assignment - journal will be editable by this player
+        -- Handle owner/author assignment.
+        -- Only filled journals use player assignment metadata; loot journals can keep no author.
+        local ownerMode = tostring(params.ownerMode or "none")
+        data.ownerMode = ownerMode
+        if ownerMode == "player_assignment" and journalType == "filled" and params.ownerSteamId and params.ownerUsername then
             data.ownerSteamId = params.ownerSteamId
             data.ownerUsername = params.ownerUsername
-            data.ownerCharacterName = params.ownerCharacterName or params.owner or "Debug Spawn"
+            data.ownerCharacterName = params.ownerCharacterName or params.owner or nil
             data.author = data.ownerCharacterName
             
             -- For filled player journals, mark as player-created so they can be edited
@@ -5693,11 +6242,22 @@ function BurdJournals.Client.Debug.spawnJournal(player, params)
                 data.isPlayerCreated = true
                 BurdJournals.debugPrint("[BurdJournals] DEBUG: Created player journal assigned to: " .. data.ownerCharacterName .. " (SteamID: " .. data.ownerSteamId .. ")")
             end
+        elseif ownerMode == "player_author" or ownerMode == "custom" then
+            local authorName = tostring(params.owner or params.ownerCharacterName or "")
+            if authorName ~= "" then
+                data.ownerCharacterName = authorName
+                data.author = authorName
+            else
+                data.ownerCharacterName = nil
+                data.author = nil
+            end
+            data.ownerSteamId = nil
+            data.ownerUsername = nil
         else
-            -- Custom name or no assignment - display only
-            data.ownerCharacterName = params.owner or "Debug Spawn"
-            data.author = data.ownerCharacterName
-            data.ownerSteamId = "debug_local_" .. tostring((getTimestampMs and getTimestampMs()) or os.time())  -- Placeholder for SP
+            data.ownerCharacterName = nil
+            data.author = nil
+            data.ownerSteamId = nil
+            data.ownerUsername = nil
         end
         
         -- Mark origin for worn/bloody
@@ -5726,6 +6286,21 @@ function BurdJournals.Client.Debug.spawnJournal(player, params)
                 data.isPlayerCreated = false
                 data.isZombieJournal = true
             end
+        end
+
+        data.originMode = originMode
+        if originMode == "personal" then
+            data.isPlayerCreated = true
+            data.sourceType = "personal"
+        elseif originMode == "zombie" then
+            data.isPlayerCreated = false
+            data.sourceType = "zombie"
+        elseif originMode == "world" then
+            data.isPlayerCreated = false
+            data.sourceType = "world"
+        else
+            data.isPlayerCreated = false
+            data.sourceType = "found"
         end
 
         if params.conditionOverride and item.setCondition then
@@ -5943,7 +6518,7 @@ function BurdJournals.Client.Debug.cmdAdmin(player, args)
     end
     
     if not args or args == "" then
-        BurdJournals.Client.Debug.feedback(player, "[BSJ] Usage: /bsjadmin [listcache|playerstats|forcesync]", {r=1, g=0.7, b=0.3}, true)
+        BurdJournals.Client.Debug.feedback(player, "[BSJ] Usage: /bsjadmin [listcache|listsnapshots|savesnapshot|applysnapshot|playerstats|forcesync]", {r=1, g=0.7, b=0.3}, true)
         return true
     end
     
@@ -5955,12 +6530,56 @@ function BurdJournals.Client.Debug.cmdAdmin(player, args)
     local subCmd = parts[1] and string.lower(parts[1]) or ""
     
     if subCmd == "listcache" then
-        BurdJournals.debugPrint("")
-        BurdJournals.debugPrint("[BSJ-DEBUG] Baseline cache listing requested - check server logs")
-        BurdJournals.Client.Debug.feedback(player, "[BSJ] Baseline cache info in server logs", {r=0.5, g=0.8, b=1}, true)
+        BurdJournals.Client.Debug.listBaselineCache(player)
+        BurdJournals.Client.Debug.feedback(player, "[BSJ] Requested baseline cache stats from server", {r=0.5, g=0.8, b=1}, true)
         return true
     end
-    
+
+    if subCmd == "listsnapshots" then
+        local targetArg = parts[2]
+        local payload = {
+            includeDead = true,
+            page = 1,
+            pageSize = 50,
+        }
+        if targetArg and targetArg ~= "" then
+            if string.find(targetArg, "^%d+$") then
+                payload.steamId = targetArg
+            else
+                payload.targetUsername = targetArg
+            end
+        end
+        BurdJournals.Client.Debug.listBaselineSnapshots(payload, player)
+        BurdJournals.Client.Debug.feedback(player, "[BSJ] Requested baseline snapshot list", {r=0.5, g=0.8, b=1}, true)
+        return true
+    end
+
+    if subCmd == "savesnapshot" then
+        local targetArg = parts[2]
+        BurdJournals.Client.Debug.saveBaselineSnapshot({
+            targetUsername = targetArg,
+            source = "bsjadmin",
+        }, player)
+        BurdJournals.Client.Debug.feedback(player, "[BSJ] Requested baseline snapshot save", {r=0.5, g=0.8, b=1}, true)
+        return true
+    end
+
+    if subCmd == "applysnapshot" then
+        local snapshotId = parts[2]
+        local targetArg = parts[3]
+        if not snapshotId or snapshotId == "" then
+            BurdJournals.Client.Debug.feedback(player, "[BSJ] Usage: /bsjadmin applysnapshot <snapshotId> [target]", {r=1, g=0.7, b=0.3}, true)
+            return true
+        end
+        BurdJournals.Client.Debug.applyBaselineSnapshot({
+            snapshotId = snapshotId,
+            targetUsername = targetArg,
+            restoreMode = BurdJournals.BASELINE_SNAPSHOT_RESTORE_UNLOCKED,
+        }, player)
+        BurdJournals.Client.Debug.feedback(player, "[BSJ] Requested baseline snapshot apply", {r=0.5, g=0.8, b=1}, true)
+        return true
+    end
+
     if subCmd == "playerstats" then
         BurdJournals.debugPrint("")
         BurdJournals.debugPrint("[BSJ-DEBUG] Player stats requested")
@@ -6096,6 +6715,12 @@ BurdJournals.Client.Debug.HelpTopics = {
             {cmd = "/bsjgive cursed", desc = "Spawn dormant cursed journal"},
             {cmd = "/bsjgive cursed unleashed", desc = "Spawn unleashed cursed reward journal"},
             {cmd = "/bsjgive cursed forcecurse:panic", desc = "Force curse type to Ambush on first unleash"},
+            {cmd = "/bsjgive cursed forcecurse:barbed_seal", desc = "Force Barbed Seal hand-laceration curse"},
+            {cmd = "/bsjgive cursed forcecurse:jammed_breath", desc = "Force Jammed Breath endurance/panic spike curse"},
+            {cmd = "/bsjgive cursed forcecurse:hexed_tooling", desc = "Force Hexed Tooling item-condition curse"},
+            {cmd = "/bsjgive cursed forcecurse:torn_gear", desc = "Force Torn Gear clothing-hole curse"},
+            {cmd = "/bsjgive cursed forcecurse:seasonal_wave", desc = "Force Seasonal Wave heat/cold spike curse"},
+            {cmd = "/bsjgive cursed forcecurse:pantsed", desc = "Force Pants'd unequip-bottoms curse"},
             {cmd = "/bsjgive cursed forcecurse:gain_negative_trait forcetrait:Clumsy", desc = "Force specific trait target for trait curses"},
             {cmd = "/bsjgive cursed forcecurse:lose_skill_level forceskill:Carpentry", desc = "Force specific skill target for skill-down curse"},
             {cmd = "/bsjgive cursed sealsound:PaperRip", desc = "Set seal-break sound event (or sealsound:none)"},
@@ -6147,7 +6772,10 @@ BurdJournals.Client.Debug.HelpTopics = {
     admin = {
         title = "Admin Commands (requires admin access)",
         commands = {
-            {cmd = "/bsjadmin listcache", desc = "List cached baselines (server logs)"},
+            {cmd = "/bsjadmin listcache", desc = "Show server baseline cache/archive/snapshot counts"},
+            {cmd = "/bsjadmin listsnapshots [target|steamid]", desc = "List baseline snapshots for a player/SteamID"},
+            {cmd = "/bsjadmin savesnapshot [target]", desc = "Capture a baseline snapshot for target/current player"},
+            {cmd = "/bsjadmin applysnapshot <snapshotId> [target]", desc = "Apply a baseline snapshot as active baseline for target/current player"},
             {cmd = "/bsjadmin playerstats", desc = "Show connected player journal stats"},
             {cmd = "/bsjadmin forcesync", desc = "Force sync all journals in inventory"},
         }

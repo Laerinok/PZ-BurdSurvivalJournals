@@ -1,32 +1,24 @@
 Tooltip_FR = {
-    -- Item Tooltips
     Tooltip_BlankSurvivalJournal = "Un journal vierge prêt à accueillir tes connaissances de survie.",
     Tooltip_FilledSurvivalJournal = "Un journal contenant des compétences de survie consignées. Fais un clic droit pour le lire.",
-    
-    -- Skill Info
     Tooltip_BurdJournals_ContainsSkills = "Contient %d compétence(s) consignée(s)",
     Tooltip_BurdJournals_RewardsRemaining = "récompenses restantes",
     Tooltip_BurdJournals_SetModeDesc = "La lecture AJUSTERA ton XP pour correspondre aux niveaux enregistrés (si supérieurs).",
-    
-    -- Tool Requirements
     Tooltip_BurdJournals_NeedPen = "Nécessite un stylo ou un crayon pour écrire.",
     Tooltip_BurdJournals_NeedEraser = "Nécessite une gomme pour effacer le contenu.",
-    
-    -- Bloody Journal
     Tooltip_BurdJournals_BloodyJournal = "Journal ensanglanté",
     Tooltip_BurdJournals_BloodyJournalDesc = "Le journal d'un survivant tombé au combat. Contient des compétences et des traits qui peuvent être absorbés.",
     Tooltip_BurdJournals_BloodyDesc = "Trouvaille rare ! Peut contenir des traits précieux.",
+    Tooltip_CursedJournal = "A sealed journal that feels wrong to hold.",
+    Tooltip_BurdJournals_CursedJournalName = "Cursed Journal",
+    Tooltip_BurdJournals_CursedJournalDesc = "Breaking the seal marks the first reader, but unlocks a richer bloody reward journal.",
     Tooltip_BurdJournals_ConvertBloodyToClean = "Convertir en journal propre",
     Tooltip_BurdJournals_ConvertBloodyToCleanDesc = "Utilise l'artisanat pour convertir ce journal ensanglanté en journal personnel propre.",
-    
-    -- Worn Journal
     Tooltip_BurdJournals_WornJournal = "Journal usé",
     Tooltip_BurdJournals_NeedsCleaning = "Ce journal est trop usé pour être lu.",
     Tooltip_BurdJournals_NeedsCleaningDesc = "Utilise du savon et un chiffon pour le nettoyer, du ruban adhésif pour le réparer, ou des lanières de cuir pour le relier.",
     Tooltip_BurdJournals_AbsorbAll = "Tout absorber",
     Tooltip_BurdJournals_AbsorbAllDesc = "Récupère toutes les compétences et traits restants d'un coup. Le journal sera détruit.",
-    
-    -- Personal Journal (Clean)
     Tooltip_BurdJournals_PersonalJournal = "Journal de survie personnel",
     Tooltip_BurdJournals_BlankJournal = "Journal de survie vierge",
     Tooltip_BurdJournals_BlankJournalDesc = "Ouvre le journal pour consigner tes progrès de survie. Nécessite de quoi écrire.",
@@ -36,8 +28,6 @@ Tooltip_FR = {
     Tooltip_BurdJournals_ClaimAllDesc = "Ouvre le journal et récupère toutes les compétences disponibles. Cela prendra du temps selon ta vitesse de lecture.",
     Tooltip_BurdJournals_Disassemble = "Démonter le journal",
     Tooltip_BurdJournals_DisassembleDesc = "Déchire ce journal pour récupérer des matériaux. Tu recevras : 2x Papier, 1x Lanières de cuir",
-
-    -- Tooltip Dynamic Text
     Tooltip_BurdJournals_SkillsAvailable = "Compétences : %d/%d disponibles",
     Tooltip_BurdJournals_TraitsAvailable = "Traits : %d/%d disponibles",
     Tooltip_BurdJournals_RecipesAvailable = "Recettes : %d/%d disponibles",
@@ -71,25 +61,17 @@ Tooltip_FR = {
     Tooltip_BurdJournals_EraseContents = "Effacer tout le contenu",
     Tooltip_BurdJournals_EraseContentsDesc = "Efface toutes les données enregistrées, remettant le journal à l'état vierge. Nécessite une gomme.",
     Tooltip_BurdJournals_CannotOpen = "Ouverture impossible",
-    
-    -- Conversion
     Tooltip_BurdJournals_ConvertToClean = "Relier comme journal de survie personnel",
     Tooltip_BurdJournals_ConvertToCleanDesc = "Relie ce journal usé pour en faire un journal de survie vierge à usage personnel. Nécessite du matériel de couture.",
     Tooltip_BurdJournals_CannotConvert = "Conversion impossible",
     Tooltip_BurdJournals_NeedsConvertMaterials = "Requis : Lanières de cuir + Fil + Aiguille + Couture niv. 1",
-    
-    -- Materials
     Tooltip_BurdJournals_MissingMaterials = "Matériaux manquants",
     Tooltip_BurdJournals_NeedsSoapCloth = "Requis : Savon + Draps déchirés ou Chiffon",
     Tooltip_BurdJournals_NeedsTape = "Requis : Ruban adhésif",
     Tooltip_BurdJournals_NeedsLeatherBinding = "Requis : Lanières de cuir + Fil + Aiguille",
     Tooltip_BurdJournals_NeedsGluePaper = "Requis : Colle + Feuille de papier",
-
-    -- Illiterate Trait Block
     Tooltip_BurdJournals_IlliterateName = "Illettré",
     Tooltip_BurdJournals_IlliterateDesc = "Tu ne sais ni lire ni écrire. Les journaux te sont inutiles.",
-
-    -- Inventory Tooltip Labels
     Tooltip_BurdJournals_Owner = "Propriétaire : %s",
     Tooltip_BurdJournals_OwnerYou = "(Toi)",
     Tooltip_BurdJournals_Author = "Auteur : %s",
@@ -101,6 +83,7 @@ Tooltip_FR = {
     Tooltip_BurdJournals_TraitsLine = "Traits : %d/%d",
     Tooltip_BurdJournals_RecipesLine = "Recettes : %d/%d",
     Tooltip_BurdJournals_ConditionBloody = "État : Ensanglanté",
+    Tooltip_BurdJournals_TagCursed = "[Cursed]",
     Tooltip_BurdJournals_ConditionWorn = "État : Usé",
     Tooltip_BurdJournals_ConditionRestored = "État : Restauré",
     Tooltip_BurdJournals_ConditionClean = "État : Propre",

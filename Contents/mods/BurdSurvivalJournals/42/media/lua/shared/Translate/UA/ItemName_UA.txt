@@ -1,9 +1,9 @@
-﻿ItemName_UA = {
+ItemName_UA = {
     ItemName_BurdJournals.BlankSurvivalJournal = "Порожній Журнал Виживання",
     ItemName_BurdJournals.BlankSurvivalJournal_Worn = "Потріпаний Порожній Журнал",
     ItemName_BurdJournals.BlankSurvivalJournal_Bloody = "Закривавлений Порожній Журнал",
-
     ItemName_BurdJournals.FilledSurvivalJournal = "Заповнений Журнал Виживання",
     ItemName_BurdJournals.FilledSurvivalJournal_Worn = "Потріпаний Журнал Виживання",
     ItemName_BurdJournals.FilledSurvivalJournal_Bloody = "Закривавлений Журнал Виживання",
+    ItemName_BurdJournals.CursedJournal = "Cursed Journal",
 }

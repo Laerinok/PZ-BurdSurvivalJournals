@@ -1,11 +1,9 @@
 ItemName_FR = {
-    -- Blank Journals
     ItemName_BurdJournals.BlankSurvivalJournal = "Journal de survie vierge",
     ItemName_BurdJournals.BlankSurvivalJournal_Worn = "Journal vierge usé",
     ItemName_BurdJournals.BlankSurvivalJournal_Bloody = "Journal vierge ensanglanté",
-
-    -- Filled Journals
     ItemName_BurdJournals.FilledSurvivalJournal = "Journal de survie rempli",
     ItemName_BurdJournals.FilledSurvivalJournal_Worn = "Journal de survie usé",
     ItemName_BurdJournals.FilledSurvivalJournal_Bloody = "Journal de survie ensanglanté",
+    ItemName_BurdJournals.CursedJournal = "Cursed Journal",
 }

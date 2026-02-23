@@ -125,6 +125,193 @@ function BurdJournals.hasAnyEntries(tbl)
     return false
 end
 
+-- ============================================================================
+-- UI Modal Helpers (client-safe, translation-friendly sizing)
+-- ============================================================================
+
+local function getSafeModalLineHeight(font)
+    local tm = getTextManager and getTextManager() or nil
+    if tm and tm.getFontHeight then
+        local ok, value = safePcall(function()
+            return tonumber(tm:getFontHeight(font))
+        end)
+        if ok and value and value > 0 then
+            return math.floor(value + 0.5)
+        end
+    end
+
+    if FONT_HGT_SMALL and FONT_HGT_SMALL > 0 then
+        return FONT_HGT_SMALL
+    end
+    return 16
+end
+
+local function measureSafeModalStringWidth(text, font)
+    local tm = getTextManager and getTextManager() or nil
+    if tm and tm.MeasureStringX then
+        local ok, value = safePcall(function()
+            return tonumber(tm:MeasureStringX(font, tostring(text or "")))
+        end)
+        if ok and value and value >= 0 then
+            return value
+        end
+    end
+
+    local raw = tostring(text or "")
+    return math.max(0, #raw * 7)
+end
+
+local function splitSafeModalLines(text)
+    local lines = {}
+    local raw = tostring(text or "")
+    raw = string.gsub(raw, "\r\n", "\n")
+    raw = string.gsub(raw, "\r", "\n")
+
+    if raw == "" then
+        lines[1] = ""
+        return lines
+    end
+
+    for line in string.gmatch(raw, "([^\n]*)\n?") do
+        if line == nil then
+            break
+        end
+        if line == "" and #lines > 0 and raw:sub(-1) ~= "\n" then
+            -- Skip terminal empty capture when there is no trailing newline.
+        else
+            table.insert(lines, line)
+        end
+        if #lines >= 512 then
+            break
+        end
+    end
+
+    if #lines == 0 then
+        lines[1] = ""
+    end
+    return lines
+end
+
+function BurdJournals.getModalViewport(player)
+    local core = getCore and getCore() or nil
+    local left = 0
+    local top = 0
+    local width = (core and core.getScreenWidth and core:getScreenWidth()) or 1280
+    local height = (core and core.getScreenHeight and core:getScreenHeight()) or 720
+
+    if player and player.getPlayerNum and getPlayerScreenWidth and getPlayerScreenHeight and getPlayerScreenLeft and getPlayerScreenTop then
+        local pnum = player:getPlayerNum()
+        local pwidth = tonumber(getPlayerScreenWidth(pnum)) or 0
+        local pheight = tonumber(getPlayerScreenHeight(pnum)) or 0
+        if pwidth > 0 and pheight > 0 then
+            width = pwidth
+            height = pheight
+            left = tonumber(getPlayerScreenLeft(pnum)) or 0
+            top = tonumber(getPlayerScreenTop(pnum)) or 0
+        end
+    end
+
+    return left, top, width, height
+end
+
+function BurdJournals.measureWrappedModalTextHeight(text, wrapWidth, font)
+    local safeWrapWidth = math.max(160, tonumber(wrapWidth) or 160)
+    local safeFont = font or UIFont.Small
+    local lineHeight = getSafeModalLineHeight(safeFont)
+    local totalLines = 0
+
+    for _, line in ipairs(splitSafeModalLines(text)) do
+        local lineWidth = measureSafeModalStringWidth(line, safeFont)
+        local wrapped = math.max(1, math.ceil(lineWidth / safeWrapWidth))
+        totalLines = totalLines + wrapped
+    end
+
+    return math.max(lineHeight, totalLines * lineHeight)
+end
+
+function BurdJournals.createAdaptiveModalDialog(options)
+    if not ISModalDialog then
+        return nil
+    end
+
+    local opts = options or {}
+    local text = tostring(opts.text or "")
+    local yesNo = opts.yesNo
+    if yesNo == nil then
+        yesNo = true
+    end
+
+    local target = opts.target
+    local callback = opts.onClick
+    local param1 = opts.param1
+    local param2 = opts.param2
+    local player = opts.player or target
+    local font = opts.font or UIFont.Small
+
+    local viewportLeft, viewportTop, viewportWidth, viewportHeight = BurdJournals.getModalViewport(player)
+
+    local padX = math.max(14, tonumber(opts.textPaddingX) or 22)
+    local padTop = math.max(12, tonumber(opts.textPaddingTop) or 20)
+    local padBottom = math.max(10, tonumber(opts.textPaddingBottom) or 12)
+    local footerHeight = math.max(46, tonumber(opts.footerHeight) or (yesNo and 72 or 64))
+
+    local minWidth = math.max(260, tonumber(opts.minWidth) or 340)
+    local maxWidth = tonumber(opts.maxWidth) or math.floor(viewportWidth * 0.88)
+    maxWidth = math.max(minWidth, math.min(maxWidth, viewportWidth - 12))
+
+    local preferredWidth = tonumber(opts.width)
+    if not preferredWidth or preferredWidth <= 0 then
+        local longest = 0
+        for _, line in ipairs(splitSafeModalLines(text)) do
+            local lineWidth = measureSafeModalStringWidth(line, font)
+            if lineWidth > longest then
+                longest = lineWidth
+            end
+        end
+        preferredWidth = longest + (padX * 2) + 18
+    end
+
+    local width = math.floor(math.max(minWidth, math.min(maxWidth, preferredWidth)))
+    local wrapWidth = math.max(180, width - (padX * 2))
+    local textHeight = BurdJournals.measureWrappedModalTextHeight(text, wrapWidth, font)
+
+    local minHeight = math.max(120, tonumber(opts.minHeight) or (yesNo and 160 or 140))
+    local maxHeight = tonumber(opts.maxHeight) or math.floor(viewportHeight * 0.84)
+    maxHeight = math.max(minHeight, math.min(maxHeight, viewportHeight - 10))
+
+    local preferredHeight = tonumber(opts.height)
+    if not preferredHeight or preferredHeight <= 0 then
+        preferredHeight = padTop + textHeight + padBottom + footerHeight
+    end
+    local height = math.floor(math.max(minHeight, math.min(maxHeight, preferredHeight)))
+
+    local x = tonumber(opts.x)
+    local y = tonumber(opts.y)
+    if not x then
+        x = viewportLeft + math.floor((viewportWidth - width) / 2)
+    end
+    if not y then
+        y = viewportTop + math.floor((viewportHeight - height) / 2)
+    end
+
+    local minX = viewportLeft + 2
+    local minY = viewportTop + 2
+    local maxX = viewportLeft + viewportWidth - width - 2
+    local maxY = viewportTop + viewportHeight - height - 2
+    if maxX < minX then maxX = minX end
+    if maxY < minY then maxY = minY end
+    x = math.max(minX, math.min(maxX, x))
+    y = math.max(minY, math.min(maxY, y))
+
+    local modal = ISModalDialog:new(x, y, width, height, text, yesNo, target, callback, param1, param2)
+    modal:initialise()
+    if opts.afterInit then
+        safePcall(function() opts.afterInit(modal) end)
+    end
+    modal:addToUIManager()
+    return modal
+end
+
 -- Normalize journal data (shallow) so UI can safely iterate without pcall
 function BurdJournals.normalizeJournalData(journalData)
     if not journalData or (_safeType and _safeType(journalData) ~= "table") then return nil end
@@ -2262,7 +2449,16 @@ BurdJournals.CURSED_SEAL_SOUND_EVENTS = BurdJournals.CURSED_SEAL_SOUND_EVENTS or
     "BSJ_CursedBloody_SealBreak3",
 }
 BurdJournals.CURSED_DEFAULT_SOUND_EVENT = BurdJournals.CURSED_SEAL_SOUND_EVENTS[1] or "PaperRip"
+BurdJournals.CURSED_BARBED_INJURY_SOUND_EVENTS = BurdJournals.CURSED_BARBED_INJURY_SOUND_EVENTS or {
+    "ZombieScratch",
+}
 BurdJournals.CURSE_EFFECT_TYPES = {
+    "barbed_seal",
+    "jammed_breath",
+    "hexed_tooling",
+    "torn_gear",
+    "seasonal_wave",
+    "pantsed",
     "gain_negative_trait",
     "lose_positive_trait",
     "lose_skill_level",
@@ -2328,6 +2524,61 @@ function BurdJournals.getRandomCursedSealSoundEvent()
     local pool = BurdJournals.getCursedSealSoundPool()
     if #pool == 0 then
         return BurdJournals.CURSED_DEFAULT_SOUND_EVENT or "PaperRip"
+    end
+
+    local index = nil
+    if ZombRand then
+        index = ZombRand(#pool) + 1
+    else
+        index = math.random(#pool)
+    end
+    return pool[index]
+end
+
+function BurdJournals.getCursedBarbedInjurySoundPool()
+    local out = {}
+    local seen = {}
+    local pool = BurdJournals.CURSED_BARBED_INJURY_SOUND_EVENTS or {}
+
+    for _, soundEvent in ipairs(pool) do
+        local normalized = normalizeCursedSealSoundName(soundEvent)
+        local key = normalized and string.lower(normalized) or nil
+        if normalized and normalized ~= "none" and key and not seen[key] then
+            seen[key] = true
+            out[#out + 1] = normalized
+        end
+    end
+
+    if #out == 0 then
+        out[1] = "ZombieScratch"
+    end
+
+    return out
+end
+
+function BurdJournals.registerCursedBarbedInjurySoundEvent(soundEvent)
+    local normalized = normalizeCursedSealSoundName(soundEvent)
+    if not normalized then
+        return nil
+    end
+
+    BurdJournals.CURSED_BARBED_INJURY_SOUND_EVENTS = BurdJournals.CURSED_BARBED_INJURY_SOUND_EVENTS or {}
+    local key = string.lower(normalized)
+    for _, existing in ipairs(BurdJournals.CURSED_BARBED_INJURY_SOUND_EVENTS) do
+        local existingNormalized = normalizeCursedSealSoundName(existing)
+        if existingNormalized and string.lower(existingNormalized) == key then
+            return existingNormalized
+        end
+    end
+
+    BurdJournals.CURSED_BARBED_INJURY_SOUND_EVENTS[#BurdJournals.CURSED_BARBED_INJURY_SOUND_EVENTS + 1] = normalized
+    return normalized
+end
+
+function BurdJournals.getRandomCursedBarbedInjurySoundEvent()
+    local pool = BurdJournals.getCursedBarbedInjurySoundPool()
+    if #pool == 0 then
+        return "ZombieScratch"
     end
 
     local index = nil
@@ -2439,6 +2690,7 @@ function BurdJournals.getSandboxOption(optionName)
         CursedJournalForgetChance = 25,
 
         EnablePlayerJournals = true,
+        EnablePlayerJournalCrafting = true,
         ReadingSkillAffectsSpeed = true,
         ReadingSpeedBonus = 0.1,
         EraseTime = 10.0,
@@ -2531,6 +2783,13 @@ end
 
 function BurdJournals.isPlayerJournalsEnabled()
     return BurdJournals.getSandboxOption("EnablePlayerJournals") ~= false
+end
+
+function BurdJournals.isPlayerJournalCraftingEnabled()
+    if not BurdJournals.isPlayerJournalsEnabled() then
+        return false
+    end
+    return BurdJournals.getSandboxOption("EnablePlayerJournalCrafting") ~= false
 end
 
 function BurdJournals.requiresLightForJournalUse()
@@ -3130,7 +3389,10 @@ end
 
 function BurdJournals.isTraitEnabledForJournal(journalData, traitId)
     if not traitId then return false end
-    if not BurdJournals.areTraitsEnabledForJournal(journalData) then
+    local hasExplicitEntry = type(journalData) == "table"
+        and type(journalData.traits) == "table"
+        and journalData.traits[traitId] ~= nil
+    if not BurdJournals.areTraitsEnabledForJournal(journalData) and not hasExplicitEntry then
         return false
     end
     if BurdJournals.isTraitBlockedByModCompat and BurdJournals.isTraitBlockedByModCompat(journalData, traitId) then
@@ -3168,6 +3430,17 @@ function BurdJournals.areRecipesEnabledForJournal(journalData)
     end
 
     return true -- Default to enabled for unknown types
+end
+
+function BurdJournals.isRecipeEnabledForJournal(journalData, recipeName)
+    if not recipeName then return false end
+    local hasExplicitEntry = type(journalData) == "table"
+        and type(journalData.recipes) == "table"
+        and journalData.recipes[recipeName] ~= nil
+    if not BurdJournals.areRecipesEnabledForJournal(journalData) and not hasExplicitEntry then
+        return false
+    end
+    return true
 end
 
 -- Unified helper: Check if recipe recording is enabled globally
@@ -4468,9 +4741,31 @@ function BurdJournals.sanitizeJournalData(item, player)
         BurdJournals.debugPrint("[BurdJournals] Sanitizing debug-spawned journal - using lenient mode")
         -- Only mark as sanitized, don't remove any data
         -- This preserves all skills/traits/recipes that were valid when spawned
+        local fullType = item and item.getFullType and item:getFullType() or ""
+        local isWornType = type(fullType) == "string" and string.find(fullType, "_Worn", 1, true) ~= nil
+        local isBloodyType = type(fullType) == "string" and string.find(fullType, "_Bloody", 1, true) ~= nil
+        local explicitPersonalOrigin = tostring(data.originMode or data.sourceType or "") == "personal"
+        local shouldForceFoundClaimMode = not explicitPersonalOrigin and (
+            isWornType
+            or isBloodyType
+            or data.isWorn == true
+            or data.isBloody == true
+            or data.wasFromWorn == true
+            or data.wasFromBloody == true
+            or data.isCursedJournal == true
+            or data.isCursedReward == true
+        )
+
         data.isDebugSpawned = true
         data.isDebugEdited = true
-        data.isPlayerCreated = true
+        if shouldForceFoundClaimMode then
+            data.isPlayerCreated = false
+        elseif data.isPlayerCreated == nil then
+            local hasOwner = (data.ownerUsername and data.ownerUsername ~= "")
+                or (data.ownerSteamId and data.ownerSteamId ~= "")
+                or (data.ownerCharacterName and data.ownerCharacterName ~= "")
+            data.isPlayerCreated = hasOwner and true or false
+        end
         if not data.uuid then
             data.uuid = (BurdJournals.generateUUID and BurdJournals.generateUUID())
                 or ("debug-" .. tostring(getTimestampMs and getTimestampMs() or os.time()) .. "-" .. tostring(item:getID()))
@@ -5156,6 +5451,12 @@ function BurdJournals.findRepairItem(player, category)
 end
 
 function BurdJournals.canConvertToClean(player)
+    if BurdJournals.isPlayerJournalCraftingEnabled and not BurdJournals.isPlayerJournalCraftingEnabled() then
+        return false
+    end
+    if not player then
+        return false
+    end
     local hasLeather = BurdJournals.findRepairItem(player, "leather") ~= nil
     local hasThread = BurdJournals.findRepairItem(player, "thread") ~= nil
     local hasNeedle = BurdJournals.findRepairItem(player, "needle") ~= nil
@@ -5932,6 +6233,9 @@ function BurdJournals.computeLocalizedName(item)
 
     local data = getItemJournalModData(item) or {}
     local fullType = getItemFullType(item)
+    local fullTypeLower = string.lower(tostring(fullType or ""))
+    local isWornFromType = string.find(fullTypeLower, "_worn", 1, true) ~= nil
+    local isBloodyFromType = string.find(fullTypeLower, "_bloody", 1, true) ~= nil
     local isUnleashedCursedReward = fullType == BurdJournals.CURSED_ITEM_TYPE
         and (data.isCursedReward == true or data.cursedState == "unleashed")
     local isCursedItem = BurdJournals.isCursedJournalItem and BurdJournals.isCursedJournalItem(item)
@@ -5939,8 +6243,13 @@ function BurdJournals.computeLocalizedName(item)
         return BurdJournals.safeGetText("UI_BurdJournals_CursedJournal", "Cursed Survival Journal")
     end
 
-    local isWornState = data.isWorn
-    local isBloodyState = data.isBloody
+    -- Prefer explicit modData flags, but fall back to item fullType for robustness.
+    local isWornState = data.isWorn == true or data.wasFromWorn == true or isWornFromType
+    local isBloodyState = data.isBloody == true
+        or data.wasFromBloody == true
+        or data.hasBloodyOrigin == true
+        or isBloodyFromType
+        or isUnleashedCursedReward
     local author = data.author
     local professionName = BurdJournals.resolveProfessionName(data)  -- Use resolver
     local isPlayerCreated = data.isPlayerCreated
@@ -6029,7 +6338,19 @@ function BurdJournals.updateJournalName(item, forceUpdate)
         or currentName:find("BlankSurvivalJournal")
         or currentName:find("FilledSurvivalJournal")
 
-    local isNonPlayerJournal = not data.isPlayerCreated and (data.isWorn or data.isBloody or data.wasFromBloody)
+    local fullTypeLower = string.lower(tostring(getItemFullType(item) or ""))
+    local isWornFromType = string.find(fullTypeLower, "_worn", 1, true) ~= nil
+    local isBloodyFromType = string.find(fullTypeLower, "_bloody", 1, true) ~= nil
+    local isNonPlayerJournal = not data.isPlayerCreated and (
+        data.isWorn
+        or data.isBloody
+        or data.wasFromBloody
+        or data.wasFromWorn
+        or data.isCursedJournal
+        or data.isCursedReward
+        or isWornFromType
+        or isBloodyFromType
+    )
     if isNonPlayerJournal then
         needsLocalization = true
     end
@@ -6628,6 +6949,11 @@ BurdJournals.PLAYER_BASELINE_MAX_SKILLS = 128
 BurdJournals.PLAYER_BASELINE_MAX_TRAITS = 512
 BurdJournals.PLAYER_BASELINE_MAX_RECIPES = 2048
 BurdJournals.BASELINE_SNAPSHOT_MAX_HOURS = 1
+BurdJournals.BASELINE_SNAPSHOT_STORE_MODDATA_KEY = "BurdJournals_BaselineSnapshotsV1"
+BurdJournals.BASELINE_SNAPSHOT_SCHEMA_VERSION = 1
+BurdJournals.BASELINE_SNAPSHOT_RESTORE_PROTECTED = "protected"
+BurdJournals.BASELINE_SNAPSHOT_RESTORE_UNLOCKED = "unlocked"
+BurdJournals.BASELINE_SNAPSHOT_DEFAULT_PER_STEAM_LIMIT = 50
 BurdJournals.RUNTIME_SHARD_COUNT = 16
 BurdJournals.RUNTIME_MAX_CHARACTERS_PER_JOURNAL = 128
 BurdJournals.RUNTIME_MAX_CLAIMS_PER_BUCKET = 1024
@@ -6741,6 +7067,154 @@ local function ensureRuntimeNumericMap(source, limit)
         end
     end
     return cleaned, removed
+end
+
+local function sanitizeBaselineSnapshotMap(source, maxEntries, valueMode)
+    local cleaned = {}
+    local dropped = 0
+    local limit = math.max(1, tonumber(maxEntries) or 128)
+    local sourceTable = BurdJournals.normalizeTable(source) or source
+    if type(sourceTable) ~= "table" then
+        return cleaned, dropped
+    end
+
+    local keys = {}
+    for key in pairs(sourceTable) do
+        if key ~= nil then
+            keys[#keys + 1] = tostring(key)
+        end
+    end
+    table.sort(keys)
+
+    local kept = 0
+    for _, key in ipairs(keys) do
+        local value = sourceTable[key]
+        if value ~= nil and value ~= false then
+            if kept < limit then
+                if valueMode == "boolean" then
+                    cleaned[key] = value == true
+                else
+                    cleaned[key] = tonumber(value) or value
+                end
+                kept = kept + 1
+            else
+                dropped = dropped + 1
+            end
+        else
+            dropped = dropped + 1
+        end
+    end
+    return cleaned, dropped
+end
+
+function BurdJournals.isBaselineSnapshotsEnabled()
+    return BurdJournals.getSandboxOption("EnableBaselineSnapshots") ~= false
+end
+
+function BurdJournals.getBaselineSnapshotsPerSteamLimit()
+    local configured = tonumber(BurdJournals.getSandboxOption("BaselineSnapshotsPerSteamLimit"))
+        or tonumber(BurdJournals.BASELINE_SNAPSHOT_DEFAULT_PER_STEAM_LIMIT)
+        or 50
+    configured = math.floor(configured)
+    return math.max(1, math.min(500, configured))
+end
+
+function BurdJournals.getBaselineSnapshotsAutoCaptureEnabled()
+    return BurdJournals.getSandboxOption("BaselineSnapshotsAutoCapture") ~= false
+end
+
+function BurdJournals.getBaselineSnapshotsCaptureOnDeathEnabled()
+    return BurdJournals.getSandboxOption("BaselineSnapshotsCaptureOnDeath") ~= false
+end
+
+function BurdJournals.getBaselineSnapshotsProtectOnRestore()
+    return BurdJournals.getSandboxOption("BaselineSnapshotsProtectOnRestore") == true
+end
+
+function BurdJournals.getBaselineEntryCount(tbl)
+    local normalized = BurdJournals.normalizeTable(tbl) or tbl
+    if type(normalized) ~= "table" then
+        return 0
+    end
+    local count = 0
+    for key, value in pairs(normalized) do
+        if key ~= nil and value ~= nil and value ~= false then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+function BurdJournals.baselineHasEntries(payload)
+    if type(payload) ~= "table" then
+        return false
+    end
+    if BurdJournals.getBaselineEntryCount(payload.skillBaseline) > 0 then
+        return true
+    end
+    if BurdJournals.getBaselineEntryCount(payload.mediaSkillBaseline) > 0 then
+        return true
+    end
+    if BurdJournals.getBaselineEntryCount(payload.traitBaseline) > 0 then
+        return true
+    end
+    if BurdJournals.getBaselineEntryCount(payload.recipeBaseline) > 0 then
+        return true
+    end
+    return false
+end
+
+function BurdJournals.getBaselineSnapshotCounts(payload)
+    payload = type(payload) == "table" and payload or {}
+    return {
+        skills = BurdJournals.getBaselineEntryCount(payload.skillBaseline),
+        mediaSkills = BurdJournals.getBaselineEntryCount(payload.mediaSkillBaseline),
+        traits = BurdJournals.getBaselineEntryCount(payload.traitBaseline),
+        recipes = BurdJournals.getBaselineEntryCount(payload.recipeBaseline),
+    }
+end
+
+function BurdJournals.sanitizeBaselinePayloadForSnapshot(payload)
+    local source = type(payload) == "table" and payload or {}
+    local skillBaseline = sanitizeBaselineSnapshotMap(
+        source.skillBaseline,
+        BurdJournals.PLAYER_BASELINE_MAX_SKILLS,
+        "numeric"
+    )
+    local mediaSkillBaseline = sanitizeBaselineSnapshotMap(
+        source.mediaSkillBaseline,
+        BurdJournals.PLAYER_BASELINE_MAX_SKILLS,
+        "numeric"
+    )
+    local traitBaseline = sanitizeBaselineSnapshotMap(
+        source.traitBaseline,
+        BurdJournals.PLAYER_BASELINE_MAX_TRAITS,
+        "boolean"
+    )
+    local recipeBaseline = sanitizeBaselineSnapshotMap(
+        source.recipeBaseline,
+        BurdJournals.PLAYER_BASELINE_MAX_RECIPES,
+        "boolean"
+    )
+
+    return {
+        skillBaseline = skillBaseline,
+        mediaSkillBaseline = mediaSkillBaseline,
+        traitBaseline = traitBaseline,
+        recipeBaseline = recipeBaseline,
+    }
+end
+
+function BurdJournals.normalizeBaselineRestoreMode(restoreMode)
+    local value = restoreMode and tostring(restoreMode) or ""
+    value = string.lower(value)
+    if value == BurdJournals.BASELINE_SNAPSHOT_RESTORE_UNLOCKED
+        or value == "unprotected"
+        or value == "unsafe"
+    then
+        return BurdJournals.BASELINE_SNAPSHOT_RESTORE_UNLOCKED
+    end
+    return BurdJournals.BASELINE_SNAPSHOT_RESTORE_PROTECTED
 end
 
 local function computeRuntimeShardIndex(uuid)
@@ -8092,24 +8566,88 @@ function BurdJournals.mapPerkIdToSkillName(perkId)
     return nil
 end
 
-local function getCachedBaselineFromServer(player)
-    if not player then
+local CLIENT_BASELINE_CACHE_MODDATA_KEY = "BurdJournals_PlayerBaselines"
+
+local function hasBaselinePayloadEntries(payload)
+    if type(payload) ~= "table" then
+        return false
+    end
+    return type(payload.skillBaseline) == "table"
+        or type(payload.mediaSkillBaseline) == "table"
+        or type(payload.traitBaseline) == "table"
+        or type(payload.recipeBaseline) == "table"
+end
+
+local function getClientRuntimeCachedBaseline(player)
+    if not player
+        or not BurdJournals.Client
+        or not BurdJournals.Client.getCachedBaselineForPlayer
+    then
         return nil
     end
-    if not (isServer and isServer()) then
-        return nil
+    local ok, baseline = pcall(BurdJournals.Client.getCachedBaselineForPlayer, player)
+    if ok and hasBaselinePayloadEntries(baseline) then
+        return baseline
     end
-    if not BurdJournals.Server or not BurdJournals.Server.getCachedBaseline then
+    return nil
+end
+
+local function getClientGlobalCachedBaseline(player)
+    if not player or not ModData or not ModData.get then
         return nil
     end
     if not BurdJournals.getPlayerCharacterId then
         return nil
     end
+
     local characterId = BurdJournals.getPlayerCharacterId(player)
     if not characterId then
         return nil
     end
-    return BurdJournals.Server.getCachedBaseline(characterId, player)
+
+    local cache = ModData.get(CLIENT_BASELINE_CACHE_MODDATA_KEY)
+    if type(cache) ~= "table" or type(cache.players) ~= "table" then
+        return nil
+    end
+
+    local baseline = cache.players[characterId]
+    if hasBaselinePayloadEntries(baseline) then
+        return baseline
+    end
+
+    return nil
+end
+
+local function getCachedBaselineFromServer(player)
+    if not player then
+        return nil
+    end
+
+    if isServer and isServer() then
+        if not BurdJournals.Server or not BurdJournals.Server.getCachedBaseline then
+            return nil
+        end
+        if not BurdJournals.getPlayerCharacterId then
+            return nil
+        end
+        local characterId = BurdJournals.getPlayerCharacterId(player)
+        if not characterId then
+            return nil
+        end
+        return BurdJournals.Server.getCachedBaseline(characterId, player)
+    end
+
+    local runtimeBaseline = getClientRuntimeCachedBaseline(player)
+    if runtimeBaseline then
+        return runtimeBaseline
+    end
+
+    local globalBaseline = getClientGlobalCachedBaseline(player)
+    if globalBaseline then
+        return globalBaseline
+    end
+
+    return nil
 end
 
 function BurdJournals.getSkillBaseline(player, skillName)
@@ -8835,6 +9373,358 @@ function BurdJournals.dumpAllTraits()
 
 end
 
+local function normalizeTraitBoostPerkId(perkId)
+    if type(perkId) ~= "string" then
+        return nil
+    end
+    local normalized = perkId
+    normalized = normalized:gsub("^%s+", ""):gsub("%s+$", "")
+    normalized = normalized:gsub("^Perks%.", "")
+    normalized = normalized:gsub("^zombie%.characters%.skills%.PerkFactory%$Perk%.", "")
+    normalized = normalized:gsub("^zombie%.characters%.skills%.PerkFactory%$", "")
+    normalized = normalized:gsub("^PerkFactory%$Perk%.", "")
+    normalized = normalized:gsub("^base:", "")
+    if normalized == "" then
+        return nil
+    end
+    return normalized
+end
+
+local function collectTraitBoostPerkCandidates(perkKey)
+    local candidates = {}
+    local seen = {}
+
+    local function addCandidate(value)
+        if type(value) ~= "string" then
+            return
+        end
+        local raw = value:gsub("^%s+", ""):gsub("%s+$", "")
+        if raw == "" then
+            return
+        end
+        if not seen[raw] then
+            seen[raw] = true
+            candidates[#candidates + 1] = raw
+        end
+
+        local normalized = normalizeTraitBoostPerkId(raw)
+        if normalized and not seen[normalized] then
+            seen[normalized] = true
+            candidates[#candidates + 1] = normalized
+        end
+    end
+
+    if type(perkKey) == "string" then
+        addCandidate(perkKey)
+    end
+
+    local perkAsString = tostring(perkKey)
+    if perkAsString and perkAsString ~= "nil" then
+        addCandidate(perkAsString)
+    end
+
+    if BurdJournals.getSkillNameFromPerk then
+        local ok, skillName = pcall(function()
+            return BurdJournals.getSkillNameFromPerk(perkKey)
+        end)
+        if ok and type(skillName) == "string" and skillName ~= "" then
+            addCandidate(skillName)
+        end
+    end
+
+    if PerkFactory and PerkFactory.getPerk then
+        local ok, perkDef = pcall(function()
+            return PerkFactory.getPerk(perkKey)
+        end)
+        if ok and perkDef then
+            if perkDef.getId then
+                local okId, perkId = pcall(function()
+                    return perkDef:getId()
+                end)
+                if okId and perkId then
+                    addCandidate(tostring(perkId))
+                end
+            end
+            if perkDef.getName then
+                local okName, perkName = pcall(function()
+                    return perkDef:getName()
+                end)
+                if okName and perkName then
+                    addCandidate(tostring(perkName))
+                end
+            end
+        end
+    end
+
+    return candidates
+end
+
+local function resolveTraitBoostPerk(perkKey)
+    local perkKeyType = type(perkKey)
+    if perkKey ~= nil and (perkKeyType == "userdata" or perkKeyType == "table") then
+        if PerkFactory and PerkFactory.getPerk then
+            local ok, perkDef = pcall(function()
+                return PerkFactory.getPerk(perkKey)
+            end)
+            if ok and perkDef then
+                local skillName = nil
+                if BurdJournals.getSkillNameFromPerk then
+                    local okSkill, resolvedSkill = pcall(function()
+                        return BurdJournals.getSkillNameFromPerk(perkKey)
+                    end)
+                    if okSkill and resolvedSkill then
+                        skillName = resolvedSkill
+                    end
+                end
+                return perkKey, skillName
+            end
+        end
+    end
+
+    local candidates = collectTraitBoostPerkCandidates(perkKey)
+    for _, candidate in ipairs(candidates) do
+        local perkObj = nil
+        if Perks then
+            perkObj = Perks[candidate]
+        end
+        if not perkObj and BurdJournals.getPerkByName then
+            perkObj = BurdJournals.getPerkByName(candidate, true)
+        end
+        if not perkObj and BurdJournals.SKILL_TO_PERK then
+            local mappedPerkId = BurdJournals.SKILL_TO_PERK[candidate]
+            if mappedPerkId and Perks then
+                perkObj = Perks[mappedPerkId]
+            end
+        end
+
+        if perkObj then
+            local skillName = nil
+            if BurdJournals.mapPerkIdToSkillName then
+                skillName = BurdJournals.mapPerkIdToSkillName(candidate)
+            end
+            if not skillName and BurdJournals.getSkillNameFromPerk then
+                skillName = BurdJournals.getSkillNameFromPerk(perkObj)
+            end
+            if not skillName then
+                skillName = candidate
+            end
+            return perkObj, skillName
+        end
+    end
+
+    return nil, nil
+end
+
+local function getTraitBoostLevelThreshold(perkObj, skillName, level)
+    local clampedLevel = math.max(0, math.min(10, tonumber(level) or 0))
+    if clampedLevel <= 0 then
+        return 0
+    end
+
+    if BurdJournals.getXPThresholdForLevel and type(skillName) == "string" and skillName ~= "" then
+        local okThreshold, threshold = pcall(function()
+            return BurdJournals.getXPThresholdForLevel(skillName, clampedLevel)
+        end)
+        threshold = tonumber(threshold)
+        if okThreshold and threshold and threshold >= 0 then
+            return threshold
+        end
+    end
+
+    if perkObj and perkObj.getTotalXpForLevel then
+        local ok, threshold = pcall(function()
+            return perkObj:getTotalXpForLevel(clampedLevel)
+        end)
+        threshold = tonumber(threshold)
+        if ok and threshold and threshold >= 0 then
+            return threshold
+        end
+    end
+
+    return nil
+end
+
+function BurdJournals.computeLevelShiftTargetXP(perkObj, skillName, currentXP, currentLevel, levelDelta, options)
+    local currentLevelNum = math.max(0, math.min(10, tonumber(currentLevel) or 0))
+    local delta = tonumber(levelDelta) or 0
+    if delta == 0 then
+        return tonumber(currentXP) or 0, currentLevelNum
+    end
+
+    local currentLevelStart = getTraitBoostLevelThreshold(perkObj, skillName, currentLevelNum)
+    if currentLevelStart == nil then
+        return nil, nil
+    end
+
+    local targetLevel = math.max(0, math.min(10, currentLevelNum + delta))
+    local targetLevelStart = getTraitBoostLevelThreshold(perkObj, skillName, targetLevel)
+    if targetLevelStart == nil then
+        return nil, nil
+    end
+
+    local currentXpNum = tonumber(currentXP) or 0
+    local progressIntoLevel = math.max(0, currentXpNum - currentLevelStart)
+    local preserveProgressRatio = not (type(options) == "table" and options.preserveProgressRatio == false)
+
+    -- Preserve in-level progress proportion when shifting levels due trait boosts.
+    -- This keeps "start/mid/end of level" behavior intuitive across varying XP spans.
+    local progressRatio = nil
+    if preserveProgressRatio and currentLevelNum < 10 then
+        local currentNextLevelStart = getTraitBoostLevelThreshold(perkObj, skillName, currentLevelNum + 1)
+        if currentNextLevelStart and currentNextLevelStart > currentLevelStart then
+            local currentSpan = currentNextLevelStart - currentLevelStart
+            if currentSpan > 0 then
+                progressRatio = progressIntoLevel / currentSpan
+            end
+        end
+    end
+    if progressRatio ~= nil then
+        if progressRatio < 0 then
+            progressRatio = 0
+        elseif progressRatio >= 1 then
+            progressRatio = 0.999999
+        end
+    end
+
+    local targetXP = targetLevelStart
+    if targetLevel < 10 then
+        local targetNextLevelStart = getTraitBoostLevelThreshold(perkObj, skillName, targetLevel + 1)
+        if targetNextLevelStart and targetNextLevelStart > targetLevelStart then
+            local targetSpan = targetNextLevelStart - targetLevelStart
+            if progressRatio ~= nil then
+                targetXP = targetLevelStart + (targetSpan * progressRatio)
+            else
+                targetXP = targetLevelStart + math.min(progressIntoLevel, math.max(0, targetSpan - 0.001))
+            end
+            if targetXP >= targetNextLevelStart then
+                targetXP = targetNextLevelStart - 0.001
+            end
+        end
+    end
+
+    if targetXP < targetLevelStart then
+        targetXP = targetLevelStart
+    end
+
+    return targetXP, targetLevel
+end
+
+local function computeTraitBoostTargetXP(perkObj, skillName, currentXP, currentLevel, levelDelta)
+    return BurdJournals.computeLevelShiftTargetXP(perkObj, skillName, currentXP, currentLevel, levelDelta, {
+        preserveProgressRatio = true,
+    })
+end
+
+local function applyTraitBoostLevelDelta(player, perkObj, skillName, levelDelta, traitId)
+    if not player or not perkObj then
+        return false
+    end
+    local delta = tonumber(levelDelta) or 0
+    if delta == 0 then
+        return true
+    end
+
+    local xpObj = player.getXp and player:getXp() or nil
+    if not (xpObj and xpObj.getXP and xpObj.AddXP) then
+        return false
+    end
+
+    local currentLevel = (player.getPerkLevel and tonumber(player:getPerkLevel(perkObj))) or 0
+    local currentXP = tonumber(xpObj:getXP(perkObj)) or 0
+    local targetXP, targetLevel = computeTraitBoostTargetXP(perkObj, skillName, currentXP, currentLevel, delta)
+    if targetXP == nil then
+        return false
+    end
+
+    local xpDelta = targetXP - currentXP
+    if math.abs(xpDelta) < 0.0001 then
+        return true
+    end
+
+    local applied = pcall(function()
+        xpObj:AddXP(perkObj, xpDelta, false, false, false, true)
+    end)
+    if not applied then
+        applied = pcall(function()
+            xpObj:AddXP(perkObj, xpDelta)
+        end)
+    end
+
+    if applied and BurdJournals.debugPrint then
+        local finalLevel = (player.getPerkLevel and tonumber(player:getPerkLevel(perkObj))) or targetLevel or currentLevel
+        BurdJournals.debugPrint(string.format(
+            "[BurdJournals] Trait '%s' adjusted %s by %+d levels (%0.2f XP, L%d -> L%d)",
+            tostring(traitId or "?"),
+            tostring(skillName or "?"),
+            delta,
+            xpDelta,
+            currentLevel or 0,
+            finalLevel or 0
+        ))
+    end
+
+    return applied
+end
+
+local function applyTraitBoostLevelAdjustments(player, traitDef, direction, traitId)
+    if not player or not traitDef or not traitDef.getXpBoosts or not transformIntoKahluaTable then
+        return false
+    end
+
+    local xpBoosts = transformIntoKahluaTable(traitDef:getXpBoosts())
+    if type(xpBoosts) ~= "table" then
+        return false
+    end
+
+    local changed = false
+    local directionSign = tonumber(direction) or 1
+    if directionSign >= 0 then
+        directionSign = 1
+    else
+        directionSign = -1
+    end
+
+    for perkKey, level in pairs(xpBoosts) do
+        local levelNum = tonumber(tostring(level))
+        if levelNum and levelNum ~= 0 then
+            if levelNum > 0 then
+                levelNum = math.floor(levelNum + 0.0001)
+            else
+                levelNum = math.ceil(levelNum - 0.0001)
+            end
+            if levelNum ~= 0 then
+                local perkObj, skillName = resolveTraitBoostPerk(perkKey)
+                if perkObj then
+                    local applied = applyTraitBoostLevelDelta(player, perkObj, skillName, levelNum * directionSign, traitId)
+                    changed = changed or applied
+                elseif BurdJournals.debugPrint then
+                    BurdJournals.debugPrint(
+                        "[BurdJournals] Could not resolve trait XP boost perk key '" .. tostring(perkKey) .. "' for trait '" .. tostring(traitId) .. "'"
+                    )
+                end
+            end
+        end
+    end
+
+    return changed
+end
+
+local function resolveTraitDefinition(traitDef, traitObj)
+    if traitDef then
+        return traitDef
+    end
+    if not (traitObj and CharacterTraitDefinition and CharacterTraitDefinition.getCharacterTraitDefinition) then
+        return nil
+    end
+    local ok, resolved = pcall(function()
+        return CharacterTraitDefinition.getCharacterTraitDefinition(traitObj)
+    end)
+    if ok and resolved then
+        return resolved
+    end
+    return nil
+end
+
 function BurdJournals.safeAddTrait(player, traitId)
     if not player or not traitId then return false end
 
@@ -8933,6 +9823,7 @@ function BurdJournals.safeAddTrait(player, traitId)
             return false
         end
 
+        traitDef = resolveTraitDefinition(traitDef, traitObj)
         charTraits:add(traitObj)
 
         local traitForBoost = traitDef and traitDef:getType() or traitObj
@@ -8940,32 +9831,8 @@ function BurdJournals.safeAddTrait(player, traitId)
             player:modifyTraitXPBoost(traitForBoost, false)
         end
 
-        if traitDef and traitDef.getXpBoosts and transformIntoKahluaTable then
-            local xpBoosts = transformIntoKahluaTable(traitDef:getXpBoosts())
-            if type(xpBoosts) == "table" then
-                for perk, level in pairs(xpBoosts) do
-                    local perkId = tostring(perk)
-                    local levelNum = tonumber(tostring(level))
-                    if levelNum and levelNum > 0 then
-                        local perkObj = Perks and Perks[perkId]
-                        if perkObj and perkObj.getTotalXpForLevel then
-                            local currentLevel = 0
-                            if player.getPerkLevel then
-                                currentLevel = player:getPerkLevel(perkObj) or 0
-                            end
-
-                            local targetLevel = math.min(currentLevel + levelNum, 10)
-                            local targetXp = perkObj:getTotalXpForLevel(targetLevel)
-                            local currentXp = player:getXp():getXP(perkObj) or 0
-                            local xpToAdd = targetXp - currentXp
-                            if xpToAdd > 0 then
-                                player:getXp():AddXP(perkObj, xpToAdd, true, false, false)
-                                print("[BurdJournals] Trait " .. traitId .. " granted +" .. levelNum .. " " .. perkId .. " (+" .. math.floor(xpToAdd) .. " XP)")
-                            end
-                        end
-                    end
-                end
-            end
+        if traitDef then
+            applyTraitBoostLevelAdjustments(player, traitDef, 1, traitId)
         end
 
         if SyncXp then
@@ -9102,6 +9969,8 @@ function BurdJournals.safeRemoveTrait(player, traitId)
             return false
         end
 
+        traitDef = resolveTraitDefinition(traitDef, traitObj)
+
         if charTraits.remove then
             pcall(function()
                 charTraits:remove(traitObj)
@@ -9119,6 +9988,10 @@ function BurdJournals.safeRemoveTrait(player, traitId)
         end
 
         if removed then
+            if traitDef then
+                applyTraitBoostLevelAdjustments(player, traitDef, -1, traitId)
+            end
+
             local traitForBoost = traitDef and traitDef.getType and traitDef:getType() or traitObj
             if player.modifyTraitXPBoost and traitForBoost then
                 pcall(function()

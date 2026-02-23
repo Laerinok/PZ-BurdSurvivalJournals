@@ -1,5 +1,4 @@
 ContextMenu_TR = {
-    -- Journal Actions
     ContextMenu_BurdJournals_OpenJournal = "Günlüğü Aç...",
     ContextMenu_BurdJournals_Read = "Günlüğü Oku",
     ContextMenu_BurdJournals_Rename = "Yeniden Adlandır",
@@ -7,22 +6,15 @@ ContextMenu_TR = {
     ContextMenu_BurdJournals_RecordProgress = "İlerlemeyi Kaydet",
     ContextMenu_BurdJournals_UpdateRecords = "Kayıtları Güncelle",
     ContextMenu_BurdJournals_ClaimAll = "Tüm Becerileri Al",
-
-    -- Bind Journal (Context Menu Crafting)
     ContextMenu_BurdJournals_BindAsSurvivalJournal = "Hayatta Kalma Günlüğü Olarak Ciltle",
     ContextMenu_BurdJournals_BindAsSurvivalJournal_Missing = "Hayatta Kalma Günlüğü Olarak Ciltle (Eksik Malzeme)",
     ContextMenu_BurdJournals_BindAsSurvivalJournal_NoTailoring = "Hayatta Kalma Günlüğü Olarak Ciltle (Terzilik 1 Gerektirir)",
-
-    -- Bloody Journal
     ContextMenu_BurdJournals_BloodyBlank = "Kanlı Boş Günlük",
+    ContextMenu_BurdJournals_OpenCursedJournal = "Break the Seal...",
     ContextMenu_BurdJournals_ConvertViaCrafting = "Kişisel Günlüğe Dönüştür (Zanaat)",
-
-    -- Worn Journal
     ContextMenu_BurdJournals_WornBlank = "Yıpranmış Boş Günlük",
     ContextMenu_BurdJournals_AbsorbAll = "Tüm Ödülleri Özümse",
     ContextMenu_BurdJournals_ConvertToClean = "Kişisel Günlük Olarak Yeniden Ciltle",
-
-    -- Absorb All Dynamic Labels (for context menu)
     ContextMenu_BurdJournals_AbsorbAllFormat = "Tümünü Özümse (%s)",
     ContextMenu_BurdJournals_SkillCount = "%d beceri",
     ContextMenu_BurdJournals_SkillsCount = "%d beceri",
@@ -30,15 +22,9 @@ ContextMenu_TR = {
     ContextMenu_BurdJournals_TraitsCount = "%d özellik",
     ContextMenu_BurdJournals_RecipeCount = "%d tarif",
     ContextMenu_BurdJournals_RecipesCount = "%d tarif",
-
-    -- Personal Journal (Clean)
     ContextMenu_BurdJournals_RecordAll = "Tüm İlerlemeyi Kaydet",
     ContextMenu_BurdJournals_Disassemble = "Günlüğü Parçala",
-
-    -- Illiterate Trait Block
     ContextMenu_BurdJournals_CannotRead = "Okunamıyor (Okuma-Yazma Bilmiyor)",
-
-    -- Legacy (keeping for compatibility)
     ContextMenu_BurdJournals_CleanRepair = "Temizle/Onar",
     ContextMenu_BurdJournals_CleanSoap = "Sabun ve Bezle Temizle",
     ContextMenu_BurdJournals_RepairTape = "Koli Bandı ile Yama",

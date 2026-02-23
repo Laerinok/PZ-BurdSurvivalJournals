@@ -231,15 +231,26 @@ function BurdJournals.Tooltips.getExtraInfo(item)
     local originText = nil
     local originColor = {r=0.6, g=0.6, b=0.6}
 
-    if journalData.wasFromBloody or journalData.sourceType == "zombie" then
+    local sourceType = type(journalData.sourceType) == "string" and string.lower(journalData.sourceType) or nil
+
+    if sourceType == "personal" then
+        originText = getText("Tooltip_BurdJournals_OriginPersonal") or "Origin: Personal"
+        originColor = {r=0.3, g=0.6, b=0.8}
+    elseif sourceType == "zombie" then
         originText = getText("Tooltip_BurdJournals_OriginZombie") or "Origin: Recovered from zombie"
         originColor = {r=0.6, g=0.4, b=0.3}
-    elseif journalData.sourceType == "world" then
+    elseif sourceType == "world" then
         originText = getText("Tooltip_BurdJournals_OriginWorld") or "Origin: Found in world"
         originColor = {r=0.5, g=0.5, b=0.6}
-    elseif journalData.sourceType == "crafted" then
+    elseif sourceType == "crafted" then
         originText = getText("Tooltip_BurdJournals_OriginCrafted") or "Origin: Crafted"
         originColor = {r=0.5, g=0.6, b=0.5}
+    elseif sourceType == "found" then
+        originText = getText("Tooltip_BurdJournals_OriginFound") or "Origin: Found"
+        originColor = {r=0.5, g=0.5, b=0.6}
+    elseif journalData.wasFromBloody then
+        originText = getText("Tooltip_BurdJournals_OriginZombie") or "Origin: Recovered from zombie"
+        originColor = {r=0.6, g=0.4, b=0.3}
     elseif not journalData.ownerUsername and journalData.author then
 
         originText = getText("Tooltip_BurdJournals_OriginFound") or "Origin: Found"

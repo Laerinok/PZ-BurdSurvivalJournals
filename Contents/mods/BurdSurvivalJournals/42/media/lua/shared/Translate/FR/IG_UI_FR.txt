@@ -1,38 +1,27 @@
 IG_UI_FR = {
-    -- Context Menu - Main Options
     ContextMenu_BurdJournals_OpenJournal = "Ouvrir le journal...",
     ContextMenu_BurdJournals_Read = "Lire",
     ContextMenu_BurdJournals_Rename = "Renommer",
     ContextMenu_BurdJournals_EraseJournal = "Effacer le journal",
     ContextMenu_BurdJournals_RecordProgress = "Consigner les progrès",
-    
-    -- Context Menu - Clean/Repair
     ContextMenu_BurdJournals_CleanRepair = "Nettoyer/Réparer",
     ContextMenu_BurdJournals_CleanSoap = "Nettoyer (Savon & Chiffon)",
     ContextMenu_BurdJournals_RepairTape = "Réparer avec du ruban adhésif",
     ContextMenu_BurdJournals_RepairLeather = "Relier avec du cuir",
     ContextMenu_BurdJournals_RepairGlue = "Encoller les pages",
-    
-    -- UI Panel Titles
     UI_BurdJournals_BlankJournal = "Journal de survie vierge",
     UI_BurdJournals_FilledJournal = "Journal de survie rempli",
     UI_BurdJournals_WornJournal = "Journal de survie usé",
-    
-    -- Data Category Headers
     UI_BurdJournals_CategoryCharacter = "Infos du personnage",
     UI_BurdJournals_CategorySurvival = "Registre de survie",
     UI_BurdJournals_CategoryKills = "Compteur de victimes",
     UI_BurdJournals_CategoryTraits = "Traits de personnalité",
     UI_BurdJournals_CategorySkills = "Compétences apprises",
-    
-    -- UI Panel Labels
     UI_BurdJournals_Author = "Auteur",
     UI_BurdJournals_Written = "Écrit le",
     UI_BurdJournals_TimesRead = "Nombre de lectures",
     UI_BurdJournals_Condition = "État",
     UI_BurdJournals_NeedsCleaning = "Nécessite un nettoyage",
-    
-    -- UI Buttons
     UI_BurdJournals_SelectAll = "Tout sélectionner",
     UI_BurdJournals_DeselectAll = "Tout désélectionner",
     UI_BurdJournals_Log = "Consigner les compétences",
@@ -40,44 +29,30 @@ IG_UI_FR = {
     UI_BurdJournals_Update = "Mettre à jour",
     UI_BurdJournals_Erase = "Effacer",
     UI_BurdJournals_Close = "Fermer",
-    
-    -- Confirmation Dialogs
     UI_BurdJournals_ConfirmErase = "Es-tu sûr de vouloir effacer ce journal ? Toutes les compétences consignées seront perdues à jamais.",
     UI_BurdJournals_ConfirmOverwrite = "Cela va écraser le contenu actuel du journal avec tes compétences actuelles. Es-tu sûr ?",
     UI_BurdJournals_RenamePrompt = "Saisis un nouveau nom pour ce journal :",
     UI_BurdJournals_NoSkillsSelected = "Sélectionne d'abord au moins une compétence.",
     UI_BurdJournals_NoSkillsInJournal = "Ce journal ne contient aucune compétence à apprendre.",
-    
-    -- Condition States
     UI_BurdJournals_ConditionPristine = "Impeccable",
     UI_BurdJournals_ConditionGood = "Bon",
     UI_BurdJournals_ConditionWorn = "Usé",
     UI_BurdJournals_ConditionDamaged = "Endommagé",
     UI_BurdJournals_ConditionCritical = "Critique",
-    
-    -- Inspect Messages
     UI_BurdJournals_InspectBlank = "Un journal vierge dans un état %1.",
     UI_BurdJournals_InspectFilled = "Un journal écrit par %1. État : %2",
-    
-    -- Tooltips - Journal Info
     Tooltip_BlankSurvivalJournal = "Un journal vierge prêt à accueillir tes connaissances de survie.",
     Tooltip_FilledSurvivalJournal = "Un journal contenant des compétences de survie consignées. Fais un clic droit pour le lire.",
     Tooltip_BurdJournals_ContainsSkills = "Contient %1 compétence(s) consignée(s)",
-    
-    -- Tooltips - Requirements
     Tooltip_BurdJournals_NeedPen = "Nécessite un stylo ou un crayon pour écrire.",
     Tooltip_BurdJournals_NeedEraser = "Nécessite une gomme pour effacer le contenu.",
     Tooltip_BurdJournals_NeedsCleaning = "Ce journal est trop usé pour être lu.",
     Tooltip_BurdJournals_NeedsCleaningDesc = "Utilise du savon et un chiffon pour le nettoyer, du ruban adhésif pour le réparer, ou des lanières de cuir pour le relier.",
-    
-    -- Tooltips - Cleaning Materials
     Tooltip_BurdJournals_MissingMaterials = "Matériaux manquants",
     Tooltip_BurdJournals_NeedsSoapCloth = "Requis : Savon + Draps déchirés ou Chiffon",
     Tooltip_BurdJournals_NeedsTape = "Requis : Ruban adhésif",
     Tooltip_BurdJournals_NeedsLeatherBinding = "Requis : Lanières de cuir + Fil + Aiguille",
     Tooltip_BurdJournals_NeedsGluePaper = "Requis : Colle + Feuille de papier",
-    
-    -- Feedback Messages
     UI_BurdJournals_SkillsLogged = "Compétences consignées dans le journal.",
     UI_BurdJournals_SkillsLearned = "Connaissances absorbées depuis le journal !",
     UI_BurdJournals_JournalErased = "Contenu du journal effacé.",

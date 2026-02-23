@@ -1,14 +1,9 @@
-﻿Sandbox_TR = {
-    -- TAB NAMES
+Sandbox_TR = {
     Sandbox_BurdJournals_Player = "G�nl�kler - Oyuncu",
     Sandbox_BurdJournals_Loot = "G�nl�kler - Ganimet",
-    Sandbox_BurdJournals_Advanced = "G�nl�kler - Gelismis",
-
-    -- Master Toggle
+    Sandbox_BurdJournals_OtherMods = "Journals - Other Mods",
     Sandbox_BurdJournals_EnableJournals = "Hayatta Kalma G�nl�klerini Aktif Et",
     Sandbox_BurdJournals_EnableJournals_tooltip = "T�m hayatta kalma g�nl�g� sistemi i�in ana anahtar.",
-
-    -- XP Recovery (Clean Journals)
     Sandbox_BurdJournals_XPRecoveryMode = "Temiz G�nl�k TP Modu",
     Sandbox_BurdJournals_XPRecoveryMode_tooltip = "TEMIZ bir g�nl�k okundugunda ne kadar TP kurtarilacagini belirler. Eskimis veya kanli g�nl�kleri etkilemez.",
     Sandbox_BurdJournals_XPRecoveryMode_option1 = "Tam Kurtarma (100%)",
@@ -20,238 +15,187 @@
     Sandbox_BurdJournals_DiminishingTrackingMode_option3 = "Per Skill (Persistent)",
     Sandbox_BurdJournals_DiminishingFirstRead = "Ilk Okuma TP %",
     Sandbox_BurdJournals_DiminishingFirstRead_tooltip = "Ilk okumadaki TP y�zdesi (50-100%). Sadece Azalan Getiriler modu aktifse ge�erlidir.",
-
     Sandbox_BurdJournals_DiminishingDecayRate = "Okuma Basina Azalma %",
     Sandbox_BurdJournals_DiminishingDecayRate_tooltip = "Her sonraki okumada TP miktarindaki azalma (5-50%).",
-
     Sandbox_BurdJournals_DiminishingMinimum = "Minimum TP %",
     Sandbox_BurdJournals_DiminishingMinimum_tooltip = "Kurtarma oraninin d�semeyecegi taban y�zde (0-50%).",
-
-    -- XP Multiplier
     Sandbox_BurdJournals_JournalXPMultiplier = "G�nl�k TP �arpani",
     Sandbox_BurdJournals_JournalXPMultiplier_tooltip = "G�nl�klerden kazanilan TP i�in �arpan (0.25 = 25%, 1.0 = 100%, 2.0 = 200%). Hem eskimis hem kanli g�nl�kler i�in ge�erlidir.",
-
-    -- Skill Book Multiplier
     Sandbox_BurdJournals_SkillBookMultiplierForJournals = "Beceri Kitabı Çarpanlarını Uygula",
     Sandbox_BurdJournals_SkillBookMultiplierForJournals_tooltip = "Etkinleştirildiğinde, beceri kitaplarının TP çarpanları SADECE eskimiş ve kanlı günlüklerden emilen TP'ye uygulanır. Kişisel günlükler etkilenmez. Çarpan aşağıdaki ayarla sınırlanır.",
-    
     Sandbox_BurdJournals_SkillBookMultiplierCap = "Beceri Kitabı Çarpan Sınırı",
     Sandbox_BurdJournals_SkillBookMultiplierCap_tooltip = "Eskimiş ve kanlı günlüklerden beceri emerken maksimum TP çarpanı. Varsayılan 2x erken oyun aşırı ilerlemesini önler. 16'ya ayarlayarak tam çarpanlara izin verin. Kişisel günlükleri etkilemez.",
-
-    -- Writing Requirements
-    Sandbox_BurdJournals_RequirePenToWrite = "Yazmak I�in Kalem Gereksin",
-    Sandbox_BurdJournals_RequirePenToWrite_tooltip = "Temiz bir g�nl�ge becerileri kaydetmek i�in kalem veya kursun kalem gerektirir.",
-
-    Sandbox_BurdJournals_PenUsesPerLog = "Kayit Basina Kalem Kullanimi",
-    Sandbox_BurdJournals_PenUsesPerLog_tooltip = "Beceriler kaydedilirken t�ketilen kalem dayanikliligi (1-10).",
-
-    Sandbox_BurdJournals_RequireEraserToErase = "Silmek I�in Silgi Gereksin",
-    Sandbox_BurdJournals_RequireEraserToErase_tooltip = "Temiz g�nl�k i�erigini sifirlamak i�in bir silgi gerektirir.",
-
-    -- Learning Time Settings
-    Sandbox_BurdJournals_LearningTimePerSkill = "Beceri Basina �grenme S�resi (sn)",
-    Sandbox_BurdJournals_LearningTimePerSkill_tooltip = "Bir g�nl�kten her bir beceriyi �grenmek i�in gereken temel s�re. Okuma/�alisma s�recini sim�le eder.",
-
-    Sandbox_BurdJournals_LearningTimePerTrait = "�zellik Basina �grenme S�resi (sn)",
-    Sandbox_BurdJournals_LearningTimePerTrait_tooltip = "Bir g�nl�kten her bir �zelligi �z�msemek i�in gereken temel s�re.",
-
-    Sandbox_BurdJournals_LearningTimeMultiplier = "�grenme S�resi �arpani",
-    Sandbox_BurdJournals_LearningTimeMultiplier_tooltip = "T�m �grenme s�releri i�in genel �arpan. 0.5 = iki kat hizli, 2.0 = iki kat yavas.",
-
-    -- Player Stats Recording
-    Sandbox_BurdJournals_EnableStatRecording = "Istatistik Kaydini Aktif Et",
-    Sandbox_BurdJournals_EnableStatRecording_tooltip = "Kisisel g�nl�klerde oyuncu istatistiklerinin (�ld�rme, hayatta kalma s�resi vb.) kaydedilmesi i�in ana anahtar.",
-
-    Sandbox_BurdJournals_RecordZombieKills = "Zombi �ld�rmelerini Kaydet",
-    Sandbox_BurdJournals_RecordZombieKills_tooltip = "Oyuncularin zombi �ld�rme sayilarini g�nl�ge kaydetmesine izin verir.",
-
-    Sandbox_BurdJournals_RecordHoursSurvived = "Hayatta Kalinan S�reyi Kaydet",
-    Sandbox_BurdJournals_RecordHoursSurvived_tooltip = "Oyuncularin hayatta kaldiklari s�reyi g�nl�ge kaydetmesine izin verir.",
-
-    -- Baseline Restriction (Anti-Exploit)
-    Sandbox_BurdJournals_EnableBaselineRestriction = "Sadece Kazanilan Ilerlemeyi Kaydet",
-    Sandbox_BurdJournals_EnableBaselineRestriction_tooltip = "Aktif edildiginde g�nl�kler sadece oynanisla kazanilan TP'yi kaydeder; meslek baslangi� bonuslarini veya �zelliklerden gelen beceri artislarini kaydetmez. Bu, yeni karakterler a�arak meslek becerisi kasmayi (exploits) engeller. �ok oyunculu sunucular i�in A�IK olmasi �nerilir.",
-
-    -- Trait Recording (Player Journals)
-    Sandbox_BurdJournals_EnableTraitRecordingPlayer = "Özellik Kaydını Etkinleştir (Oyuncu)",
-    Sandbox_BurdJournals_EnableTraitRecordingPlayer_tooltip = "Oyuncuların kişisel günlüklerine özellik kaydetmesine izin verir.",
-
-    -- Recipe Recording (Player Journals)
-    Sandbox_BurdJournals_EnableRecipeRecordingPlayer = "Tarif Kaydını Etkinleştir (Oyuncu)",
-    Sandbox_BurdJournals_EnableRecipeRecordingPlayer_tooltip = "Oyuncuların dergi tariflerini kaydetmesine izin verir.",
-
-    -- Recipe Recording
-
-    Sandbox_BurdJournals_LearningTimePerRecipe = "Tarif Basina �grenme S�resi (sn)",
-    Sandbox_BurdJournals_LearningTimePerRecipe_tooltip = "G�nl�kten her bir tarifi �grenmek i�in gereken temel s�re.",
-
-    -- Journal Capacity Limits
-    Sandbox_BurdJournals_MaxSkillsPerJournal = "G�nl�k Basina Maks. Beceri",
-    Sandbox_BurdJournals_MaxSkillsPerJournal_tooltip = "Tek bir g�nl�ge kaydedilebilecek maksimum beceri sayisi. Vanilya oyunda ~30 beceri var. �ok modlu oyunlar i�in artirin.",
-
-    Sandbox_BurdJournals_MaxTraitsPerJournal = "G�nl�k Basina Maks. �zellik",
-    Sandbox_BurdJournals_MaxTraitsPerJournal_tooltip = "Tek bir g�nl�ge kaydedilebilecek maksimum �zellik sayisi. Vanilya oyunda ~50 verilebilir �zellik var. �ok modlu oyunlar i�in artirin.",
-
-    Sandbox_BurdJournals_MaxRecipesPerJournal = "G�nl�k Basina Maks. Tarif",
-    Sandbox_BurdJournals_MaxRecipesPerJournal_tooltip = "Tek bir g�nl�ge kaydedilebilecek maksimum tarif sayisi. �ok modlu oyunlarda 400+ dergi tarifi olabilir. Kapasite uyarilari alirsaniz artirin.",
-
-    -- Worn Journals (World Containers)
-    Sandbox_BurdJournals_EnableWornJournalSpawns = "Yipranmis G�nl�k Ganimetini Aktif Et",
-    Sandbox_BurdJournals_EnableWornJournalSpawns_tooltip = "D�nyadaki konteynerlerde (raflar, masalar, dolaplar) yipranmis g�nl�klerin �ikmasina izin verir. Bunlar d�s�k miktarda TP �d�l� sunar.",
-
-    Sandbox_BurdJournals_WornJournalSpawnChance = "Yipranmis G�nl�k Sansi %",
-    Sandbox_BurdJournals_WornJournalSpawnChance_tooltip = "Yipranmis g�nl�klerin konteynerlerde belirme sansi (0.1-100%).",
-
-    Sandbox_BurdJournals_WornJournalMinSkills = "Yipranmis Min. Beceri Sayisi",
-    Sandbox_BurdJournals_WornJournalMinSkills_tooltip = "D�nyada bulunan yipranmis g�nl�klerdeki minimum beceri sayisi.",
-
-    Sandbox_BurdJournals_WornJournalMaxSkills = "Yipranmis Maks. Beceri Sayisi",
-    Sandbox_BurdJournals_WornJournalMaxSkills_tooltip = "D�nyada bulunan yipranmis g�nl�klerdeki maksimum beceri sayisi.",
-
-    Sandbox_BurdJournals_WornJournalMinXP = "Yipranmis Min. Beceri TP'si",
-    Sandbox_BurdJournals_WornJournalMinXP_tooltip = "Yipranmis g�nl�klerde beceri basina minimum TP.",
-
-    Sandbox_BurdJournals_WornJournalMaxXP = "Yipranmis Maks. Beceri TP'si",
-    Sandbox_BurdJournals_WornJournalMaxXP_tooltip = "Yipranmis g�nl�klerde beceri basina maksimum TP.",
-
-    Sandbox_BurdJournals_WornJournalRecipeChance = "Yipranmis G�nl�k Tarif Sansi %",
-    Sandbox_BurdJournals_WornJournalRecipeChance_tooltip = "Yipranmis g�nl�klerin dergi tarifi i�erme sansi (0-100%). Yipranmis g�nl�kler kanli olanlara g�re daha d�s�k sansa sahiptir.",
-
-    Sandbox_BurdJournals_WornJournalMaxRecipes = "Yipranmis G�nl�k Basina Maks. Tarif",
-    Sandbox_BurdJournals_WornJournalMaxRecipes_tooltip = "Tek bir yipranmis g�nl�kte bulunabilecek maksimum dergi tarifi sayisi (1-5).",
-
-    Sandbox_BurdJournals_EnableWornJournalRecipes = "Eskimiş Günlük Tariflerini Etkinleştir",
-    Sandbox_BurdJournals_EnableWornJournalRecipes_tooltip = "Eskimiş günlüklerden tarif alınabilmesini sağlar.",
-
-    Sandbox_BurdJournals_WornJournalTraitChance = "Yipranmis �zellik Sansi %",
-    Sandbox_BurdJournals_WornJournalTraitChance_tooltip = "Yipranmis g�nl�klerin �zellik i�erme sansi (0-100%). Sadece kanli g�nl�klerin �zellik i�erdigi klasik davranis i�in 0% (varsayilan) olarak ayarlayin.",
-
-    Sandbox_BurdJournals_WornJournalMinTraits = "Yipranmis Min. �zellik",
-    Sandbox_BurdJournals_WornJournalMinTraits_tooltip = "Yipranmis g�nl�kte bulunabilecek minimum �zellik sayisi (1-5).",
-
-    Sandbox_BurdJournals_WornJournalMaxTraits = "Yipranmis Maks. �zellik",
-    Sandbox_BurdJournals_WornJournalMaxTraits_tooltip = "Yipranmis g�nl�kte bulunabilecek maksimum �zellik sayisi (1-5).",
-
-    Sandbox_BurdJournals_EnableWornJournalTraits = "Yipranmis G�nl�k �zelliklerini Aktif Et",
-    Sandbox_BurdJournals_EnableWornJournalTraits_tooltip = "Aktif edildiginde yipranmis g�nl�klerden �zellikler alinabilir. Devre disi birakildiginda �zellik sekmesi gizlenir ama mevcut veriler korunur.",
-
-    -- Bloody Journals (Zombie Corpses)
-    Sandbox_BurdJournals_EnableBloodyJournalSpawns = "Kanli G�nl�k D�s�rmeyi Aktif Et",
-    Sandbox_BurdJournals_EnableBloodyJournalSpawns_tooltip = "Zombilerin kanli g�nl�k d�s�rmesine izin verir. Bunlar daha iyi �d�ller ve nadir �zellikler sunar.",
-
-    Sandbox_BurdJournals_BloodyJournalSpawnChance = "Kanli G�nl�k D�sme Sansi %",
-    Sandbox_BurdJournals_BloodyJournalSpawnChance_tooltip = "Bir zombinin kanli g�nl�k d�s�rme sansi (0.1-100%).",
-
-    Sandbox_BurdJournals_BloodyJournalMinSkills = "Kanli Min. Beceri Sayisi",
-    Sandbox_BurdJournals_BloodyJournalMinSkills_tooltip = "Zombiden d�sen kanli g�nl�klerdeki minimum beceri sayisi.",
-
-    Sandbox_BurdJournals_BloodyJournalMaxSkills = "Kanli Maks. Beceri Sayisi",
-    Sandbox_BurdJournals_BloodyJournalMaxSkills_tooltip = "Zombiden d�sen kanli g�nl�klerdeki maksimum beceri sayisi.",
-
-    Sandbox_BurdJournals_BloodyJournalMinXP = "Kanli Min. Beceri TP'si",
-    Sandbox_BurdJournals_BloodyJournalMinXP_tooltip = "Kanli g�nl�klerde beceri basina minimum TP.",
-
-    Sandbox_BurdJournals_BloodyJournalMaxXP = "Kanli Maks. Beceri TP'si",
-    Sandbox_BurdJournals_BloodyJournalMaxXP_tooltip = "Kanli g�nl�klerde beceri basina maksimum TP.",
-
-    Sandbox_BurdJournals_BloodyJournalTraitChance = "Nadir �zellik Sansi %",
-    Sandbox_BurdJournals_BloodyJournalTraitChance_tooltip = "Kanli g�nl�klerin verilebilir bir �zellik (Cesur, D�zenli vb.) i�erme sansi.",
-
-    Sandbox_BurdJournals_BloodyJournalMaxTraits = "G�nl�k Basina Maks. �zellik",
-    Sandbox_BurdJournals_BloodyJournalMaxTraits_tooltip = "Tek bir kanli g�nl�kte bulunabilecek maksimum �zellik sayisi (0-5).",
-
-    Sandbox_BurdJournals_EnableBloodyJournalTraits = "Kanlı Günlük Özelliklerini Etkinleştir",
-    Sandbox_BurdJournals_EnableBloodyJournalTraits_tooltip = "Kanlı günlüklerden özellik alınabilmesini sağlar.",
-
-    Sandbox_BurdJournals_BloodyJournalRecipeChance = "Kanli G�nl�k Tarif Sansi %",
-    Sandbox_BurdJournals_BloodyJournalRecipeChance_tooltip = "Kanli g�nl�klerin dergi tarifleri i�erme sansi (0-100%). Kanli g�nl�kler yipranmis olanlara g�re daha y�ksek sansa sahiptir.",
-
-    Sandbox_BurdJournals_BloodyJournalMaxRecipes = "Kanli G�nl�k Basina Maks. Tarif",
-    Sandbox_BurdJournals_BloodyJournalMaxRecipes_tooltip = "Tek bir kanli g�nl�kte bulunabilecek maksimum dergi tarifi sayisi (1-5).",
-
-    Sandbox_BurdJournals_EnableBloodyJournalRecipes = "Kanlı Günlük Tariflerini Etkinleştir",
-    Sandbox_BurdJournals_EnableBloodyJournalRecipes_tooltip = "Kanlı günlüklerden tarif alınabilmesini sağlar.",
-
-    -- Feature Toggles
-    Sandbox_BurdJournals_EnablePlayerJournals = "Oyuncu G�nl�klerini Aktif Et",
-    Sandbox_BurdJournals_EnablePlayerJournals_tooltip = "Oyuncularin beceri kaydetmek ve kurtarmak i�in kisisel g�nl�kler �retip kullanmasina izin verir.",
-
-    -- Reading Skill Integration
-    Sandbox_BurdJournals_ReadingSkillAffectsSpeed = "Okuma Hizi Beceriden Etkilensin",
-    Sandbox_BurdJournals_ReadingSkillAffectsSpeed_tooltip = "Daha y�ksek okuma becirisi seviyeleri, g�nl�klerden bilgi �z�mseme s�resini azaltir.",
-
-    Sandbox_BurdJournals_ReadingSpeedBonus = "Okuma Hizi Bonusu",
-    Sandbox_BurdJournals_ReadingSpeedBonus_tooltip = "Okuma becirisi seviyesi basina hiz bonusu (0.1 = seviye basina %10 daha hizli, seviye 10'da maksimum %100).",
-
-    -- Erase/Convert Times
-    Sandbox_BurdJournals_EraseTime = "Silme S�resi (saniye)",
-    Sandbox_BurdJournals_EraseTime_tooltip = "Bir g�nl�g�n i�erigini silmek i�in gereken s�re.",
-
-    Sandbox_BurdJournals_ConvertTime = "D�n�st�rme S�resi (saniye)",
-    Sandbox_BurdJournals_ConvertTime_tooltip = "Yipranmis bir g�nl�g� temiz bir g�nl�ge d�n�st�rmek i�in gereken s�re.",
-
-    -- Multiplayer Sharing Settings
-    Sandbox_BurdJournals_AllowOthersToOpenJournals = "Baskalarinin G�nl�kleri A�masina Izin Ver",
-    Sandbox_BurdJournals_AllowOthersToOpenJournals_tooltip = "Etkinse, diger oyuncular kendilerinin olusturmadigi kisisel g�nl�kleri a�abilir ve g�r�nt�leyebilir.",
-
-    Sandbox_BurdJournals_AllowOthersToClaimFromJournals = "Baskalarinin G�nl�kten Bilgi Almasina Izin Ver",
-    Sandbox_BurdJournals_AllowOthersToClaimFromJournals_tooltip = "Etkinse, diger oyuncular kendilerinin olusturmadigi kisisel g�nl�klerden beceri/�zellik alabilir.",
-
-    -- Trait Settings
-    Sandbox_BurdJournals_AllowNegativeTraits = "Olumsuz �zelliklere Izin Ver",
-    Sandbox_BurdJournals_AllowNegativeTraits_tooltip = "Etkinse, g�nl�klerde olumsuz �zellikler belirebilir ve kaydedilebilir.",
-
-    -- Player Journal Dissolution
-    Sandbox_BurdJournals_AllowPlayerJournalDissolution = "Onarılmış Günlük Parçalanmasına İzin Ver",
-    Sandbox_BurdJournals_AllowPlayerJournalDissolution_tooltip = "Eskimiş/kanlı günlüklerden oluşturulan 'Onarılmış' günlüklerin, tüm içerik alındıktan sonra yok olup olmayacağını belirler. Varsayılan: KAPALI.",
-
-    -- ============================================================
-    -- PERFORMANCE SETTINGS
-    -- ============================================================
-
-    Sandbox_BurdJournals_RecordBatchSize = "Toplu Kayıt Boyutu",
-    Sandbox_BurdJournals_RecordBatchSize_tooltip = "'Hepsini Kaydet' kullanıldığında tek bir eylemde kaç öğe kaydedileceği. Yüksek değerler daha hızlı biter. Varsayılan: 15",
-
-    Sandbox_BurdJournals_AbsorbBatchSize = "Toplu Özümseme Boyutu",
-    Sandbox_BurdJournals_AbsorbBatchSize_tooltip = "'Hepsini Özümse' kullanıldığında tek bir eylemde kaç öğe özümseneceği. Varsayılan: 15",
-
-    Sandbox_BurdJournals_BatchTimeMultiplier = "Toplu İşlem Süresi Çarpanı",
-    Sandbox_BurdJournals_BatchTimeMultiplier_tooltip = "Toplu eylemlerin süresi için çarpan. Düşük = daha hızlı. Sadece 'Hepsini Kaydet/Özümse' eylemlerini etkiler. Varsayılan: 0.25 (4 kat hızlı)",
-
-    -- ============================================================
-    -- DEBUG & DEVELOPMENT SETTINGS
-    -- ============================================================
-
-    Sandbox_BurdJournals_AllowDebugCommands = "Hata Ayiklama Komutlarina Izin Ver",
-    Sandbox_BurdJournals_AllowDebugCommands_tooltip = "-debug baslatma parametresi gerektirmeden hata ayiklama komutlarini (/bsjgive, /bsjdump, /bsjdebug vb.) etkinlestirir. Tek oyuncuda t�m oyuncular kullanabilir. �ok oyunculuda sadece y�neticiler kullanabilir. Sunucu testleri ve gelistirme i�in kullanislidir.",
-    Sandbox_BurdJournals_EnablePassiveSkillsLoot = "Enable Passive Skills (Loot)",
-    Sandbox_BurdJournals_EnablePassiveSkillsLoot_tooltip = "When enabled, Fitness/Strength can appear and be claimed on worn/bloody journals. When disabled, passive skill entries are hidden but preserved.",
-    Sandbox_BurdJournals_EnablePassiveSkillsPlayer = "Enable Passive Skills (Player)",
-    Sandbox_BurdJournals_EnablePassiveSkillsPlayer_tooltip = "When enabled, Fitness/Strength can be recorded and claimed from player journals. When disabled, passive skill entries are hidden but preserved.",
     Sandbox_BurdJournals_RequireLightForJournalUse = "Require Light for Journal Use",
     Sandbox_BurdJournals_RequireLightForJournalUse_tooltip = "When enabled, opening journals and reading/writing journal actions require enough light, following vanilla reading darkness rules.",
+    Sandbox_BurdJournals_RequirePenToWrite = "Yazmak I�in Kalem Gereksin",
+    Sandbox_BurdJournals_RequirePenToWrite_tooltip = "Temiz bir g�nl�ge becerileri kaydetmek i�in kalem veya kursun kalem gerektirir.",
+    Sandbox_BurdJournals_PenUsesPerLog = "Kayit Basina Kalem Kullanimi",
+    Sandbox_BurdJournals_PenUsesPerLog_tooltip = "Beceriler kaydedilirken t�ketilen kalem dayanikliligi (1-10).",
+    Sandbox_BurdJournals_RequireEraserToErase = "Silmek I�in Silgi Gereksin",
+    Sandbox_BurdJournals_RequireEraserToErase_tooltip = "Temiz g�nl�k i�erigini sifirlamak i�in bir silgi gerektirir.",
+    Sandbox_BurdJournals_LearningTimePerSkill = "Beceri Basina �grenme S�resi (sn)",
+    Sandbox_BurdJournals_LearningTimePerSkill_tooltip = "Bir g�nl�kten her bir beceriyi �grenmek i�in gereken temel s�re. Okuma/�alisma s�recini sim�le eder.",
+    Sandbox_BurdJournals_LearningTimePerTrait = "�zellik Basina �grenme S�resi (sn)",
+    Sandbox_BurdJournals_LearningTimePerTrait_tooltip = "Bir g�nl�kten her bir �zelligi �z�msemek i�in gereken temel s�re.",
+    Sandbox_BurdJournals_LearningTimeMultiplier = "�grenme S�resi �arpani",
+    Sandbox_BurdJournals_LearningTimeMultiplier_tooltip = "T�m �grenme s�releri i�in genel �arpan. 0.5 = iki kat hizli, 2.0 = iki kat yavas.",
+    Sandbox_BurdJournals_EnableStatRecording = "Istatistik Kaydini Aktif Et",
+    Sandbox_BurdJournals_EnableStatRecording_tooltip = "Kisisel g�nl�klerde oyuncu istatistiklerinin (�ld�rme, hayatta kalma s�resi vb.) kaydedilmesi i�in ana anahtar.",
+    Sandbox_BurdJournals_RecordZombieKills = "Zombi �ld�rmelerini Kaydet",
+    Sandbox_BurdJournals_RecordZombieKills_tooltip = "Oyuncularin zombi �ld�rme sayilarini g�nl�ge kaydetmesine izin verir.",
+    Sandbox_BurdJournals_RecordHoursSurvived = "Hayatta Kalinan S�reyi Kaydet",
+    Sandbox_BurdJournals_RecordHoursSurvived_tooltip = "Oyuncularin hayatta kaldiklari s�reyi g�nl�ge kaydetmesine izin verir.",
+    Sandbox_BurdJournals_EnableBaselineRestriction = "Sadece Kazanilan Ilerlemeyi Kaydet",
+    Sandbox_BurdJournals_EnableBaselineRestriction_tooltip = "Aktif edildiginde g�nl�kler sadece oynanisla kazanilan TP'yi kaydeder; meslek baslangi� bonuslarini veya �zelliklerden gelen beceri artislarini kaydetmez. Bu, yeni karakterler a�arak meslek becerisi kasmayi (exploits) engeller. �ok oyunculu sunucular i�in A�IK olmasi �nerilir.",
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer = "Özellik Kaydını Etkinleştir (Oyuncu)",
+    Sandbox_BurdJournals_EnableTraitRecordingPlayer_tooltip = "Oyuncuların kişisel günlüklerine özellik kaydetmesine izin verir.",
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer = "Tarif Kaydını Etkinleştir (Oyuncu)",
+    Sandbox_BurdJournals_EnableRecipeRecordingPlayer_tooltip = "Oyuncuların dergi tariflerini kaydetmesine izin verir.",
+    Sandbox_BurdJournals_EnablePassiveSkillsPlayer = "Enable Passive Skills (Player)",
+    Sandbox_BurdJournals_EnablePassiveSkillsPlayer_tooltip = "When enabled, Fitness/Strength can be recorded and claimed from player journals. When disabled, passive skill entries are hidden but preserved.",
+    Sandbox_BurdJournals_LearningTimePerRecipe = "Tarif Basina �grenme S�resi (sn)",
+    Sandbox_BurdJournals_LearningTimePerRecipe_tooltip = "G�nl�kten her bir tarifi �grenmek i�in gereken temel s�re.",
+    Sandbox_BurdJournals_MaxSkillsPerJournal = "G�nl�k Basina Maks. Beceri",
+    Sandbox_BurdJournals_MaxSkillsPerJournal_tooltip = "Tek bir g�nl�ge kaydedilebilecek maksimum beceri sayisi. Vanilya oyunda ~30 beceri var. �ok modlu oyunlar i�in artirin.",
+    Sandbox_BurdJournals_MaxTraitsPerJournal = "G�nl�k Basina Maks. �zellik",
+    Sandbox_BurdJournals_MaxTraitsPerJournal_tooltip = "Tek bir g�nl�ge kaydedilebilecek maksimum �zellik sayisi. Vanilya oyunda ~50 verilebilir �zellik var. �ok modlu oyunlar i�in artirin.",
+    Sandbox_BurdJournals_MaxRecipesPerJournal = "G�nl�k Basina Maks. Tarif",
+    Sandbox_BurdJournals_MaxRecipesPerJournal_tooltip = "Tek bir g�nl�ge kaydedilebilecek maksimum tarif sayisi. �ok modlu oyunlarda 400+ dergi tarifi olabilir. Kapasite uyarilari alirsaniz artirin.",
+    Sandbox_BurdJournals_EnablePassiveSkillsLoot = "Enable Passive Skills (Loot)",
+    Sandbox_BurdJournals_EnablePassiveSkillsLoot_tooltip = "When enabled, Fitness/Strength can appear and be claimed on worn/bloody journals. When disabled, passive skill entries are hidden but preserved.",
+    Sandbox_BurdJournals_EnableWornJournalSpawns = "Yipranmis G�nl�k Ganimetini Aktif Et",
+    Sandbox_BurdJournals_EnableWornJournalSpawns_tooltip = "D�nyadaki konteynerlerde (raflar, masalar, dolaplar) yipranmis g�nl�klerin �ikmasina izin verir. Bunlar d�s�k miktarda TP �d�l� sunar.",
+    Sandbox_BurdJournals_WornJournalSpawnChance = "Yipranmis G�nl�k Sansi %",
+    Sandbox_BurdJournals_WornJournalSpawnChance_tooltip = "Yipranmis g�nl�klerin konteynerlerde belirme sansi (0.1-100%).",
+    Sandbox_BurdJournals_WornJournalMinSkills = "Yipranmis Min. Beceri Sayisi",
+    Sandbox_BurdJournals_WornJournalMinSkills_tooltip = "D�nyada bulunan yipranmis g�nl�klerdeki minimum beceri sayisi.",
+    Sandbox_BurdJournals_WornJournalMaxSkills = "Yipranmis Maks. Beceri Sayisi",
+    Sandbox_BurdJournals_WornJournalMaxSkills_tooltip = "D�nyada bulunan yipranmis g�nl�klerdeki maksimum beceri sayisi.",
+    Sandbox_BurdJournals_WornJournalMinXP = "Yipranmis Min. Beceri TP'si",
+    Sandbox_BurdJournals_WornJournalMinXP_tooltip = "Yipranmis g�nl�klerde beceri basina minimum TP.",
+    Sandbox_BurdJournals_WornJournalMaxXP = "Yipranmis Maks. Beceri TP'si",
+    Sandbox_BurdJournals_WornJournalMaxXP_tooltip = "Yipranmis g�nl�klerde beceri basina maksimum TP.",
+    Sandbox_BurdJournals_WornJournalRecipeChance = "Yipranmis G�nl�k Tarif Sansi %",
+    Sandbox_BurdJournals_WornJournalRecipeChance_tooltip = "Yipranmis g�nl�klerin dergi tarifi i�erme sansi (0-100%). Yipranmis g�nl�kler kanli olanlara g�re daha d�s�k sansa sahiptir.",
+    Sandbox_BurdJournals_WornJournalMaxRecipes = "Yipranmis G�nl�k Basina Maks. Tarif",
+    Sandbox_BurdJournals_WornJournalMaxRecipes_tooltip = "Tek bir yipranmis g�nl�kte bulunabilecek maksimum dergi tarifi sayisi (1-5).",
+    Sandbox_BurdJournals_EnableWornJournalRecipes = "Eskimiş Günlük Tariflerini Etkinleştir",
+    Sandbox_BurdJournals_EnableWornJournalRecipes_tooltip = "Eskimiş günlüklerden tarif alınabilmesini sağlar.",
+    Sandbox_BurdJournals_WornJournalTraitChance = "Yipranmis �zellik Sansi %",
+    Sandbox_BurdJournals_WornJournalTraitChance_tooltip = "Yipranmis g�nl�klerin �zellik i�erme sansi (0-100%). Sadece kanli g�nl�klerin �zellik i�erdigi klasik davranis i�in 0% (varsayilan) olarak ayarlayin.",
+    Sandbox_BurdJournals_WornJournalMinTraits = "Yipranmis Min. �zellik",
+    Sandbox_BurdJournals_WornJournalMinTraits_tooltip = "Yipranmis g�nl�kte bulunabilecek minimum �zellik sayisi (1-5).",
+    Sandbox_BurdJournals_WornJournalMaxTraits = "Yipranmis Maks. �zellik",
+    Sandbox_BurdJournals_WornJournalMaxTraits_tooltip = "Yipranmis g�nl�kte bulunabilecek maksimum �zellik sayisi (1-5).",
+    Sandbox_BurdJournals_EnableWornJournalForgetSlot = "Enable Worn Forget Slot",
+    Sandbox_BurdJournals_EnableWornJournalForgetSlot_tooltip = "When enabled, worn journals may spawn with a claimable forget slot.",
+    Sandbox_BurdJournals_WornJournalForgetChance = "Worn Forget Slot Chance %",
+    Sandbox_BurdJournals_WornJournalForgetChance_tooltip = "Chance for worn journals to include a special forget slot that removes one removable trait you currently have.",
+    Sandbox_BurdJournals_EnableWornJournalTraits = "Yipranmis G�nl�k �zelliklerini Aktif Et",
+    Sandbox_BurdJournals_EnableWornJournalTraits_tooltip = "Aktif edildiginde yipranmis g�nl�klerden �zellikler alinabilir. Devre disi birakildiginda �zellik sekmesi gizlenir ama mevcut veriler korunur.",
+    Sandbox_BurdJournals_EnableBloodyJournalSpawns = "Kanli G�nl�k D�s�rmeyi Aktif Et",
+    Sandbox_BurdJournals_EnableBloodyJournalSpawns_tooltip = "Zombilerin kanli g�nl�k d�s�rmesine izin verir. Bunlar daha iyi �d�ller ve nadir �zellikler sunar.",
+    Sandbox_BurdJournals_BloodyJournalSpawnChance = "Kanli G�nl�k D�sme Sansi %",
+    Sandbox_BurdJournals_BloodyJournalSpawnChance_tooltip = "Bir zombinin kanli g�nl�k d�s�rme sansi (0.1-100%).",
+    Sandbox_BurdJournals_BloodyJournalMinSkills = "Kanli Min. Beceri Sayisi",
+    Sandbox_BurdJournals_BloodyJournalMinSkills_tooltip = "Zombiden d�sen kanli g�nl�klerdeki minimum beceri sayisi.",
+    Sandbox_BurdJournals_BloodyJournalMaxSkills = "Kanli Maks. Beceri Sayisi",
+    Sandbox_BurdJournals_BloodyJournalMaxSkills_tooltip = "Zombiden d�sen kanli g�nl�klerdeki maksimum beceri sayisi.",
+    Sandbox_BurdJournals_BloodyJournalMinXP = "Kanli Min. Beceri TP'si",
+    Sandbox_BurdJournals_BloodyJournalMinXP_tooltip = "Kanli g�nl�klerde beceri basina minimum TP.",
+    Sandbox_BurdJournals_BloodyJournalMaxXP = "Kanli Maks. Beceri TP'si",
+    Sandbox_BurdJournals_BloodyJournalMaxXP_tooltip = "Kanli g�nl�klerde beceri basina maksimum TP.",
+    Sandbox_BurdJournals_BloodyJournalTraitChance = "Nadir �zellik Sansi %",
+    Sandbox_BurdJournals_BloodyJournalTraitChance_tooltip = "Kanli g�nl�klerin verilebilir bir �zellik (Cesur, D�zenli vb.) i�erme sansi.",
+    Sandbox_BurdJournals_BloodyJournalMaxTraits = "G�nl�k Basina Maks. �zellik",
+    Sandbox_BurdJournals_BloodyJournalMaxTraits_tooltip = "Tek bir kanli g�nl�kte bulunabilecek maksimum �zellik sayisi (0-5).",
+    Sandbox_BurdJournals_EnableBloodyJournalForgetSlot = "Enable Bloody Forget Slot",
+    Sandbox_BurdJournals_EnableBloodyJournalForgetSlot_tooltip = "When enabled, bloody journals may spawn with a claimable forget slot.",
+    Sandbox_BurdJournals_BloodyJournalForgetChance = "Bloody Forget Slot Chance %",
+    Sandbox_BurdJournals_BloodyJournalForgetChance_tooltip = "Chance for bloody journals to include a special forget slot that removes one removable trait you currently have.",
+    Sandbox_BurdJournals_EnableBloodyJournalTraits = "Kanlı Günlük Özelliklerini Etkinleştir",
+    Sandbox_BurdJournals_EnableBloodyJournalTraits_tooltip = "Kanlı günlüklerden özellik alınabilmesini sağlar.",
+    Sandbox_BurdJournals_BloodyJournalRecipeChance = "Kanli G�nl�k Tarif Sansi %",
+    Sandbox_BurdJournals_BloodyJournalRecipeChance_tooltip = "Kanli g�nl�klerin dergi tarifleri i�erme sansi (0-100%). Kanli g�nl�kler yipranmis olanlara g�re daha y�ksek sansa sahiptir.",
+    Sandbox_BurdJournals_BloodyJournalMaxRecipes = "Kanli G�nl�k Basina Maks. Tarif",
+    Sandbox_BurdJournals_BloodyJournalMaxRecipes_tooltip = "Tek bir kanli g�nl�kte bulunabilecek maksimum dergi tarifi sayisi (1-5).",
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes = "Kanlı Günlük Tariflerini Etkinleştir",
+    Sandbox_BurdJournals_EnableBloodyJournalRecipes_tooltip = "Kanlı günlüklerden tarif alınabilmesini sağlar.",
+    Sandbox_BurdJournals_EnableCursedJournalSpawns = "III. Enable Cursed Journal Drops",
+    Sandbox_BurdJournals_EnableCursedJournalSpawns_tooltip = "Allow zombies to rarely drop dormant cursed journals. The first opener is cursed, then the journal becomes a richer bloody reward.",
+    Sandbox_BurdJournals_CursedJournalSpawnChance = "Cursed Drop Chance %",
+    Sandbox_BurdJournals_CursedJournalSpawnChance_tooltip = "Chance for a zombie to drop a cursed journal (0-100%). If this rolls, normal bloody drop is skipped for that zombie.",
+    Sandbox_BurdJournals_CursedJournalMinSkills = "Cursed Min Skills",
+    Sandbox_BurdJournals_CursedJournalMinSkills_tooltip = "Minimum skills generated on a cursed reward journal.",
+    Sandbox_BurdJournals_CursedJournalMaxSkills = "Cursed Max Skills",
+    Sandbox_BurdJournals_CursedJournalMaxSkills_tooltip = "Maximum skills generated on a cursed reward journal.",
+    Sandbox_BurdJournals_CursedJournalMinXP = "Cursed Min XP/Skill",
+    Sandbox_BurdJournals_CursedJournalMinXP_tooltip = "Minimum XP per skill on a cursed reward journal.",
+    Sandbox_BurdJournals_CursedJournalMaxXP = "Cursed Max XP/Skill",
+    Sandbox_BurdJournals_CursedJournalMaxXP_tooltip = "Maximum XP per skill on a cursed reward journal.",
+    Sandbox_BurdJournals_EnableCursedJournalTraits = "Enable Cursed Journal Traits",
+    Sandbox_BurdJournals_EnableCursedJournalTraits_tooltip = "When enabled, cursed reward journals can generate and allow trait claims.",
+    Sandbox_BurdJournals_CursedJournalTraitChance = "Cursed Trait Chance %",
+    Sandbox_BurdJournals_CursedJournalTraitChance_tooltip = "Chance for cursed reward journals to include traits (0-100%).",
+    Sandbox_BurdJournals_CursedJournalMinTraits = "Min Traits Per Cursed",
+    Sandbox_BurdJournals_CursedJournalMinTraits_tooltip = "Minimum traits generated on cursed reward journals when trait roll succeeds.",
+    Sandbox_BurdJournals_CursedJournalMaxTraits = "Max Traits Per Cursed",
+    Sandbox_BurdJournals_CursedJournalMaxTraits_tooltip = "Maximum traits generated on cursed reward journals.",
+    Sandbox_BurdJournals_EnableCursedJournalRecipes = "Enable Cursed Journal Recipes",
+    Sandbox_BurdJournals_EnableCursedJournalRecipes_tooltip = "When enabled, cursed reward journals can generate and allow recipe claims.",
+    Sandbox_BurdJournals_CursedJournalRecipeChance = "Cursed Recipe Chance %",
+    Sandbox_BurdJournals_CursedJournalRecipeChance_tooltip = "Chance for cursed reward journals to include recipes (0-100%).",
+    Sandbox_BurdJournals_CursedJournalMaxRecipes = "Max Recipes Per Cursed",
+    Sandbox_BurdJournals_CursedJournalMaxRecipes_tooltip = "Maximum recipes generated on cursed reward journals.",
+    Sandbox_BurdJournals_EnableCursedJournalForgetSlot = "Enable Cursed Forget Slot",
+    Sandbox_BurdJournals_EnableCursedJournalForgetSlot_tooltip = "When enabled, cursed reward journals may generate a claimable forget slot.",
+    Sandbox_BurdJournals_CursedJournalForgetChance = "Cursed Forget Slot Chance %",
+    Sandbox_BurdJournals_CursedJournalForgetChance_tooltip = "Chance for cursed reward journals to include a forget slot when cursed forget slots are enabled.",
+    Sandbox_BurdJournals_Advanced = "G�nl�kler - Gelismis",
+    Sandbox_BurdJournals_EnablePlayerJournals = "Oyuncu G�nl�klerini Aktif Et",
+    Sandbox_BurdJournals_EnablePlayerJournals_tooltip = "Oyuncularin beceri kaydetmek ve kurtarmak i�in kisisel g�nl�kler �retip kullanmasina izin verir.",
+    Sandbox_BurdJournals_EnablePlayerJournalCrafting = "Enable Player Journal Crafting",
+    Sandbox_BurdJournals_EnablePlayerJournalCrafting_tooltip = "Allow crafting/restore conversion recipes for personal journals. Disable to prevent journal crafting while still allowing reading/claiming from existing player journals.",
+    Sandbox_BurdJournals_ReadingSkillAffectsSpeed = "Okuma Hizi Beceriden Etkilensin",
+    Sandbox_BurdJournals_ReadingSkillAffectsSpeed_tooltip = "Daha y�ksek okuma becirisi seviyeleri, g�nl�klerden bilgi �z�mseme s�resini azaltir.",
+    Sandbox_BurdJournals_ReadingSpeedBonus = "Okuma Hizi Bonusu",
+    Sandbox_BurdJournals_ReadingSpeedBonus_tooltip = "Okuma becirisi seviyesi basina hiz bonusu (0.1 = seviye basina %10 daha hizli, seviye 10'da maksimum %100).",
+    Sandbox_BurdJournals_EraseTime = "Silme S�resi (saniye)",
+    Sandbox_BurdJournals_EraseTime_tooltip = "Bir g�nl�g�n i�erigini silmek i�in gereken s�re.",
+    Sandbox_BurdJournals_ConvertTime = "D�n�st�rme S�resi (saniye)",
+    Sandbox_BurdJournals_ConvertTime_tooltip = "Yipranmis bir g�nl�g� temiz bir g�nl�ge d�n�st�rmek i�in gereken s�re.",
+    Sandbox_BurdJournals_AllowOthersToOpenJournals = "Baskalarinin G�nl�kleri A�masina Izin Ver",
+    Sandbox_BurdJournals_AllowOthersToOpenJournals_tooltip = "Etkinse, diger oyuncular kendilerinin olusturmadigi kisisel g�nl�kleri a�abilir ve g�r�nt�leyebilir.",
+    Sandbox_BurdJournals_AllowOthersToClaimFromJournals = "Baskalarinin G�nl�kten Bilgi Almasina Izin Ver",
+    Sandbox_BurdJournals_AllowOthersToClaimFromJournals_tooltip = "Etkinse, diger oyuncular kendilerinin olusturmadigi kisisel g�nl�klerden beceri/�zellik alabilir.",
+    Sandbox_BurdJournals_AllowNegativeTraits = "Olumsuz �zelliklere Izin Ver",
+    Sandbox_BurdJournals_AllowNegativeTraits_tooltip = "Etkinse, g�nl�klerde olumsuz �zellikler belirebilir ve kaydedilebilir.",
+    Sandbox_BurdJournals_AllowPlayerJournalDissolution = "Onarılmış Günlük Parçalanmasına İzin Ver",
+    Sandbox_BurdJournals_AllowPlayerJournalDissolution_tooltip = "Eskimiş/kanlı günlüklerden oluşturulan 'Onarılmış' günlüklerin, tüm içerik alındıktan sonra yok olup olmayacağını belirler. Varsayılan: KAPALI.",
+    Sandbox_BurdJournals_AllowMutualExclusionCancellation = "Trait Conflict Resolution",
+    Sandbox_BurdJournals_AllowMutualExclusionCancellation_tooltip = "When claiming a trait that conflicts with one you already have, the conflicting trait is automatically removed.",
+    Sandbox_BurdJournals_EnableBaselineSnapshots = "Enable Baseline Snapshots",
+    Sandbox_BurdJournals_EnableBaselineSnapshots_tooltip = "When enabled, BSJ stores SteamID-anchored baseline snapshots for admin recovery and rollback safety.",
+    Sandbox_BurdJournals_BaselineSnapshotsPerSteamLimit = "Snapshots Per SteamID Limit",
+    Sandbox_BurdJournals_BaselineSnapshotsPerSteamLimit_tooltip = "Maximum baseline snapshots kept per SteamID before old entries are pruned. Active snapshots are preserved.",
+    Sandbox_BurdJournals_BaselineSnapshotsAutoCapture = "Auto-Capture Baseline Snapshots",
+    Sandbox_BurdJournals_BaselineSnapshotsAutoCapture_tooltip = "Automatically captures snapshots when baseline data is registered, recovered, or debug-edited.",
+    Sandbox_BurdJournals_BaselineSnapshotsCaptureOnDeath = "Capture Snapshot On Death",
+    Sandbox_BurdJournals_BaselineSnapshotsCaptureOnDeath_tooltip = "When enabled, baseline snapshot lineage is finalized with death metadata during death cleanup.",
+    Sandbox_BurdJournals_BaselineSnapshotsProtectOnRestore = "Protect Restored Baselines",
+    Sandbox_BurdJournals_BaselineSnapshotsProtectOnRestore_tooltip = "When enabled, applying a snapshot sets debugModified=true by default so automatic recapture cannot immediately overwrite the restore.",
+    Sandbox_BurdJournals_RecordBatchSize = "Toplu Kayıt Boyutu",
+    Sandbox_BurdJournals_RecordBatchSize_tooltip = "'Hepsini Kaydet' kullanıldığında tek bir eylemde kaç öğe kaydedileceği. Yüksek değerler daha hızlı biter. Varsayılan: 15",
+    Sandbox_BurdJournals_AbsorbBatchSize = "Toplu Özümseme Boyutu",
+    Sandbox_BurdJournals_AbsorbBatchSize_tooltip = "'Hepsini Özümse' kullanıldığında tek bir eylemde kaç öğe özümseneceği. Varsayılan: 15",
+    Sandbox_BurdJournals_BatchTimeMultiplier = "Toplu İşlem Süresi Çarpanı",
+    Sandbox_BurdJournals_BatchTimeMultiplier_tooltip = "Toplu eylemlerin süresi için çarpan. Düşük = daha hızlı. Sadece 'Hepsini Kaydet/Özümse' eylemlerini etkiler. Varsayılan: 0.25 (4 kat hızlı)",
+    Sandbox_BurdJournals_AllowDebugCommands = "Hata Ayiklama Komutlarina Izin Ver",
+    Sandbox_BurdJournals_AllowDebugCommands_tooltip = "-debug baslatma parametresi gerektirmeden hata ayiklama komutlarini (/bsjgive, /bsjdump, /bsjdebug vb.) etkinlestirir. Tek oyuncuda t�m oyuncular kullanabilir. �ok oyunculuda sadece y�neticiler kullanabilir. Sunucu testleri ve gelistirme i�in kullanislidir.",
     Sandbox_BurdJournals_AllowTraitPurchaseSkillRecording = "Allow Trait Purchase Skill Recording",
     Sandbox_BurdJournals_AllowTraitPurchaseSkillRecording_tooltip = "Compatibility toggle for Traits Purchase System (Mod ID: TraitsPurchaseSystem). When disabled (default), its trait-currency skills (Traits/Traits1/Traits2/Traits3) are hidden from journal recording and claiming, while existing data remains preserved.",
-    Sandbox_BurdJournals_OtherMods = "Journals - Other Mods",
     Sandbox_BurdJournals_AllowAdaptiveTraitsManagedTraitRecording = "Allow Adaptive Traits Managed Trait Recording",
     Sandbox_BurdJournals_AllowAdaptiveTraitsManagedTraitRecording_tooltip = "Compatibility toggle for Adaptive Traits (Mod ID: AdaptiveTraits). When disabled (default), AdaptiveTraits-managed traits are hidden from player journal recording and claiming while existing journal data is preserved.",
     Sandbox_BurdJournals_AllowVhsSkillRecording = "Allow VHS Skill Recording",
     Sandbox_BurdJournals_AllowVhsSkillRecording_tooltip = "Compatibility toggle for recorded-media VHS skill XP. When disabled (default), tracked VHS-derived skill XP is excluded from player journal recording.",
-    Sandbox_BurdJournals_AllowMutualExclusionCancellation = "Trait Conflict Resolution",
-    Sandbox_BurdJournals_AllowMutualExclusionCancellation_tooltip = "When claiming a trait that conflicts with one you already have, the conflicting trait is automatically removed.",
-    Sandbox_BurdJournals_BloodyJournalForgetChance = "Bloody Forget Slot Chance %",
-    Sandbox_BurdJournals_BloodyJournalForgetChance_tooltip = "Chance for bloody journals to include a special forget slot that removes one removable trait you currently have.",
-    Sandbox_BurdJournals_WornJournalForgetChance = "Worn Forget Slot Chance %",
-    Sandbox_BurdJournals_WornJournalForgetChance_tooltip = "Chance for worn journals to include a special forget slot that removes one removable trait you currently have.",
 }
-
-
-
-
-
-
-
-
-
-
-

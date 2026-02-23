@@ -132,6 +132,14 @@ function BurdJournals.ContextMenu.requireLightOrNotify(player)
     return false
 end
 
+local function normalizeTooltipTextForDisplay(text)
+    if text == nil then return text end
+    local normalized = tostring(text)
+    normalized = normalized:gsub("\\n", "\n")
+    normalized = normalized:gsub("/n", "\n")
+    return normalized
+end
+
 function BurdJournals.ContextMenu.applyLightRequirement(option, player)
     if not option then return end
     if not BurdJournals.requiresLightForJournalUse or not BurdJournals.requiresLightForJournalUse() then
@@ -156,10 +164,10 @@ function BurdJournals.ContextMenu.applyLightRequirement(option, player)
 
     if tooltip.description and tooltip.description ~= "" then
         if not string.find(tooltip.description, message, 1, true) then
-            tooltip.description = tooltip.description .. "\n\n" .. message
+            tooltip.description = normalizeTooltipTextForDisplay(tooltip.description .. "\n\n" .. message)
         end
     else
-        tooltip.description = message
+        tooltip.description = normalizeTooltipTextForDisplay(message)
     end
 
     option.toolTip = tooltip
@@ -258,7 +266,7 @@ function BurdJournals.ContextMenu.addJournalOptions(context, player, journal)
         tooltip:initialise()
         tooltip:setVisible(false)
         tooltip:setName(getText("Tooltip_BurdJournals_IlliterateName") or "Illiterate")
-        tooltip.description = getText("Tooltip_BurdJournals_IlliterateDesc") or "You cannot read or write. Journals are useless to you."
+        tooltip.description = normalizeTooltipTextForDisplay(getText("Tooltip_BurdJournals_IlliterateDesc") or "You cannot read or write. Journals are useless to you.")
         illiterateOption.toolTip = tooltip
         return
     end
@@ -303,7 +311,7 @@ function BurdJournals.ContextMenu.addCursedJournalOptions(context, player, journ
     tooltip:initialise()
     tooltip:setVisible(false)
     tooltip:setName(getText("Tooltip_BurdJournals_CursedJournalName") or "Cursed Journal")
-    tooltip.description = getText("Tooltip_BurdJournals_CursedJournalDesc")
+    tooltip.description = normalizeTooltipTextForDisplay(getText("Tooltip_BurdJournals_CursedJournalDesc"))
         or "An unsettling journal. The first reader will pay a price."
     openOption.toolTip = tooltip
     BurdJournals.ContextMenu.applyLightRequirement(openOption, player)
@@ -374,7 +382,7 @@ function BurdJournals.ContextMenu.addBloodyJournalOptions(context, player, journ
             tooltipDesc = (getText("Tooltip_BurdJournals_NoRewardsFound") or "No rewards found") .. "\n"
         end
         tooltipDesc = tooltipDesc .. "\n" .. (getText("Tooltip_BurdJournals_BloodyDesc") or "Rare find! May contain valuable traits.")
-        tooltip.description = tooltipDesc
+        tooltip.description = normalizeTooltipTextForDisplay(tooltipDesc)
         openOption.toolTip = tooltip
         BurdJournals.ContextMenu.applyLightRequirement(openOption, player)
 
@@ -412,7 +420,7 @@ function BurdJournals.ContextMenu.addBloodyJournalOptions(context, player, journ
             tooltip2:initialise()
             tooltip2:setVisible(false)
             tooltip2:setName(getText("Tooltip_BurdJournals_AbsorbAllRewards") or "Absorb All Rewards")
-            tooltip2.description = getText("Tooltip_BurdJournals_AbsorbAllDesc") or "Opens the journal and begins reading all rewards.\nRequires time to absorb each skill, trait, and recipe.\nMaxed skills and known items will be skipped."
+            tooltip2.description = normalizeTooltipTextForDisplay(getText("Tooltip_BurdJournals_AbsorbAllDesc") or "Opens the journal and begins reading all rewards.\nRequires time to absorb each skill, trait, and recipe.\nMaxed skills and known items will be skipped.")
             absorbAllOption.toolTip = tooltip2
             BurdJournals.ContextMenu.applyLightRequirement(absorbAllOption, player)
         end
@@ -425,7 +433,7 @@ function BurdJournals.ContextMenu.addBloodyJournalOptions(context, player, journ
         infoOption.notAvailable = true
     end
 
-    if BurdJournals.isPlayerJournalsEnabled() then
+    if BurdJournals.isPlayerJournalCraftingEnabled and BurdJournals.isPlayerJournalCraftingEnabled() then
         local craftOption = context:addOption(
             getText("ContextMenu_BurdJournals_ConvertViaCrafting") or "Convert to Personal Journal...",
             nil, nil
@@ -435,7 +443,7 @@ function BurdJournals.ContextMenu.addBloodyJournalOptions(context, player, journ
         tooltip3:initialise()
         tooltip3:setVisible(false)
         tooltip3:setName(getText("Tooltip_BurdJournals_CraftingRequired") or "Crafting Required")
-        tooltip3.description = getText("Tooltip_BurdJournals_ConvertBloodyDesc") or "Open the crafting menu (B) to find 'Clean and Convert Bloody Journal'.\nRequires: Soap, Cloth, Leather, Thread, Needle, Tailoring Lv1.\nWARNING: Destroys any remaining rewards!"
+        tooltip3.description = normalizeTooltipTextForDisplay(getText("Tooltip_BurdJournals_ConvertBloodyDesc") or "Open the crafting menu (B) to find 'Clean and Convert Bloody Journal'.\nRequires: Soap, Cloth, Leather, Thread, Needle, Tailoring Lv1.\nWARNING: Destroys any remaining rewards!")
         craftOption.toolTip = tooltip3
     end
 end
@@ -506,7 +514,7 @@ function BurdJournals.ContextMenu.addWornJournalOptions(context, player, journal
         if tooltipDesc == "" then
             tooltipDesc = getText("Tooltip_BurdJournals_NoRewardsFound") or "No rewards found"
         end
-        tooltip.description = tooltipDesc
+        tooltip.description = normalizeTooltipTextForDisplay(tooltipDesc)
         openOption.toolTip = tooltip
         BurdJournals.ContextMenu.applyLightRequirement(openOption, player)
 
@@ -544,7 +552,7 @@ function BurdJournals.ContextMenu.addWornJournalOptions(context, player, journal
             tooltip2:initialise()
             tooltip2:setVisible(false)
             tooltip2:setName(getText("Tooltip_BurdJournals_AbsorbAllRewards") or "Absorb All Rewards")
-            tooltip2.description = getText("Tooltip_BurdJournals_AbsorbAllDesc") or "Opens the journal and begins reading all rewards.\nRequires time to absorb each skill, trait, and recipe.\nMaxed skills and known items will be skipped."
+            tooltip2.description = normalizeTooltipTextForDisplay(getText("Tooltip_BurdJournals_AbsorbAllDesc") or "Opens the journal and begins reading all rewards.\nRequires time to absorb each skill, trait, and recipe.\nMaxed skills and known items will be skipped.")
             absorbAllOption.toolTip = tooltip2
             BurdJournals.ContextMenu.applyLightRequirement(absorbAllOption, player)
         end
@@ -557,7 +565,7 @@ function BurdJournals.ContextMenu.addWornJournalOptions(context, player, journal
         infoOption.notAvailable = true
     end
 
-    if BurdJournals.isPlayerJournalsEnabled() then
+    if BurdJournals.isPlayerJournalCraftingEnabled and BurdJournals.isPlayerJournalCraftingEnabled() then
         local canConvert = BurdJournals.canConvertToClean(player)
         local convertOption = context:addOption(
             getText("ContextMenu_BurdJournals_ConvertToClean") or "Convert to Personal Journal",
@@ -571,14 +579,14 @@ function BurdJournals.ContextMenu.addWornJournalOptions(context, player, journal
             tooltip3:initialise()
             tooltip3:setVisible(false)
             tooltip3:setName(getText("Tooltip_BurdJournals_CannotConvert") or "Cannot Convert")
-            tooltip3.description = getText("Tooltip_BurdJournals_NeedsConvertMaterials") or "Requires: Leather + Thread + Needle + Tailoring Lv1"
+            tooltip3.description = normalizeTooltipTextForDisplay(getText("Tooltip_BurdJournals_NeedsConvertMaterials") or "Requires: Leather + Thread + Needle + Tailoring Lv1")
             convertOption.toolTip = tooltip3
         else
             local tooltip3 = ISToolTip:new()
             tooltip3:initialise()
             tooltip3:setVisible(false)
             tooltip3:setName(getText("Tooltip_BurdJournals_ConvertToClean") or "Convert to Personal Journal")
-            tooltip3.description = getText("Tooltip_BurdJournals_ConvertToCleanDesc") or "Restore this worn journal to a clean blank journal for personal use."
+            tooltip3.description = normalizeTooltipTextForDisplay(getText("Tooltip_BurdJournals_ConvertToCleanDesc") or "Restore this worn journal to a clean blank journal for personal use.")
             convertOption.toolTip = tooltip3
         end
     end
@@ -633,7 +641,7 @@ function BurdJournals.ContextMenu.addCleanFilledJournalOptions(context, player, 
         tooltip:initialise()
         tooltip:setVisible(false)
         tooltip:setName(getText("Tooltip_BurdJournals_CannotOpen") or "Cannot Open")
-        tooltip.description = openReason or "You don't have permission to open this journal."
+        tooltip.description = normalizeTooltipTextForDisplay(openReason or "You don't have permission to open this journal.")
         openOption.toolTip = tooltip
     elseif journalData then
         local tooltip = ISToolTip:new()
@@ -662,7 +670,7 @@ function BurdJournals.ContextMenu.addCleanFilledJournalOptions(context, player, 
             desc = desc .. (getText("Tooltip_BurdJournals_NoNewRewards") or "No new rewards available.") .. "\n"
         end
         desc = desc .. "\n" .. (getText("Tooltip_BurdJournals_ClaimingInfo") or "Claiming sets your XP to the recorded level (if higher).")
-        tooltip.description = desc
+        tooltip.description = normalizeTooltipTextForDisplay(desc)
         openOption.toolTip = tooltip
     end
     BurdJournals.ContextMenu.applyLightRequirement(openOption, player)
@@ -678,7 +686,7 @@ function BurdJournals.ContextMenu.addCleanFilledJournalOptions(context, player, 
         tooltip:initialise()
         tooltip:setVisible(false)
         tooltip:setName(getText("Tooltip_BurdJournals_UpdateRecords") or "Update Journal Records")
-        tooltip.description = getText("Tooltip_BurdJournals_UpdateRecordsDesc") or "Opens journal to update your recorded skills.\nRecorded values are only updated if your current level is higher."
+        tooltip.description = normalizeTooltipTextForDisplay(getText("Tooltip_BurdJournals_UpdateRecordsDesc") or "Opens journal to update your recorded skills.\nRecorded values are only updated if your current level is higher.")
         recordOption.toolTip = tooltip
         BurdJournals.ContextMenu.applyLightRequirement(recordOption, player)
     end
@@ -696,7 +704,7 @@ function BurdJournals.ContextMenu.addCleanFilledJournalOptions(context, player, 
             tooltip:initialise()
             tooltip:setVisible(false)
             tooltip:setName(getText("Tooltip_BurdJournals_CannotClaim") or "Cannot Claim")
-            tooltip.description = claimReason or (getText("Tooltip_BurdJournals_NoPermissionClaim") or "You don't have permission to claim from this journal.")
+            tooltip.description = normalizeTooltipTextForDisplay(claimReason or (getText("Tooltip_BurdJournals_NoPermissionClaim") or "You don't have permission to claim from this journal."))
             claimAllOption.toolTip = tooltip
         else
             local tooltip = ISToolTip:new()
@@ -711,7 +719,7 @@ function BurdJournals.ContextMenu.addCleanFilledJournalOptions(context, player, 
                 desc = desc .. string.format(traitText, claimableTraits)
             end
             desc = desc .. "\n\n" .. (getText("Tooltip_BurdJournals_ReadingSpeedNote") or "This will take time based on your reading speed.")
-            tooltip.description = desc
+            tooltip.description = normalizeTooltipTextForDisplay(desc)
             claimAllOption.toolTip = tooltip
         end
         BurdJournals.ContextMenu.applyLightRequirement(claimAllOption, player)
@@ -737,7 +745,7 @@ function BurdJournals.ContextMenu.addCleanFilledJournalOptions(context, player, 
         tooltip:initialise()
         tooltip:setVisible(false)
         tooltip:setName(getText("Tooltip_BurdJournals_EraseContents") or "Erase All Contents")
-        tooltip.description = getText("Tooltip_BurdJournals_EraseContentsDesc") or "Erases all recorded data, returning the journal to a blank state.\nRequires an eraser."
+        tooltip.description = normalizeTooltipTextForDisplay(getText("Tooltip_BurdJournals_EraseContentsDesc") or "Erases all recorded data, returning the journal to a blank state.\nRequires an eraser.")
         eraseOption.toolTip = tooltip
     end
 end
@@ -755,7 +763,7 @@ function BurdJournals.ContextMenu.addCleanBlankJournalOptions(context, player, j
     tooltip:initialise()
     tooltip:setVisible(false)
     tooltip:setName(getText("Tooltip_BurdJournals_BlankJournal") or "Blank Survival Journal")
-    tooltip.description = getText("Tooltip_BurdJournals_BlankJournalDesc") or "Opens the journal to record your survival progress.\nRequires a writing tool."
+    tooltip.description = normalizeTooltipTextForDisplay(getText("Tooltip_BurdJournals_BlankJournalDesc") or "Opens the journal to record your survival progress.\nRequires a writing tool.")
     openOption.toolTip = tooltip
     BurdJournals.ContextMenu.applyLightRequirement(openOption, player)
     if not hasPen then
@@ -779,7 +787,7 @@ function BurdJournals.ContextMenu.addCleanBlankJournalOptions(context, player, j
     tooltip2:initialise()
     tooltip2:setVisible(false)
     tooltip2:setName(getText("Tooltip_BurdJournals_Disassemble") or "Disassemble Journal")
-    tooltip2.description = getText("Tooltip_BurdJournals_DisassembleDesc") or "Tear apart this journal for materials.\n\nYou will receive:\n  2x Paper\n  1x Leather Strips"
+    tooltip2.description = normalizeTooltipTextForDisplay(getText("Tooltip_BurdJournals_DisassembleDesc") or "Tear apart this journal for materials.\n\nYou will receive:\n  2x Paper\n  1x Leather Strips")
     disassembleOption.toolTip = tooltip2
 end
 
@@ -830,19 +838,33 @@ function BurdJournals.ContextMenu.onAbsorbAllConfirm(player, journal)
     end
     confirmText = confirmText .. "\n" .. (getText("UI_BurdJournals_MaxedSkillsSkipped") or "Maxed skills and known items will be skipped.")
 
-    local modal = ISModalDialog:new(
-        getCore():getScreenWidth() / 2 - 150,
-        getCore():getScreenHeight() / 2 - 75,
-        300, 150,
-        confirmText,
-        true,
-        player,
-        BurdJournals.ContextMenu.onConfirmAbsorbAll,
-        nil,
-        journal
-    )
-    modal:initialise()
-    modal:addToUIManager()
+    if BurdJournals.createAdaptiveModalDialog then
+        BurdJournals.createAdaptiveModalDialog({
+            player = player,
+            target = player,
+            text = confirmText,
+            yesNo = true,
+            onClick = BurdJournals.ContextMenu.onConfirmAbsorbAll,
+            param2 = journal,
+            minWidth = 380,
+            maxWidth = 760,
+            minHeight = 180,
+        })
+    else
+        local modal = ISModalDialog:new(
+            getCore():getScreenWidth() / 2 - 150,
+            getCore():getScreenHeight() / 2 - 75,
+            300, 150,
+            confirmText,
+            true,
+            player,
+            BurdJournals.ContextMenu.onConfirmAbsorbAll,
+            nil,
+            journal
+        )
+        modal:initialise()
+        modal:addToUIManager()
+    end
 end
 
 function BurdJournals.ContextMenu.onConfirmAbsorbAll(target, button, journal)
@@ -1199,19 +1221,34 @@ function BurdJournals.ContextMenu.onConvertToClean(player, journal)
 
         if isFilled and remaining > 0 then
 
-            local modal = ISModalDialog:new(
-                getCore():getScreenWidth() / 2 - 150,
-                getCore():getScreenHeight() / 2 - 50,
-                300, 120,
-                getText("UI_BurdJournals_ConfirmConvert") or "This will destroy the remaining rewards. Are you sure?",
-                true,
-                p,
-                BurdJournals.ContextMenu.onConfirmConvert,
-                nil,
-                j
-            )
-            modal:initialise()
-            modal:addToUIManager()
+            local confirmText = getText("UI_BurdJournals_ConfirmConvert") or "This will destroy the remaining rewards. Are you sure?"
+            if BurdJournals.createAdaptiveModalDialog then
+                BurdJournals.createAdaptiveModalDialog({
+                    player = p,
+                    target = p,
+                    text = confirmText,
+                    yesNo = true,
+                    onClick = BurdJournals.ContextMenu.onConfirmConvert,
+                    param2 = j,
+                    minWidth = 360,
+                    maxWidth = 700,
+                    minHeight = 165,
+                })
+            else
+                local modal = ISModalDialog:new(
+                    getCore():getScreenWidth() / 2 - 150,
+                    getCore():getScreenHeight() / 2 - 50,
+                    300, 120,
+                    confirmText,
+                    true,
+                    p,
+                    BurdJournals.ContextMenu.onConfirmConvert,
+                    nil,
+                    j
+                )
+                modal:initialise()
+                modal:addToUIManager()
+            end
         else
 
             local action = BurdJournals.ConvertToCleanAction:new(p, j)
@@ -1353,19 +1390,34 @@ end
 function BurdJournals.ContextMenu.onEraseJournal(player, journal)
 
     BurdJournals.ContextMenu.pickUpThenDo(player, journal, function(p, j)
-        local modal = ISModalDialog:new(
-            getCore():getScreenWidth() / 2 - 150,
-            getCore():getScreenHeight() / 2 - 50,
-            300, 120,
-            getText("UI_BurdJournals_ConfirmErase") or "Erase all content? This cannot be undone.",
-            true,
-            p,
-            BurdJournals.ContextMenu.onConfirmErase,
-            nil,
-            j
-        )
-        modal:initialise()
-        modal:addToUIManager()
+        local confirmText = getText("UI_BurdJournals_ConfirmErase") or "Erase all content? This cannot be undone."
+        if BurdJournals.createAdaptiveModalDialog then
+            BurdJournals.createAdaptiveModalDialog({
+                player = p,
+                target = p,
+                text = confirmText,
+                yesNo = true,
+                onClick = BurdJournals.ContextMenu.onConfirmErase,
+                param2 = j,
+                minWidth = 360,
+                maxWidth = 700,
+                minHeight = 165,
+            })
+        else
+            local modal = ISModalDialog:new(
+                getCore():getScreenWidth() / 2 - 150,
+                getCore():getScreenHeight() / 2 - 50,
+                300, 120,
+                confirmText,
+                true,
+                p,
+                BurdJournals.ContextMenu.onConfirmErase,
+                nil,
+                j
+            )
+            modal:initialise()
+            modal:addToUIManager()
+        end
     end)
 end
 
@@ -1408,19 +1460,34 @@ end
 function BurdJournals.ContextMenu.onRecordProgressOverwrite(player, journal)
 
     BurdJournals.ContextMenu.pickUpThenDo(player, journal, function(p, j)
-        local modal = ISModalDialog:new(
-            getCore():getScreenWidth() / 2 - 150,
-            getCore():getScreenHeight() / 2 - 50,
-            300, 120,
-            getText("UI_BurdJournals_ConfirmOverwrite") or "Overwrite existing content?",
-            true,
-            p,
-            BurdJournals.ContextMenu.onConfirmOverwrite,
-            nil,
-            j
-        )
-        modal:initialise()
-        modal:addToUIManager()
+        local confirmText = getText("UI_BurdJournals_ConfirmOverwrite") or "Overwrite existing content?"
+        if BurdJournals.createAdaptiveModalDialog then
+            BurdJournals.createAdaptiveModalDialog({
+                player = p,
+                target = p,
+                text = confirmText,
+                yesNo = true,
+                onClick = BurdJournals.ContextMenu.onConfirmOverwrite,
+                param2 = j,
+                minWidth = 360,
+                maxWidth = 700,
+                minHeight = 165,
+            })
+        else
+            local modal = ISModalDialog:new(
+                getCore():getScreenWidth() / 2 - 150,
+                getCore():getScreenHeight() / 2 - 50,
+                300, 120,
+                confirmText,
+                true,
+                p,
+                BurdJournals.ContextMenu.onConfirmOverwrite,
+                nil,
+                j
+            )
+            modal:initialise()
+            modal:addToUIManager()
+        end
     end)
 end
 
@@ -1446,19 +1513,33 @@ function BurdJournals.ContextMenu.onDisassembleJournal(player, journal)
         local confirmText = getText("UI_BurdJournals_ConfirmDisassemble") or "Disassemble this journal?"
         confirmText = confirmText .. "\n\nYou will receive:\n2x Paper, 1x Leather Strips"
 
-        local modal = ISModalDialog:new(
-            getCore():getScreenWidth() / 2 - 150,
-            getCore():getScreenHeight() / 2 - 75,
-            300, 150,
-            confirmText,
-            true,
-            p,
-            BurdJournals.ContextMenu.onConfirmDisassemble,
-            nil,
-            j
-        )
-        modal:initialise()
-        modal:addToUIManager()
+        if BurdJournals.createAdaptiveModalDialog then
+            BurdJournals.createAdaptiveModalDialog({
+                player = p,
+                target = p,
+                text = confirmText,
+                yesNo = true,
+                onClick = BurdJournals.ContextMenu.onConfirmDisassemble,
+                param2 = j,
+                minWidth = 380,
+                maxWidth = 760,
+                minHeight = 180,
+            })
+        else
+            local modal = ISModalDialog:new(
+                getCore():getScreenWidth() / 2 - 150,
+                getCore():getScreenHeight() / 2 - 75,
+                300, 150,
+                confirmText,
+                true,
+                p,
+                BurdJournals.ContextMenu.onConfirmDisassemble,
+                nil,
+                j
+            )
+            modal:initialise()
+            modal:addToUIManager()
+        end
     end)
 end
 

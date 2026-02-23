@@ -1,37 +1,24 @@
-﻿Tooltip_TR = {
-    -- Item Tooltips
+Tooltip_TR = {
     Tooltip_BlankSurvivalJournal = "Hayatta kalma bilginizi kaydetmeye hazır boş bir günlük.",
     Tooltip_FilledSurvivalJournal = "Kayıtlı hayatta kalma becerileri içeren bir günlük. Okumak için sağ tıklayın.",
-
-    -- Skill Info
     Tooltip_BurdJournals_ContainsSkills = "%d beceri kayıtlı",
     Tooltip_BurdJournals_RewardsRemaining = "ödül kaldı",
     Tooltip_BurdJournals_SetModeDesc = "Okumak, TP'nizi kayıtlı seviyelere EŞİTLEYECEKTİR (eğer kayıtlı seviye daha yüksekse).",
-
-    -- Tool Requirements
     Tooltip_BurdJournals_NeedPen = "Yazmak için kalem veya kurşun kalem gerektirir.",
     Tooltip_BurdJournals_NeedEraser = "İçeriği silmek için silgi gerektirir.",
-
-    -- Bloody Journal
     Tooltip_BurdJournals_BloodyJournal = "Kanlı Günlük",
     Tooltip_BurdJournals_BloodyJournalDesc = "Düşmüş bir kazazededen kalan günlük. Özümsenebilecek beceriler ve özellikler içerir.",
     Tooltip_BurdJournals_BloodyDesc = "Nadir buluntu! Değerli özellikler içerebilir.",
+    Tooltip_CursedJournal = "A sealed journal that feels wrong to hold.",
+    Tooltip_BurdJournals_CursedJournalName = "Cursed Journal",
+    Tooltip_BurdJournals_CursedJournalDesc = "Breaking the seal marks the first reader, but unlocks a richer bloody reward journal.",
     Tooltip_BurdJournals_ConvertBloodyToClean = "Temiz Günlüğe Dönüştür",
     Tooltip_BurdJournals_ConvertBloodyToCleanDesc = "Bu kanlı günlüğü zanaat menüsünü kullanarak temiz bir kişisel günlüğe dönüştürün.",
-    Tooltip_BurdJournals_ConvertBloodyDesc = "Zanaat menüsünü (B) açarak 'Kanlı Günlüğü Temizle ve Dönüştür' tarifini bulun.",
-    Tooltip_BurdJournals_CraftingRequired = "Zanaat Gerekiyor",
-
-    -- Worn Journal
     Tooltip_BurdJournals_WornJournal = "Yıpranmış Günlük",
     Tooltip_BurdJournals_NeedsCleaning = "Bu günlük okunamayacak kadar yıpranmış.",
     Tooltip_BurdJournals_NeedsCleaningDesc = "Temizlemek için sabun ve bez, yamalamak için koli bandı veya yeniden ciltlemek için deri parçaları kullanın.",
     Tooltip_BurdJournals_AbsorbAll = "Tümünü Özümse",
     Tooltip_BurdJournals_AbsorbAllDesc = "Kalan tüm beceri ve özellikleri tek seferde al. Günlük yok olacaktır.",
-    Tooltip_BurdJournals_AbsorbAllRewards = "Tüm Ödülleri Özümse",
-    Tooltip_BurdJournals_AbsorbAllSkillsTraits = "Tümünü Özümse (%d beceri, %d özellik)",
-    Tooltip_BurdJournals_AbsorbAllSkills = "Tümünü Özümse (%d beceri)",
-
-    -- Personal Journal (Clean)
     Tooltip_BurdJournals_PersonalJournal = "Kişisel Hayatta Kalma Günlüğü",
     Tooltip_BurdJournals_BlankJournal = "Boş Hayatta Kalma Günlüğü",
     Tooltip_BurdJournals_BlankJournalDesc = "Hayatta kalma ilerlemenizi kaydetmek için günlüğü açar.",
@@ -39,17 +26,17 @@
     Tooltip_BurdJournals_RecordProgressDesc = "Mevcut beceri ve özelliklerinizi kaydetmek için günlüğü açar.",
     Tooltip_BurdJournals_ClaimAll = "Tüm Becerileri Al",
     Tooltip_BurdJournals_ClaimAllDesc = "Günlüğü açar ve tüm mevcut becerileri alır.",
-    Tooltip_BurdJournals_UpdateRecords = "Günlük Kayıtlarını Güncelle",
-    Tooltip_BurdJournals_UpdateRecordsDesc = "Kayıtlı becerilerinizi güncellemek için günlüğü açar.",
     Tooltip_BurdJournals_Disassemble = "Günlüğü Parçala",
     Tooltip_BurdJournals_DisassembleDesc = "Malzeme elde etmek için günlüğü parçalara ayırın.",
-    Tooltip_BurdJournals_EraseContents = "Tüm İçeriği Sil",
-    Tooltip_BurdJournals_EraseContentsDesc = "Tüm kayıtlı verileri siler ve günlüğü boş bir hale getirir.",
-
-    -- Tooltip Dynamic Text
     Tooltip_BurdJournals_SkillsAvailable = "Beceriler: %d/%d mevcut",
     Tooltip_BurdJournals_TraitsAvailable = "Özellikler: %d/%d mevcut",
+    Tooltip_BurdJournals_RecipesAvailable = "Tarifler: %d/%d mevcut",
     Tooltip_BurdJournals_NoRewardsFound = "Ödül bulunamadı",
+    Tooltip_BurdJournals_AbsorbAllRewards = "Tüm Ödülleri Özümse",
+    Tooltip_BurdJournals_AbsorbAllSkillsTraits = "Tümünü Özümse (%d beceri, %d özellik)",
+    Tooltip_BurdJournals_AbsorbAllSkills = "Tümünü Özümse (%d beceri)",
+    Tooltip_BurdJournals_CraftingRequired = "Zanaat Gerekiyor",
+    Tooltip_BurdJournals_ConvertBloodyDesc = "Zanaat menüsünü (B) açarak 'Kanlı Günlüğü Temizle ve Dönüştür' tarifini bulun.",
     Tooltip_BurdJournals_WrittenBy = "Yazan: %s",
     Tooltip_BurdJournals_RecordedItem = "%d kayıtlı öğe içeriyor",
     Tooltip_BurdJournals_RecordedItems = "%d kayıtlı öğe içeriyor",
@@ -58,48 +45,45 @@
     Tooltip_BurdJournals_SkillsCount = "- %d beceri",
     Tooltip_BurdJournals_TraitCount = "- %d özellik",
     Tooltip_BurdJournals_TraitsCount = "- %d özellik",
+    Tooltip_BurdJournals_ViewOnly = "Sadece görüntüleme",
+    Tooltip_BurdJournals_CannotClaimDefault = "Bu günlükten bilgi alınamaz.",
+    Tooltip_BurdJournals_NoNewRewards = "Yeni ödül mevcut değil.",
+    Tooltip_BurdJournals_ClaimingInfo = "Almak, TP'nizi kayıtlı seviyeye ayarlar (eğer daha yüksekse).",
+    Tooltip_BurdJournals_UpdateRecords = "Günlük Kayıtlarını Güncelle",
+    Tooltip_BurdJournals_UpdateRecordsDesc = "Kayıtlı becerilerinizi güncellemek için günlüğü açar.",
+    Tooltip_BurdJournals_CannotClaim = "Alınamaz",
+    Tooltip_BurdJournals_NoPermissionClaim = "Bu günlükten bilgi alma izniniz yok.",
     Tooltip_BurdJournals_AvailableSkill = "Mevcut: %d beceri",
     Tooltip_BurdJournals_AvailableSkills = "Mevcut: %d beceri",
     Tooltip_BurdJournals_AndTrait = ", %d özellik",
     Tooltip_BurdJournals_AndTraits = ", %d özellik",
     Tooltip_BurdJournals_ReadingSpeedNote = "Bu işlem okuma hızınıza bağlı olarak zaman alacaktır.",
-    Tooltip_BurdJournals_NoNewRewards = "Yeni ödül mevcut değil.",
-    Tooltip_BurdJournals_ClaimingInfo = "Almak, TP'nizi kayıtlı seviyeye ayarlar (eğer daha yüksekse).",
-    Tooltip_BurdJournals_ViewOnly = "Sadece görüntüleme",
-    Tooltip_BurdJournals_CannotClaimDefault = "Bu günlükten bilgi alınamaz.",
-    Tooltip_BurdJournals_CannotClaim = "Alınamaz",
-    Tooltip_BurdJournals_NoPermissionClaim = "Bu günlükten bilgi alma izniniz yok.",
+    Tooltip_BurdJournals_EraseContents = "Tüm İçeriği Sil",
+    Tooltip_BurdJournals_EraseContentsDesc = "Tüm kayıtlı verileri siler ve günlüğü boş bir hale getirir.",
     Tooltip_BurdJournals_CannotOpen = "Açılamaz",
-
-    -- Conversion
     Tooltip_BurdJournals_ConvertToClean = "Kişisel Hayatta Kalma Günlüğü Olarak Yeniden Ciltle",
     Tooltip_BurdJournals_ConvertToCleanDesc = "Bu yıpranmış günlüğü kişisel kullanım için temiz, boş bir günlüğe dönüştürün.",
     Tooltip_BurdJournals_CannotConvert = "Dönüştürülemez",
     Tooltip_BurdJournals_NeedsConvertMaterials = "Gereksinim: Deri Parçaları + İp + İğne + Terzilik Sv 1",
-
-    -- Materials
     Tooltip_BurdJournals_MissingMaterials = "Eksik Malzeme",
     Tooltip_BurdJournals_NeedsSoapCloth = "Gereksinim: Sabun + Yırtık Kumaş veya Mutfak Bezi",
     Tooltip_BurdJournals_NeedsTape = "Gereksinim: Koli Bandı",
     Tooltip_BurdJournals_NeedsLeatherBinding = "Gereksinim: Deri Parçaları + İp + İğne",
     Tooltip_BurdJournals_NeedsGluePaper = "Gereksinim: Yapıştırıcı + Kağıt Sayfası",
-
-    -- Illiterate Trait Block
     Tooltip_BurdJournals_IlliterateName = "Okuma-Yazma Bilmiyor",
     Tooltip_BurdJournals_IlliterateDesc = "Okuyamaz veya yazamazsınız. Günlükler sizin için işe yaramaz.",
-
-    -- Inventory Tooltip Labels
     Tooltip_BurdJournals_Owner = "Sahibi: %s",
     Tooltip_BurdJournals_OwnerYou = "(Siz)",
     Tooltip_BurdJournals_Author = "Yazar: %s",
+    Tooltip_BurdJournals_Contributors = "Katkıda Bulunanlar: %s",
     Tooltip_BurdJournals_Profession = "Meslek: %s",
     Tooltip_BurdJournals_SkillsLine = "Beceriler: %d/%d",
     Tooltip_BurdJournals_SkillsLineXP = "Beceriler: %d/%d (%s TP)",
-    Tooltip_BurdJournals_RecipesLine = "Tarifler: %d/%d",
-    Tooltip_BurdJournals_RecipesAvailable = "Tarifler: %d/%d mevcut",
     Tooltip_BurdJournals_AllClaimed = "(hepsi alındı)",
     Tooltip_BurdJournals_TraitsLine = "Özellikler: %d/%d",
+    Tooltip_BurdJournals_RecipesLine = "Tarifler: %d/%d",
     Tooltip_BurdJournals_ConditionBloody = "Durum: Kanlı",
+    Tooltip_BurdJournals_TagCursed = "[Cursed]",
     Tooltip_BurdJournals_ConditionWorn = "Durum: Yıpranmış",
     Tooltip_BurdJournals_ConditionRestored = "Durum: Onarılmış",
     Tooltip_BurdJournals_ConditionClean = "Durum: Temiz",
@@ -113,8 +97,4 @@
     Tooltip_BurdJournals_AgeToday = "Bugün",
     Tooltip_BurdJournals_Age1Day = "1 gün önce",
     Tooltip_BurdJournals_AgeDays = "%d gün önce",
-    Tooltip_BurdJournals_Contributors = "Katkıda Bulunanlar: %s",
 }
-
-
-

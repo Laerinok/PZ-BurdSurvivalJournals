@@ -397,6 +397,24 @@ local function isSkillRecordableInPlayerJournal(skillName)
     return BurdJournals.isSkillEnabledForJournal({isPlayerCreated = true}, skillName)
 end
 
+local function hasEntries(map)
+    if type(map) ~= "table" then
+        return false
+    end
+    for _ in pairs(map) do
+        return true
+    end
+    return false
+end
+
+local function hasTraitEntriesForJournal(journalData)
+    return type(journalData) == "table" and hasEntries(journalData.traits)
+end
+
+local function hasRecipeEntriesForJournal(journalData)
+    return type(journalData) == "table" and hasEntries(journalData.recipes)
+end
+
 local function createClaimSessionId()
     local now = getTimestampMs and getTimestampMs() or 0
     local rand = ZombRand and ZombRand(1000000) or math.floor(math.random() * 1000000)
@@ -2014,9 +2032,7 @@ function BurdJournals.UI.MainPanel:createAbsorptionUI()
             end
         end
     end
-    -- Count traits if journal is from bloody origin OR debug spawned
-    local isDebugJournal = journalData and journalData.isDebugSpawned
-    if (hasBloodyOrigin or isDebugJournal) and journalData and journalData.traits then
+    if hasTraitEntriesForJournal(journalData) then
         for traitId, _ in pairs(journalData.traits) do
             totalTraitCount = totalTraitCount + 1
             if not BurdJournals.hasCharacterClaimedTrait(journalData, self.player, traitId) then
@@ -2052,9 +2068,7 @@ function BurdJournals.UI.MainPanel:createAbsorptionUI()
 
     local tabs = {{id = "skills", label = getText("UI_BurdJournals_TabSkills")}}
     -- Check if this is a debug-spawned journal (bypasses origin restrictions)
-    local isDebugSpawned = journalData and journalData.isDebugSpawned
-    -- Only show traits tab if enabled and journal has traits (or debug spawned)
-    if (hasBloodyOrigin or isDebugSpawned) and totalTraitCount > 0 and BurdJournals.areTraitsEnabledForJournal(journalData) then
+    if totalTraitCount > 0 then
         table.insert(tabs, {id = "traits", label = getText("UI_BurdJournals_TabTraits")})
     end
     if hasForgetSlot and not forgetClaimed then
@@ -2069,8 +2083,7 @@ function BurdJournals.UI.MainPanel:createAbsorptionUI()
             }
         })
     end
-    -- Only show recipes tab if enabled and journal has recipes
-    if totalRecipeCount > 0 and BurdJournals.areRecipesEnabledForJournal(journalData) then
+    if totalRecipeCount > 0 then
         table.insert(tabs, {id = "recipes", label = getText("UI_BurdJournals_TabRecipes")})
     end
 
@@ -2258,19 +2271,30 @@ function BurdJournals.UI.MainPanel:onDissolveJournal()
 
     -- Show confirmation dialog
     local confirmText = getText("UI_BurdJournals_ConfirmDissolve") or "Are you sure you want to dissolve this journal? This cannot be undone."
-    local titleText = getText("UI_BurdJournals_DissolveTitle") or "Dissolve Journal"
-
-    local modal = ISModalDialog:new(
-        getCore():getScreenWidth() / 2 - 150,
-        getCore():getScreenHeight() / 2 - 50,
-        300, 100,
-        confirmText,
-        true,
-        self,
-        BurdJournals.UI.MainPanel.onDissolveConfirm
-    )
-    modal:initialise()
-    modal:addToUIManager()
+    if BurdJournals.createAdaptiveModalDialog then
+        BurdJournals.createAdaptiveModalDialog({
+            player = self.player,
+            target = self,
+            text = confirmText,
+            yesNo = true,
+            onClick = BurdJournals.UI.MainPanel.onDissolveConfirm,
+            minWidth = 360,
+            maxWidth = 700,
+            minHeight = 165,
+        })
+    else
+        local modal = ISModalDialog:new(
+            getCore():getScreenWidth() / 2 - 150,
+            getCore():getScreenHeight() / 2 - 50,
+            300, 100,
+            confirmText,
+            true,
+            self,
+            BurdJournals.UI.MainPanel.onDissolveConfirm
+        )
+        modal:initialise()
+        modal:addToUIManager()
+    end
 end
 
 function BurdJournals.UI.MainPanel:onDissolveConfirm(button)
@@ -2279,18 +2303,15 @@ function BurdJournals.UI.MainPanel:onDissolveConfirm(button)
 
     local player = self.player
     local journal = self.journal
-    local journalData = BurdJournals.getJournalData(journal)
-    local isDebugSpawned = journalData and journalData.isDebugSpawned
 
     -- Remove the journal
     local message = BurdJournals.getRandomDissolutionMessage and BurdJournals.getRandomDissolutionMessage() or "The journal crumbles to dust..."
 
     if isClient() and not isServer() then
         -- In MP, send command to server to remove
-        -- Use debug dissolve for debug-spawned journals (bypasses restrictions)
-        local command = isDebugSpawned and "debugDissolveJournal" or "dissolveJournal"
-        BurdJournals.debugPrint("[BurdJournals] Dissolving via " .. command .. " (debug=" .. tostring(isDebugSpawned) .. ")")
-        sendClientCommand(player, "BurdJournals", command, {
+        -- Keep dissolve UX consistent for all journals, including debug-spawned.
+        BurdJournals.debugPrint("[BurdJournals] Dissolving via dissolveJournal")
+        sendClientCommand(player, "BurdJournals", "dissolveJournal", {
             journalId = journal:getID()
         })
     else
@@ -3117,12 +3138,29 @@ function BurdJournals.UI.MainPanel.doDrawAbsorptionItem(self, y, item, alt)
     return y + h
 end
 
+local function clearListBoxFully(listbox)
+    if not listbox or not listbox.clear then
+        return
+    end
+
+    listbox:clear()
+
+    -- Vanilla ISScrollingListBox:clear() does not reset scroll height.
+    -- Repeated refreshes can otherwise accumulate phantom scroll range.
+    if listbox.setScrollHeight then
+        listbox:setScrollHeight(0)
+    end
+    if listbox.vscroll then
+        listbox.vscroll.scrolling = false
+    end
+    listbox.smoothScrollTargetY = nil
+    listbox.smoothScrollY = nil
+end
+
 function BurdJournals.UI.MainPanel:populateAbsorptionList()
-    self.skillList:clear()
+    clearListBoxFully(self.skillList)
 
     local journalData = BurdJournals.getJournalData(self.journal)
-    local hasBloodyOrigin = BurdJournals.hasBloodyOrigin(self.journal)
-    local isDebugSpawned = journalData and journalData.isDebugSpawned
     local currentTab = self.currentTab or "skills"
 
     if currentTab == "skills" then
@@ -3184,7 +3222,7 @@ function BurdJournals.UI.MainPanel:populateAbsorptionList()
         local hasTraitEntries = false
         local matchCount = 0
 
-        if (hasBloodyOrigin or isDebugSpawned) and journalData and journalData.traits then
+        if hasTraitEntriesForJournal(journalData) then
             for traitId, traitData in pairs(journalData.traits) do
                 hasTraitEntries = true
                 local isClaimed = BurdJournals.hasCharacterClaimedTrait(journalData, self.player, traitId)
@@ -3306,9 +3344,6 @@ function BurdJournals.UI.MainPanel:refreshAbsorptionList()
     BurdJournals.debugPrint("[BurdJournals] UI: refreshAbsorptionList called")
 
     local journalData = BurdJournals.getJournalData(self.journal)
-    local hasBloodyOrigin = BurdJournals.hasBloodyOrigin(self.journal)
-    local isDebugSpawned = journalData and journalData.isDebugSpawned
-
     local claimedCount = journalData and journalData.claimedSkills and BurdJournals.countTable(journalData.claimedSkills) or 0
     BurdJournals.debugPrint("[BurdJournals] UI: refreshAbsorptionList sees claimedSkills count: " .. tostring(claimedCount))
 
@@ -3330,7 +3365,7 @@ function BurdJournals.UI.MainPanel:refreshAbsorptionList()
             end
         end
     end
-    if (hasBloodyOrigin or isDebugSpawned) and journalData and journalData.traits then
+    if hasTraitEntriesForJournal(journalData) then
         for traitId, _ in pairs(journalData.traits) do
             if not BurdJournals.hasCharacterClaimedTrait(journalData, self.player, traitId) then
                 traitCount = traitCount + 1
@@ -3590,8 +3625,6 @@ function BurdJournals.UI.MainPanel:startLearningAll()
     if not journalData then return false end
 
     local isPlayerJournal = self.isPlayerJournal or self.mode == "view"
-    local hasBloodyOrigin = BurdJournals.hasBloodyOrigin(self.journal)
-    local isDebugSpawned = journalData and journalData.isDebugSpawned
     local pendingRewards = {}
 
     if journalData.skills then
@@ -3622,7 +3655,7 @@ function BurdJournals.UI.MainPanel:startLearningAll()
         end
     end
 
-    local hasTraits = (isPlayerJournal and journalData.traits) or (hasBloodyOrigin and journalData.traits) or (isDebugSpawned and journalData.traits)
+    local hasTraits = hasTraitEntriesForJournal(journalData)
     if hasTraits then
         for traitId, _ in pairs(journalData.traits) do
             local shouldInclude = false
@@ -3733,8 +3766,6 @@ function BurdJournals.UI.MainPanel:startLearningTab(tabId)
     if not journalData then return false end
 
     local isPlayerJournal = self.isPlayerJournal or self.mode == "view"
-    local hasBloodyOrigin = BurdJournals.hasBloodyOrigin(self.journal)
-    local isDebugSpawned = journalData and journalData.isDebugSpawned
     local pendingRewards = {}
 
     if tabId == "skills" then
@@ -3770,7 +3801,7 @@ function BurdJournals.UI.MainPanel:startLearningTab(tabId)
 
     elseif tabId == "traits" then
 
-        local hasTraits = (isPlayerJournal and journalData.traits) or (hasBloodyOrigin and journalData.traits) or (isDebugSpawned and journalData.traits)
+        local hasTraits = hasTraitEntriesForJournal(journalData)
         if hasTraits then
             for traitId, _ in pairs(journalData.traits) do
                 local shouldInclude = false
@@ -5249,6 +5280,7 @@ end
 
 function BurdJournals.UI.MainPanel:sendClaimTrait(traitId, skipDissolutionCheck)
     local journalId = self.journal:getID()
+    local numericJournalId = tonumber(journalId) or 0
     local journalData = BurdJournals.getJournalData(self.journal)
 
     -- Debug logging
@@ -5268,7 +5300,15 @@ function BurdJournals.UI.MainPanel:sendClaimTrait(traitId, skipDissolutionCheck)
 
     -- For debug-spawned journals in MP, use the debug command to add trait
     -- (normal claim flow fails because server can't find client-spawned items)
-    if journalData and journalData.isDebugSpawned and isClient() and not isServer() then
+    local useClientOnlyDebugPath = journalData and journalData.isDebugSpawned and isClient() and not isServer()
+    if useClientOnlyDebugPath and self.journal and self.journal.__bsjServerProxy then
+        useClientOnlyDebugPath = true
+    elseif useClientOnlyDebugPath and numericJournalId > 0 then
+        -- Server-backed debug journals should use normal claim flow so claim state is authoritative.
+        useClientOnlyDebugPath = false
+    end
+
+    if useClientOnlyDebugPath then
         BurdJournals.debugPrint("[BurdJournals] Debug journal detected - using debug trait add")
         sendClientCommand(self.player, "BurdJournals", "debugAddTrait", {
             traitId = traitId
@@ -6629,7 +6669,7 @@ end
 -- Legacy baseline debug functions removed - use BSJ Debug Center (Baseline tab) instead
 
 function BurdJournals.UI.MainPanel:populateRecordList(overrideData)
-    self.skillList:clear()
+    clearListBoxFully(self.skillList)
 
     local journalData
     if overrideData then
@@ -7625,12 +7665,10 @@ function BurdJournals.UI.MainPanel:createViewUI()
     self.totalXP = totalXP
 
     local tabs = {{id = "skills", label = getText("UI_BurdJournals_TabSkills")}}
-    -- Only show traits tab if enabled and journal has traits
-    if totalTraitCount > 0 and BurdJournals.areTraitsEnabledForJournal(journalData) then
+    if totalTraitCount > 0 then
         table.insert(tabs, {id = "traits", label = getText("UI_BurdJournals_TabTraits")})
     end
-    -- Only show recipes tab if enabled and journal has recipes
-    if totalRecipeCount > 0 and BurdJournals.areRecipesEnabledForJournal(journalData) then
+    if totalRecipeCount > 0 then
         table.insert(tabs, {id = "recipes", label = getText("UI_BurdJournals_TabRecipes")})
     end
     if totalStatCount > 0 then
@@ -7793,7 +7831,7 @@ function BurdJournals.UI.MainPanel:createViewUI()
 end
 
 function BurdJournals.UI.MainPanel:populateViewList()
-    self.skillList:clear()
+    clearListBoxFully(self.skillList)
 
     local journalData = BurdJournals.getJournalData(self.journal)
     local currentTab = self.currentTab or "skills"

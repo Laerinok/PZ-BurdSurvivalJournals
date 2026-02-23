@@ -1,38 +1,27 @@
 IG_UI_ES = {
-    -- Context Menu - Main Options
     ContextMenu_BurdJournals_OpenJournal = "Abrir Diario...",
     ContextMenu_BurdJournals_Read = "Leer",
     ContextMenu_BurdJournals_Rename = "Renombrar",
     ContextMenu_BurdJournals_EraseJournal = "Borrar Diario",
     ContextMenu_BurdJournals_RecordProgress = "Registrar Progreso",
-
-    -- Context Menu - Clean/Repair
     ContextMenu_BurdJournals_CleanRepair = "Limpiar/Reparar",
     ContextMenu_BurdJournals_CleanSoap = "Limpiar con Jabon y Pano",
     ContextMenu_BurdJournals_RepairTape = "Parchear con Cinta Americana",
     ContextMenu_BurdJournals_RepairLeather = "Reencuadernar con Cuero",
     ContextMenu_BurdJournals_RepairGlue = "Pegar Paginas",
-
-    -- UI Panel Titles
     UI_BurdJournals_BlankJournal = "Diario de Supervivencia En Blanco",
     UI_BurdJournals_FilledJournal = "Diario de Supervivencia Lleno",
     UI_BurdJournals_WornJournal = "Diario de Supervivencia Desgastado",
-
-    -- Data Category Headers
     UI_BurdJournals_CategoryCharacter = "Info del Personaje",
     UI_BurdJournals_CategorySurvival = "Registro de Supervivencia",
     UI_BurdJournals_CategoryKills = "Conteo de Bajas",
     UI_BurdJournals_CategoryTraits = "Rasgos de Personalidad",
     UI_BurdJournals_CategorySkills = "Habilidades Aprendidas",
-
-    -- UI Panel Labels
     UI_BurdJournals_Author = "Autor",
     UI_BurdJournals_Written = "Escrito",
     UI_BurdJournals_TimesRead = "Veces Leido",
     UI_BurdJournals_Condition = "Condicion",
     UI_BurdJournals_NeedsCleaning = "Necesita Limpieza",
-
-    -- UI Buttons
     UI_BurdJournals_SelectAll = "Seleccionar Todo",
     UI_BurdJournals_DeselectAll = "Deseleccionar Todo",
     UI_BurdJournals_Log = "Registrar Habilidades",
@@ -40,44 +29,30 @@ IG_UI_ES = {
     UI_BurdJournals_Update = "Actualizar",
     UI_BurdJournals_Erase = "Borrar",
     UI_BurdJournals_Close = "Cerrar",
-
-    -- Confirmation Dialogs
     UI_BurdJournals_ConfirmErase = "Estas seguro de querer borrar este diario? Todas las habilidades registradas se perderan para siempre.",
     UI_BurdJournals_ConfirmOverwrite = "Esto sobrescribira el contenido actual del diario con tus habilidades actuales. Estas seguro?",
     UI_BurdJournals_RenamePrompt = "Ingresa un nuevo nombre para este diario:",
     UI_BurdJournals_NoSkillsSelected = "Selecciona al menos una habilidad primero.",
     UI_BurdJournals_NoSkillsInJournal = "Este diario no contiene habilidades para aprender.",
-
-    -- Condition States
     UI_BurdJournals_ConditionPristine = "Impecable",
     UI_BurdJournals_ConditionGood = "Buena",
     UI_BurdJournals_ConditionWorn = "Desgastada",
     UI_BurdJournals_ConditionDamaged = "Danada",
     UI_BurdJournals_ConditionCritical = "Critica",
-
-    -- Inspect Messages
     UI_BurdJournals_InspectBlank = "Un diario en blanco en condicion %1.",
     UI_BurdJournals_InspectFilled = "Un diario escrito por %1. Condicion: %2",
-
-    -- Tooltips - Journal Info
     Tooltip_BlankSurvivalJournal = "Un diario en blanco listo para registrar tu conocimiento de supervivencia.",
     Tooltip_FilledSurvivalJournal = "Un diario que contiene habilidades de supervivencia registradas. Clic derecho para leer.",
     Tooltip_BurdJournals_ContainsSkills = "Contiene %1 habilidad(es) registrada(s)",
-
-    -- Tooltips - Requirements
     Tooltip_BurdJournals_NeedPen = "Requiere un boligrafo o lapiz para escribir.",
     Tooltip_BurdJournals_NeedEraser = "Requiere un borrador para limpiar el contenido.",
     Tooltip_BurdJournals_NeedsCleaning = "Este diario esta demasiado desgastado para leer.",
     Tooltip_BurdJournals_NeedsCleaningDesc = "Usa jabon y pano para limpiarlo, cinta americana para parchearlo, o tiras de cuero para reencuadernarlo.",
-
-    -- Tooltips - Cleaning Materials
     Tooltip_BurdJournals_MissingMaterials = "Faltan Materiales",
     Tooltip_BurdJournals_NeedsSoapCloth = "Requiere: Jabon + Jirones de Tela o Pano de Cocina",
     Tooltip_BurdJournals_NeedsTape = "Requiere: Cinta Americana",
     Tooltip_BurdJournals_NeedsLeatherBinding = "Requiere: Tiras de Cuero + Hilo + Aguja",
     Tooltip_BurdJournals_NeedsGluePaper = "Requiere: Pegamento + Hoja de Papel",
-
-    -- Feedback Messages
     UI_BurdJournals_SkillsLogged = "Habilidades registradas en el diario.",
     UI_BurdJournals_SkillsLearned = "Conocimiento absorbido del diario!",
     UI_BurdJournals_JournalErased = "Contenido del diario borrado.",

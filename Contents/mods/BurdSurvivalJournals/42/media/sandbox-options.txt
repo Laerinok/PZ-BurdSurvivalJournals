@@ -19,6 +19,13 @@ option BurdJournals.EnablePlayerJournals = {
     translation = BurdJournals_EnablePlayerJournals,
 }
 
+option BurdJournals.EnablePlayerJournalCrafting = {
+    type = boolean,
+    default = true,
+    page = BurdJournals_Player,
+    translation = BurdJournals_EnablePlayerJournalCrafting,
+}
+
 /* XP Recovery Mode (Clean Journals - SET mode) */
 option BurdJournals.XPRecoveryMode = {
     type = enum,
@@ -739,6 +746,44 @@ option BurdJournals.AllowMutualExclusionCancellation = {
     default = true,
     page = BurdJournals_Advanced,
     translation = BurdJournals_AllowMutualExclusionCancellation,
+}
+
+/* Baseline Snapshot Manager (server-authoritative recovery) */
+option BurdJournals.EnableBaselineSnapshots = {
+    type = boolean,
+    default = true,
+    page = BurdJournals_Advanced,
+    translation = BurdJournals_EnableBaselineSnapshots,
+}
+
+option BurdJournals.BaselineSnapshotsPerSteamLimit = {
+    type = integer,
+    min = 1,
+    max = 500,
+    default = 50,
+    page = BurdJournals_Advanced,
+    translation = BurdJournals_BaselineSnapshotsPerSteamLimit,
+}
+
+option BurdJournals.BaselineSnapshotsAutoCapture = {
+    type = boolean,
+    default = true,
+    page = BurdJournals_Advanced,
+    translation = BurdJournals_BaselineSnapshotsAutoCapture,
+}
+
+option BurdJournals.BaselineSnapshotsCaptureOnDeath = {
+    type = boolean,
+    default = true,
+    page = BurdJournals_Advanced,
+    translation = BurdJournals_BaselineSnapshotsCaptureOnDeath,
+}
+
+option BurdJournals.BaselineSnapshotsProtectOnRestore = {
+    type = boolean,
+    default = false,
+    page = BurdJournals_Advanced,
+    translation = BurdJournals_BaselineSnapshotsProtectOnRestore,
 }
 
 /* ============================================================ */
